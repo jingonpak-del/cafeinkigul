@@ -1,0 +1,30 @@
+# --- 민감/런타임 데이터 (절대 커밋 금지) ---
+data/sessions/          # DPAPI로 암호화된 네이버 로그인 쿠키
+data/*.db               # 크롤된 게시글/댓글 DB
+data/
+*.session
+
+# 구글 서비스계정 / 인증
+credentials.json
+token.json
+*-*.json.key
+service_account*.json
+
+# 참고용 샘플 프로그램 (제3자 컴파일 바이너리 — 커밋 제외)
+샘플 프로그램/
+*.exe
+*.dll
+*.mp4
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# OS / IDE
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/

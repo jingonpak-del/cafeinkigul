@@ -1,0 +1,13 @@
+{
+  "account": "내네이버아이디",
+  "cafes": [
+    {
+      "cluburl": "masanmam",
+      "club_id": 14793916,
+      "boards": [
+        { "type": "menu", "menu_id": 70, "name": "여왕X여신X명예수다" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    }
+  ]
+}

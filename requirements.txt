@@ -1,0 +1,4 @@
+httpx>=0.28
+selenium>=4.20
+undetected-chromedriver>=3.5
+beautifulsoup4>=4.12
