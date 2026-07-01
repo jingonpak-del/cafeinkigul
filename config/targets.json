@@ -1,5 +1,11 @@
 {
   "account": "내네이버아이디",
+  "sheets": {
+    "credentials_path": "C:\\Users\\USER\\cwnews\\credentials.json",
+    "service_account_email": "cwcrawler@zumma-81454.iam.gserviceaccount.com",
+    "spreadsheet_id": "1XwMXJ8YpYNSopQERLzCuvKFQeRSFPjFepFTuYNZbKlU",
+    "share_with": "jingon.pak@gmail.com"
+  },
   "cafes": [
     {
       "cluburl": "masanmam",

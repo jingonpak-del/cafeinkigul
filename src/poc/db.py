@@ -147,6 +147,25 @@ class Database:
         )
         self.conn.commit()
 
+    # --- export --------------------------------------------------------------
+    def all_articles_with_boards(self):
+        """각 글 + 그 글이 감지된 보드(들)를 합쳐 반환 (시트 적재용)."""
+        return self.conn.execute(
+            """SELECT a.*,
+                      (SELECT group_concat(board_key, ',') FROM board_detections d
+                       WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id) AS board_keys
+               FROM articles a ORDER BY a.first_seen_at"""
+        ).fetchall()
+
+    def comments_for(self, cafe_id, article_id, phase: str | None = None):
+        if phase:
+            return self.conn.execute(
+                "SELECT * FROM comments WHERE cafe_id=? AND article_id=? AND phase=? ORDER BY comment_id",
+                (cafe_id, article_id, phase)).fetchall()
+        return self.conn.execute(
+            "SELECT * FROM comments WHERE cafe_id=? AND article_id=? ORDER BY comment_id",
+            (cafe_id, article_id)).fetchall()
+
     # --- stats ---------------------------------------------------------------
     def counts(self) -> dict:
         c = self.conn.execute

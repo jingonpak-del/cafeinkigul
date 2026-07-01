@@ -130,6 +130,48 @@ def cmd_watch(args):
         client.close(); db.close()
 
 
+def cmd_export_sheets(args):
+    """DB에 쌓인 글/댓글을 구글시트로 적재."""
+    from .db import Database
+    from .sheets import SheetsSink, COMMENT_HEADER
+    from datetime import datetime
+
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    s = cfg["sheets"]
+    sid = args.sheet or s.get("spreadsheet_id")
+    if not sid:
+        print("스프레드시트 ID가 없습니다. config의 sheets.spreadsheet_id를 채우거나 --sheet 로 지정하세요.")
+        print("→ 시트를 만들고 다음 계정을 '편집자'로 공유하세요:", s.get("service_account_email"))
+        return
+    cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
+    sink = SheetsSink(s["credentials_path"], spreadsheet_id=sid)
+    db = Database(DB_PATH)
+    try:
+        arts = db.all_articles_with_boards()
+        a_rows, c_rows = [], []
+        for a in arts:
+            url = f"https://cafe.naver.com/ca-fe/cafes/{a['cafe_id']}/articles/{a['article_id']}"
+            a_rows.append(sink.article_row({
+                "first_seen_at": a["first_seen_at"], "cluburl": cluburl.get(a["cafe_id"], a["cafe_id"]),
+                "board_key": a["board_keys"] or "", "menu_id": a["menu_id"], "article_id": a["article_id"],
+                "title": a["title"], "writer_nickname": a["writer_nickname"], "url": url,
+                "write_ts": a["write_ts"], "first_read_count": a["first_read_count"],
+                "first_comment_count": a["first_comment_count"], "like_count": a["like_count"],
+                "second_read_count": a["second_read_count"], "read_delta": a["read_delta"],
+                "second_comment_count": a["second_comment_count"], "content_text": a["content_text"],
+            }))
+            for c in db.comments_for(a["cafe_id"], a["article_id"]):
+                c_rows.append([a["article_id"], a["title"], c["comment_id"], c["writer_nickname"],
+                               c["content"], datetime.fromtimestamp((c["update_ts"] or 0)/1000).strftime("%Y-%m-%d %H:%M:%S") if c["update_ts"] else "",
+                               "Y" if c["is_reply"] else "", c["phase"]])
+        sink.append_articles(a_rows)
+        sink.append_comments(c_rows)
+        print(f"적재 완료: 글 {len(a_rows)}행, 댓글 {len(c_rows)}행")
+        print("시트:", sink.url)
+    finally:
+        db.close()
+
+
 def cmd_stats(args):
     from .db import Database
     db = Database(DB_PATH)
@@ -166,6 +208,10 @@ def main(argv=None):
     sp.add_argument("--gap", type=float, default=1.0, help="요청 간 최소 간격(초)")
     sp.add_argument("--revisit-after", dest="revisit_after", type=int, default=4 * 3600)
     sp.set_defaults(func=cmd_watch)
+
+    sp = sub.add_parser("export-sheets", help="DB의 글/댓글을 구글시트로 적재")
+    sp.add_argument("--sheet", help="스프레드시트 ID (없으면 config 사용)")
+    sp.set_defaults(func=cmd_export_sheets)
 
     sp = sub.add_parser("stats", help="DB 적재 현황")
     sp.set_defaults(func=cmd_stats)
