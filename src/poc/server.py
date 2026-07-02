@@ -1,0 +1,190 @@
+"""FastAPI 대시보드 서버 — 중앙 서버 형태.
+
+- REST: 최근 글 목록/상세/통계 (SQLite 읽기)
+- WebSocket: Watcher가 감지한 신규/재방문 이벤트를 접속 브라우저들에 실시간 push
+- Watcher를 백그라운드 스레드로 함께 구동 (config에 세션/시트 있으면 자동 활용)
+
+실행:  python -m src.poc.server            (워처 포함)
+       python -m src.poc.server --no-watch  (DB 뷰어만)
+접속:  http://localhost:8000  (같은 네트워크의 다른 PC는 http://<서버IP>:8000)
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import sqlite3
+import threading
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+ROOT = Path(__file__).resolve().parents[2]
+DB_PATH = ROOT / "data" / "tracker.db"
+CONFIG_PATH = ROOT / "config" / "targets.json"
+STATIC = Path(__file__).resolve().parent / "static"
+
+
+def _row_conn():
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _fmt(ms):
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M") if ms else ""
+
+
+# ── WebSocket 브로드캐스트 ────────────────────────────────────────────────
+class Hub:
+    def __init__(self):
+        self.clients: set[WebSocket] = set()
+        self.loop: asyncio.AbstractEventLoop | None = None
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.clients.add(ws)
+
+    def disconnect(self, ws: WebSocket):
+        self.clients.discard(ws)
+
+    async def _send_all(self, msg: dict):
+        dead = []
+        for ws in list(self.clients):
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+    def broadcast_threadsafe(self, msg: dict):
+        """워처 스레드에서 호출 — 서버 이벤트루프로 안전하게 넘김."""
+        if self.loop:
+            asyncio.run_coroutine_threadsafe(self._send_all(msg), self.loop)
+
+
+hub = Hub()
+app = FastAPI(title="인기글 트래커")
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return (STATIC / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/stats")
+def stats():
+    c = _row_conn()
+    try:
+        q = c.execute
+        return {
+            "articles": q("SELECT COUNT(*) FROM articles").fetchone()[0],
+            "comments": q("SELECT COUNT(*) FROM comments").fetchone()[0],
+            "revisited": q("SELECT COUNT(*) FROM articles WHERE revisit_done=1").fetchone()[0],
+            "pending_revisit": q("SELECT COUNT(*) FROM articles WHERE revisit_done=0").fetchone()[0],
+        }
+    finally:
+        c.close()
+
+
+@app.get("/api/articles")
+def articles(limit: int = 100, board: str = "", q: str = ""):
+    conn = _row_conn()
+    try:
+        sql = ["""SELECT a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname,
+                         a.write_ts, a.first_seen_at, a.first_read_count, a.first_comment_count,
+                         a.like_count, a.second_read_count, a.read_delta, a.revisit_done,
+                         (SELECT group_concat(board_key, ',') FROM board_detections d
+                          WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id) AS boards
+                  FROM articles a"""]
+        where, params = [], []
+        if q:
+            where.append("a.title LIKE ?"); params.append(f"%{q}%")
+        if where:
+            sql.append("WHERE " + " AND ".join(where))
+        sql.append("ORDER BY a.first_seen_at DESC LIMIT ?"); params.append(limit)
+        rows = [dict(r) for r in conn.execute(" ".join(sql), params).fetchall()]
+        for r in rows:
+            r["write_str"] = _fmt(r["write_ts"])
+            r["seen_str"] = _fmt(r["first_seen_at"])
+            r["url"] = f"https://cafe.naver.com/ca-fe/cafes/{r['cafe_id']}/articles/{r['article_id']}"
+        if board:
+            rows = [r for r in rows if r["boards"] and board in r["boards"]]
+        return rows
+    finally:
+        conn.close()
+
+
+@app.get("/api/articles/{cafe_id}/{article_id}")
+def article_detail(cafe_id: int, article_id: int):
+    conn = _row_conn()
+    try:
+        a = conn.execute("SELECT * FROM articles WHERE cafe_id=? AND article_id=?",
+                         (cafe_id, article_id)).fetchone()
+        if not a:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        comments = [dict(r) for r in conn.execute(
+            """SELECT * FROM comments WHERE cafe_id=? AND article_id=? AND phase='first'
+               ORDER BY comment_id""", (cafe_id, article_id)).fetchall()]
+        d = dict(a)
+        d["write_str"] = _fmt(d["write_ts"])
+        d["comments"] = comments
+        return d
+    finally:
+        conn.close()
+
+
+@app.websocket("/ws")
+async def ws_endpoint(ws: WebSocket):
+    await hub.connect(ws)
+    try:
+        while True:
+            await ws.receive_text()   # keepalive / ignore client msgs
+    except WebSocketDisconnect:
+        hub.disconnect(ws)
+
+
+# ── Watcher 백그라운드 구동 ───────────────────────────────────────────────
+def _start_watcher():
+    from . import watcher
+    cfg, db, client = watcher.build(None, DB_PATH, CONFIG_PATH)
+    buf = None
+    s = cfg.get("sheets", {})
+    if s.get("spreadsheet_id"):
+        try:
+            from .sheets import SheetsSink, SheetsBuffer
+            buf = SheetsBuffer(SheetsSink(s["credentials_path"], spreadsheet_id=s["spreadsheet_id"]))
+        except Exception as e:
+            print("시트 비활성:", e)
+    def emit(kind: str, payload: dict):
+        hub.broadcast_threadsafe({"type": kind, **payload})
+
+    w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit)
+    print(f"Watcher 백그라운드 시작 — {len(w.boards)}개 보드")
+    w.run(tick_s=1.0)
+
+
+@app.on_event("startup")
+async def _startup():
+    hub.loop = asyncio.get_running_loop()
+    if app.state.watch:
+        threading.Thread(target=_start_watcher, daemon=True).start()
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--host", default="0.0.0.0")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--no-watch", action="store_true", help="워처 없이 DB 뷰어만")
+    args = p.parse_args()
+    app.state.watch = not args.no_watch
+    import uvicorn
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

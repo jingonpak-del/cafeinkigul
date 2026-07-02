@@ -52,7 +52,21 @@ python -m src.poc.cli watch --tick 1 --gap 1
 
 # DB 현황
 python -m src.poc.cli stats
+
+# 5) 웹 대시보드 (워처 포함) — 브라우저로 실시간 보기
+python -m src.poc.server
+#   → http://localhost:8000  접속
+#   → 같은 네트워크의 다른 PC는 http://<서버IP>:8000
 ```
+
+## 웹 대시보드
+
+`python -m src.poc.server` 실행 시:
+- 중앙 서버가 Watcher를 백그라운드로 구동하며 감지·크롤·시트적재 수행
+- 브라우저로 접속하면 **WebSocket 실시간 피드**(새 글 뜨면 즉시 표시 + 토스트),
+  글 목록(보드/검색 필터), 클릭 시 **본문·댓글 상세**를 볼 수 있음
+- 여러 사람이 각자 PC 브라우저로 동시 접속 가능 (설치 불필요)
+- 옵션: `--no-watch`(뷰어만), `--port 9000`, `--host 0.0.0.0`
 
 추적 대상은 [config/targets.json](config/targets.json)에서 설정.
 

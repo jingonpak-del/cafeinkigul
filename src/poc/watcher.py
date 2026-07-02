@@ -46,7 +46,7 @@ def load_boards(cfg: dict) -> list[Board]:
 class Watcher:
     def __init__(self, cfg: dict, db: Database, client, *,
                  per_page: int = 30, revisit_after_s: int = 4 * 3600,
-                 min_request_gap_s: float = 1.0, sheets=None, log=print):
+                 min_request_gap_s: float = 1.0, sheets=None, on_event=None, log=print):
         self.cfg = cfg
         self.db = db
         self.client = client
@@ -54,6 +54,7 @@ class Watcher:
         self.revisit_after_s = revisit_after_s
         self.min_gap = min_request_gap_s
         self.sheets = sheets          # SheetsBuffer | None (실시간 시트 push)
+        self.on_event = on_event      # callable(kind:str, payload:dict) | None (대시보드 push)
         self.log = log
         self.boards = load_boards(cfg)
         self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
@@ -96,8 +97,22 @@ class Watcher:
             self.log(f"  + NEW {b.cluburl}/{b.name} [{a.article_id}] {a.title[:30]} "
                      f"(조회{a.read_count} 댓글{len(comments)})")
             self._push_sheets_new(a, b, body, comments)
+            self._emit("new", {
+                "cafe_id": a.cafe_id, "article_id": a.article_id, "cluburl": b.cluburl,
+                "board_key": b.board_key, "board_name": b.name, "menu_id": a.menu_id,
+                "title": a.title, "writer": a.writer_nickname, "url": a.url,
+                "read_count": a.read_count, "comment_count": len(comments),
+                "like_count": a.like_count, "write_ts": a.write_ts, "is_popular": a.is_popular,
+            })
         except Exception as e:
             self.log(f"  ! 본문/댓글 크롤 실패 [{a.article_id}]: {e}")
+
+    def _emit(self, kind: str, payload: dict):
+        if self.on_event:
+            try:
+                self.on_event(kind, payload)
+            except Exception as e:
+                self.log(f"  ! 이벤트 전송 실패: {e}")
 
     def _push_sheets_new(self, a, b: Board, body, comments):
         if not self.sheets:
@@ -129,6 +144,11 @@ class Watcher:
                 self.log(f"  ~ REVISIT [{row['article_id']}] 조회 {row['first_read_count']}→{body.read_count} (+{delta})")
                 if self.sheets:
                     self.sheets.update_revisit(row["article_id"], body.read_count, delta, body.comment_count)
+                self._emit("revisit", {
+                    "cafe_id": row["cafe_id"], "article_id": row["article_id"],
+                    "second_read_count": body.read_count, "read_delta": delta,
+                    "second_comment_count": body.comment_count,
+                })
             except Exception as e:
                 self.log(f"  ! 재방문 실패 [{row['article_id']}]: {e}")
 

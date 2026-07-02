@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>인기글 트래커</title>
+<style>
+  :root{--bg:#0f1420;--panel:#171d2b;--line:#26304a;--txt:#e6ebf5;--mut:#8a97b5;--accent:#4c8dff;--pop:#ffb020;--new:#2ec26a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Malgun Gothic",sans-serif;background:var(--bg);color:var(--txt)}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  header h1{font-size:17px;margin:0}
+  .dot{width:9px;height:9px;border-radius:50%;background:#666;display:inline-block;margin-right:6px}
+  .dot.on{background:var(--new);box-shadow:0 0 8px var(--new)}
+  .stats{margin-left:auto;display:flex;gap:18px;color:var(--mut);font-size:13px}
+  .stats b{color:var(--txt)}
+  .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
+  select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
+  button{cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  .wrap{padding:0 20px 40px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;position:sticky;top:57px;background:var(--bg)}
+  tr.article{cursor:pointer}
+  tr.article:hover{background:#1c2536}
+  .tag{font-size:11px;padding:2px 7px;border-radius:10px;background:#243049;color:#a9c0ff}
+  .tag.pop{background:#3a2c08;color:var(--pop)}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .delta{color:var(--new);font-weight:600}
+  .title{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @keyframes flash{from{background:#123a24}to{background:transparent}}
+  tr.flash{animation:flash 2.4s ease-out}
+  #toast{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50}
+  .t{background:var(--panel);border:1px solid var(--new);border-left:4px solid var(--new);padding:10px 14px;border-radius:8px;font-size:13px;max-width:340px;box-shadow:0 6px 20px #0008}
+  /* modal */
+  #modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  #modal.show{display:flex}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:760px;width:100%;max-height:88vh;overflow:auto}
+  .card .hd{padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+  .card .hd h2{margin:0 0 6px;font-size:17px}
+  .card .meta{color:var(--mut);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+  .card .body{padding:16px 20px;white-space:pre-wrap;line-height:1.6;font-size:14px;border-bottom:1px solid var(--line)}
+  .cmts{padding:12px 20px}
+  .cmt{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  .cmt .who{color:var(--accent);font-weight:600;margin-right:8px}
+  .cmt.reply{padding-left:20px;color:var(--mut)}
+  .x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 인기글 트래커</h1>
+  <span><span class="dot" id="dot"></span><span id="conn" style="font-size:12px;color:var(--mut)">연결 중…</span></span>
+  <div class="stats" id="stats"></div>
+</header>
+
+<div class="bar">
+  <label>보드
+    <select id="board">
+      <option value="">전체</option>
+      <option value="popular">인기글</option>
+      <option value="menu:">일반게시판</option>
+    </select>
+  </label>
+  <input id="q" placeholder="제목 검색…" size="24"/>
+  <button onclick="load()">검색</button>
+  <button onclick="load()">↻ 새로고침</button>
+  <span style="color:var(--mut);font-size:12px" id="count"></span>
+</div>
+
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th>감지</th><th>보드</th><th>제목</th><th>작성자</th>
+      <th class="num">조회</th><th class="num">댓글</th><th class="num">조회증가(4h)</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<div id="toast"></div>
+
+<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
+  <div class="card" id="card"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => (s||"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let rowsById = {};
+
+function boardTag(boards){
+  if(!boards) return "";
+  const t=[];
+  if(boards.includes("popular")) t.push('<span class="tag pop">인기글</span>');
+  if(/menu:/.test(boards)) t.push('<span class="tag">일반</span>');
+  return t.join(" ");
+}
+
+function rowHtml(r){
+  const key = r.cafe_id+"_"+r.article_id;
+  const delta = (r.revisit_done && r.read_delta!=null) ? `<span class="delta">+${r.read_delta}</span>` : '<span style="color:var(--mut)">–</span>';
+  return `<tr class="article" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
+    <td style="color:var(--mut);white-space:nowrap">${r.seen_str||""}</td>
+    <td>${boardTag(r.boards)}</td>
+    <td class="title">${esc(r.title)}</td>
+    <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
+    <td class="num">${r.first_read_count??""}</td>
+    <td class="num">${r.first_comment_count??""}</td>
+    <td class="num" data-delta>${delta}</td>
+  </tr>`;
+}
+
+async function load(){
+  const board=$("#board").value, q=$("#q").value;
+  const rows = await (await fetch(`/api/articles?limit=200&board=${encodeURIComponent(board)}&q=${encodeURIComponent(q)}`)).json();
+  rowsById={};
+  $("#rows").innerHTML = rows.map(r=>{rowsById[r.cafe_id+"_"+r.article_id]=r; return rowHtml(r)}).join("");
+  $("#count").textContent = `${rows.length}건`;
+  stats();
+}
+
+async function stats(){
+  const s = await (await fetch("/api/stats")).json();
+  $("#stats").innerHTML = `글 <b>${s.articles}</b> · 댓글 <b>${s.comments}</b> · 재방문완료 <b>${s.revisited}</b> · 대기 <b>${s.pending_revisit}</b>`;
+}
+
+async function detail(cafe,art){
+  const d = await (await fetch(`/api/articles/${cafe}/${art}`)).json();
+  const cmts = (d.comments||[]).map(c=>`<div class="cmt ${c.is_reply?'reply':''}"><span class="who">${esc(c.writer_nickname)}</span>${esc(c.content)}</div>`).join("") || '<div style="color:var(--mut)">댓글 없음</div>';
+  $("#card").innerHTML = `
+    <div class="hd"><span class="x" onclick="closeModal()">✕</span>
+      <h2>${esc(d.title)}</h2>
+      <div class="meta"><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
+      <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div>
+    </div>
+    <div class="body">${esc(d.content_text)||'<span style="color:var(--mut)">본문 없음</span>'}</div>
+    <div class="cmts"><b>댓글 ${(d.comments||[]).length}</b>${cmts}</div>`;
+  $("#modal").classList.add("show");
+}
+function closeModal(){ $("#modal").classList.remove("show"); }
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
+
+function toast(msg){
+  const el=document.createElement("div"); el.className="t"; el.innerHTML=msg;
+  $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000);
+}
+
+// ── WebSocket 실시간 ──
+function connect(){
+  const ws=new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws");
+  ws.onopen =()=>{$("#dot").classList.add("on"); $("#conn").textContent="실시간 연결됨";};
+  ws.onclose=()=>{$("#dot").classList.remove("on"); $("#conn").textContent="끊김 — 재연결 중…"; setTimeout(connect,2000);};
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==="new"){
+      const r={cafe_id:m.cafe_id,article_id:m.article_id,title:m.title,writer_nickname:m.writer,
+        boards:m.board_key,first_read_count:m.read_count,first_comment_count:m.comment_count,
+        read_delta:null,revisit_done:0,seen_str:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})};
+      rowsById[r.cafe_id+"_"+r.article_id]=r;
+      $("#rows").insertAdjacentHTML("afterbegin", rowHtml(r));
+      $("#rows").firstElementChild.classList.add("flash");
+      toast(`🆕 <b>${esc(m.board_name)}</b><br>${esc(m.title)} <span style="color:var(--mut)">(조회 ${m.read_count})</span>`);
+      stats();
+    } else if(m.type==="revisit"){
+      const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
+      if(tr){ tr.querySelector("[data-delta]").innerHTML=`<span class="delta">+${m.read_delta}</span>`; }
+    }
+  };
+}
+
+load(); connect();
+setInterval(stats, 15000);
+</script>
+</body>
+</html>
