@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -89,3 +90,58 @@ class SheetsSink:
     def append_comments(self, rows: list[list]):
         if rows:
             self.ws_comment.append_rows(rows, value_input_option="RAW")
+
+    def update_revisit(self, article_id, second_read, read_delta, second_comment):
+        """감지 당시 append된 글 행을 찾아 4h 재방문 결과(조회변동) 컬럼만 갱신."""
+        cell = self.ws_article.find(str(article_id), in_column=5)  # articleId = 5열(E)
+        if cell:
+            # 4h후조회(M) / 조회증가(N) / 4h후댓글(O)
+            self.ws_article.update(f"M{cell.row}:O{cell.row}",
+                                   [[second_read, read_delta, second_comment]],
+                                   value_input_option="RAW")
+
+
+class SheetsBuffer:
+    """실시간 push용 버퍼. 행이 일정 수 쌓이거나 일정 시간 지나면 flush."""
+
+    def __init__(self, sink: "SheetsSink", flush_every_rows: int = 15,
+                 flush_interval_s: float = 30.0, log=print):
+        self.sink = sink
+        self.flush_every = flush_every_rows
+        self.flush_interval = flush_interval_s
+        self.log = log
+        self._articles: list[list] = []
+        self._comments: list[list] = []
+        self._last = time.monotonic()
+
+    def add_article(self, row: list):
+        self._articles.append(row)
+        self._maybe_flush()
+
+    def add_comments(self, rows: list[list]):
+        self._comments.extend(rows)
+        self._maybe_flush()
+
+    def _maybe_flush(self):
+        pending = len(self._articles) + len(self._comments)
+        if pending >= self.flush_every or (time.monotonic() - self._last) >= self.flush_interval:
+            self.flush()
+
+    def flush(self):
+        try:
+            if self._articles:
+                self.sink.append_articles(self._articles)
+                self._articles = []
+            if self._comments:
+                self.sink.append_comments(self._comments)
+                self._comments = []
+        except Exception as e:
+            self.log(f"  ! 시트 flush 실패: {e}")
+        self._last = time.monotonic()
+
+    def update_revisit(self, article_id, second_read, read_delta, second_comment):
+        self.flush()  # 대상 행이 시트에 이미 있어야 하므로 먼저 반영
+        try:
+            self.sink.update_revisit(article_id, second_read, read_delta, second_comment)
+        except Exception as e:
+            self.log(f"  ! 시트 재방문 갱신 실패 [{article_id}]: {e}")

@@ -46,15 +46,17 @@ def load_boards(cfg: dict) -> list[Board]:
 class Watcher:
     def __init__(self, cfg: dict, db: Database, client, *,
                  per_page: int = 30, revisit_after_s: int = 4 * 3600,
-                 min_request_gap_s: float = 1.0, log=print):
+                 min_request_gap_s: float = 1.0, sheets=None, log=print):
         self.cfg = cfg
         self.db = db
         self.client = client
         self.per_page = per_page
         self.revisit_after_s = revisit_after_s
         self.min_gap = min_request_gap_s
+        self.sheets = sheets          # SheetsBuffer | None (실시간 시트 push)
         self.log = log
         self.boards = load_boards(cfg)
+        self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
         self._last_request = 0.0
 
     # --- rate limit ----------------------------------------------------------
@@ -93,8 +95,22 @@ class Watcher:
             self.db.save_comments(a.cafe_id, a.article_id, comments, phase="first")
             self.log(f"  + NEW {b.cluburl}/{b.name} [{a.article_id}] {a.title[:30]} "
                      f"(조회{a.read_count} 댓글{len(comments)})")
+            self._push_sheets_new(a, b, body, comments)
         except Exception as e:
             self.log(f"  ! 본문/댓글 크롤 실패 [{a.article_id}]: {e}")
+
+    def _push_sheets_new(self, a, b: Board, body, comments):
+        if not self.sheets:
+            return
+        from .sheets import SheetsSink
+        self.sheets.add_article(SheetsSink.article_row({
+            "first_seen_at": now_ms(), "cluburl": b.cluburl, "board_key": b.board_key,
+            "menu_id": a.menu_id, "article_id": a.article_id, "title": a.title,
+            "writer_nickname": a.writer_nickname, "url": a.url, "write_ts": a.write_ts,
+            "first_read_count": a.read_count, "first_comment_count": a.comment_count,
+            "like_count": a.like_count, "content_text": body.content_text,
+        }))
+        self.sheets.add_comments(SheetsSink.comment_rows(a.article_id, a.title, comments, "first"))
 
     # --- revisit -------------------------------------------------------------
     def process_revisits(self):
@@ -111,6 +127,8 @@ class Watcher:
                                          body.read_count, body.comment_count, row["first_read_count"])
                 delta = (body.read_count or 0) - (row["first_read_count"] or 0)
                 self.log(f"  ~ REVISIT [{row['article_id']}] 조회 {row['first_read_count']}→{body.read_count} (+{delta})")
+                if self.sheets:
+                    self.sheets.update_revisit(row["article_id"], body.read_count, delta, body.comment_count)
             except Exception as e:
                 self.log(f"  ! 재방문 실패 [{row['article_id']}]: {e}")
 
@@ -140,6 +158,8 @@ class Watcher:
             i += 1
             if i % len(self.boards) == 0:   # once per full cycle
                 self.process_revisits()
+                if self.sheets:
+                    self.sheets.flush()
             time.sleep(tick_s)
 
 

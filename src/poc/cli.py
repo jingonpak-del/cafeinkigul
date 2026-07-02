@@ -120,13 +120,26 @@ def cmd_sweep(args):
 def cmd_watch(args):
     from . import watcher
     cfg, db, client = watcher.build(args.account, DB_PATH, CONFIG_PATH)
+    buf = None
+    if not args.no_sheets:
+        s = cfg.get("sheets", {})
+        sid = s.get("spreadsheet_id")
+        if sid:
+            from .sheets import SheetsSink, SheetsBuffer
+            sink = SheetsSink(s["credentials_path"], spreadsheet_id=sid)
+            buf = SheetsBuffer(sink)
+            print(f"실시간 시트 push 활성화 → {sink.url}")
+        else:
+            print("[알림] config에 sheets.spreadsheet_id 없음 → 시트 push 비활성 (DB만 적재)")
     try:
         w = watcher.Watcher(cfg, db, client, per_page=args.n, revisit_after_s=args.revisit_after,
-                            min_request_gap_s=args.gap)
+                            min_request_gap_s=args.gap, sheets=buf)
         w.run(tick_s=args.tick)
     except KeyboardInterrupt:
         print("\n중단됨")
     finally:
+        if buf:
+            buf.flush()
         client.close(); db.close()
 
 
@@ -207,6 +220,7 @@ def main(argv=None):
     sp.add_argument("--tick", type=float, default=1.0)
     sp.add_argument("--gap", type=float, default=1.0, help="요청 간 최소 간격(초)")
     sp.add_argument("--revisit-after", dest="revisit_after", type=int, default=4 * 3600)
+    sp.add_argument("--no-sheets", action="store_true", help="구글시트 실시간 push 끄기")
     sp.set_defaults(func=cmd_watch)
 
     sp = sub.add_parser("export-sheets", help="DB의 글/댓글을 구글시트로 적재")
