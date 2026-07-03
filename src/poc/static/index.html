@@ -8,37 +8,41 @@
   :root{--bg:#0f1420;--panel:#171d2b;--line:#26304a;--txt:#e6ebf5;--mut:#8a97b5;--accent:#4c8dff;--pop:#ffb020;--new:#2ec26a}
   *{box-sizing:border-box}
   body{margin:0;font-family:"Segoe UI","Malgun Gothic",sans-serif;background:var(--bg);color:var(--txt)}
-  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
   header h1{font-size:17px;margin:0}
   .dot{width:9px;height:9px;border-radius:50%;background:#666;display:inline-block;margin-right:6px}
   .dot.on{background:var(--new);box-shadow:0 0 8px var(--new)}
-  .stats{margin-left:auto;display:flex;gap:18px;color:var(--mut);font-size:13px}
+  .stats{margin-left:auto;display:flex;gap:16px;color:var(--mut);font-size:13px}
   .stats b{color:var(--txt)}
-  .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
-  select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
-  button{cursor:pointer}
-  button:hover{border-color:var(--accent)}
-  .wrap{padding:0 20px 40px}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--mut);font-weight:600;position:sticky;top:57px;background:var(--bg)}
-  tr.article{cursor:pointer}
-  tr.article:hover{background:#1c2536}
-  .tag{font-size:11px;padding:2px 7px;border-radius:10px;background:#243049;color:#a9c0ff}
-  .tag.pop{background:#3a2c08;color:var(--pop)}
-  .num{text-align:right;font-variant-numeric:tabular-nums}
-  .delta{color:var(--new);font-weight:600}
-  .title{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  @keyframes flash{from{background:#123a24}to{background:transparent}}
-  tr.flash{animation:flash 2.4s ease-out}
   .banner{display:none;padding:10px 20px;background:#3a1414;color:#ff9a9a;border-bottom:1px solid #6b2020;font-size:13px}
   .banner.show{display:block}
   .banner code{background:#00000040;padding:1px 6px;border-radius:4px;color:#ffd0d0}
+  .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
+  select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
+  button{cursor:pointer} button:hover{border-color:var(--accent)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 40px}
+  @media(max-width:1100px){.cols{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
+  .panel .phd{padding:11px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;position:sticky;top:57px;background:var(--panel);z-index:5}
+  .panel .phd h2{margin:0;font-size:15px} .panel .phd .sub{color:var(--mut);font-size:11px}
+  .panel .cnt{margin-left:auto;color:var(--mut);font-size:12px}
+  .scroll{max-height:calc(100vh - 190px);overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
+  th{color:var(--mut);font-weight:600;position:sticky;top:0;background:#1b2233;z-index:1}
+  tr.article{cursor:pointer} tr.article:hover{background:#1c2536}
+  .tag{font-size:10px;padding:2px 6px;border-radius:9px;background:#243049;color:#a9c0ff}
+  .tag.pop{background:#3a2c08;color:var(--pop)}
+  .tag.del{background:#4a1c1c;color:#ff9a9a}
+  .cafe{color:#bcd0ff;font-weight:600}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .delta{color:var(--new);font-weight:600}
+  .title{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   tr.deleted td{opacity:.5;text-decoration:line-through}
-  .tag.del{background:#4a1c1c;color:#ff9a9a;text-decoration:none;display:inline-block}
+  @keyframes flash{from{background:#123a24}to{background:transparent}}
+  tr.flash{animation:flash 2.4s ease-out}
   #toast{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50}
   .t{background:var(--panel);border:1px solid var(--new);border-left:4px solid var(--new);padding:10px 14px;border-radius:8px;font-size:13px;max-width:340px;box-shadow:0 6px 20px #0008}
-  /* modal */
   #modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
   #modal.show{display:flex}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:760px;width:100%;max-height:88vh;overflow:auto}
@@ -46,10 +50,8 @@
   .card .hd h2{margin:0 0 6px;font-size:17px}
   .card .meta{color:var(--mut);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
   .card .body{padding:16px 20px;white-space:pre-wrap;line-height:1.6;font-size:14px;border-bottom:1px solid var(--line)}
-  .cmts{padding:12px 20px}
-  .cmt{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
-  .cmt .who{color:var(--accent);font-weight:600;margin-right:8px}
-  .cmt.reply{padding-left:20px;color:var(--mut)}
+  .cmts{padding:12px 20px} .cmt{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  .cmt .who{color:var(--accent);font-weight:600;margin-right:8px} .cmt.reply{padding-left:20px;color:var(--mut)}
   .x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1}
   a{color:var(--accent)}
 </style>
@@ -64,34 +66,30 @@
 <div class="banner" id="banner">⚠ <b>세션 만료</b> — 네이버 로그인이 풀렸습니다. 서버 PC 터미널에서 <code>python -m src.poc.cli capture --account 내네이버아이디</code> 를 다시 실행하세요.</div>
 
 <div class="bar">
-  <label>보드
-    <select id="board">
-      <option value="">전체</option>
-      <option value="popular">인기글</option>
-      <option value="menu:">일반게시판</option>
-    </select>
-  </label>
-  <input id="q" placeholder="제목 검색…" size="24"/>
+  <input id="q" placeholder="제목 검색 (양쪽 모두)…" size="26"/>
   <button onclick="load()">검색</button>
   <button onclick="load()">↻ 새로고침</button>
-  <span style="color:var(--mut);font-size:12px" id="count"></span>
 </div>
 
-<div class="wrap">
-  <table>
-    <thead><tr>
-      <th>감지</th><th>보드</th><th>제목</th><th>작성자</th>
-      <th class="num">조회</th><th class="num">댓글</th><th class="num">조회증가(4h)</th>
-    </tr></thead>
-    <tbody id="rows"></tbody>
-  </table>
+<div class="cols">
+  <section class="panel">
+    <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span><span class="cnt" id="cnt-pop"></span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
+      <tbody id="rows-pop"></tbody>
+    </table></div>
+  </section>
+  <section class="panel">
+    <div class="phd"><h2>⚡ 실시간 일반글</h2><span class="sub">계속 축적</span><span class="cnt" id="cnt-gen"></span></div>
+    <div class="scroll"><table>
+      <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
+      <tbody id="rows-gen"></tbody>
+    </table></div>
+  </section>
 </div>
 
 <div id="toast"></div>
-
-<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
-  <div class="card" id="card"></div>
-</div>
+<div id="modal" onclick="if(event.target.id==='modal')closeModal()"><div class="card" id="card"></div></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -105,59 +103,51 @@ function boardTag(boards){
   if(/menu:/.test(boards)) t.push('<span class="tag">일반</span>');
   return t.join(" ");
 }
-
 function rowHtml(r){
-  const key = r.cafe_id+"_"+r.article_id;
-  const delta = (r.revisit_done && r.read_delta!=null) ? `<span class="delta">+${r.read_delta}</span>` : '<span style="color:var(--mut)">–</span>';
-  return `<tr class="article" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
-    <td style="color:var(--mut);white-space:nowrap">${r.seen_str||""}</td>
-    <td>${boardTag(r.boards)}</td>
-    <td class="title">${esc(r.title)}</td>
+  const key=r.cafe_id+"_"+r.article_id;
+  const delta=(r.revisit_done && r.read_delta!=null)?`<span class="delta">+${r.read_delta}</span>`:'<span style="color:var(--mut)">–</span>';
+  const del = r.status==="deleted";
+  return `<tr class="article ${del?'deleted':''}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
+    <td style="color:var(--mut)">${r.seen_str||""}</td>
+    <td class="cafe">${esc(r.cafe_name||"")}</td>
+    <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}</td>
+    <td class="title" title="${esc(r.title)}">${esc(r.title)}</td>
     <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
     <td class="num">${r.first_read_count??""}</td>
     <td class="num">${r.first_comment_count??""}</td>
-    <td class="num" data-delta>${delta}</td>
-  </tr>`;
+    <td class="num" data-delta>${delta}</td></tr>`;
 }
-
-async function load(){
-  const board=$("#board").value, q=$("#q").value;
-  const rows = await (await fetch(`/api/articles?limit=200&board=${encodeURIComponent(board)}&q=${encodeURIComponent(q)}`)).json();
-  rowsById={};
-  $("#rows").innerHTML = rows.map(r=>{rowsById[r.cafe_id+"_"+r.article_id]=r; return rowHtml(r)}).join("");
-  $("#count").textContent = `${rows.length}건`;
-  stats();
+async function fill(type, tbodyId, cntId){
+  const q=$("#q").value;
+  const rows=await (await fetch(`/api/articles?limit=300&type=${type}&q=${encodeURIComponent(q)}`)).json();
+  rows.forEach(r=>rowsById[r.cafe_id+"_"+r.article_id]=r);
+  $("#"+tbodyId).innerHTML=rows.map(rowHtml).join("");
+  $("#"+cntId).textContent=`${rows.length}건`;
 }
+async function load(){ rowsById={}; await Promise.all([fill("popular","rows-pop","cnt-pop"),fill("general","rows-gen","cnt-gen")]); stats(); }
 
 async function stats(){
-  const s = await (await fetch("/api/stats")).json();
-  $("#stats").innerHTML = `글 <b>${s.articles}</b> · 댓글 <b>${s.comments}</b> · 재방문 <b>${s.revisited}</b> · 대기 <b>${s.pending_revisit}</b> · 삭제 <b>${s.deleted??0}</b>`;
-  setSession(s.session_ok !== false);
+  const s=await (await fetch("/api/stats")).json();
+  $("#stats").innerHTML=`글 <b>${s.articles}</b> · 댓글 <b>${s.comments}</b> · 재방문 <b>${s.revisited}</b> · 삭제 <b>${s.deleted??0}</b>`;
+  setSession(s.session_ok!==false);
 }
-function setSession(ok){ $("#banner").classList.toggle("show", !ok); }
+function setSession(ok){ $("#banner").classList.toggle("show",!ok); }
 
 async function detail(cafe,art){
-  const d = await (await fetch(`/api/articles/${cafe}/${art}`)).json();
-  const cmts = (d.comments||[]).map(c=>`<div class="cmt ${c.is_reply?'reply':''}"><span class="who">${esc(c.writer_nickname)}</span>${esc(c.content)}</div>`).join("") || '<div style="color:var(--mut)">댓글 없음</div>';
-  $("#card").innerHTML = `
-    <div class="hd"><span class="x" onclick="closeModal()">✕</span>
-      <h2>${esc(d.title)}</h2>
-      <div class="meta"><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
-      <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div>
-    </div>
+  const d=await (await fetch(`/api/articles/${cafe}/${art}`)).json();
+  const cmts=(d.comments||[]).map(c=>`<div class="cmt ${c.is_reply?'reply':''}"><span class="who">${esc(c.writer_nickname)}</span>${esc(c.content)}</div>`).join("")||'<div style="color:var(--mut)">댓글 없음</div>';
+  $("#card").innerHTML=`<div class="hd"><span class="x" onclick="closeModal()">✕</span>
+    <h2>${esc(d.title)}</h2>
+    <div class="meta"><span class="cafe">${esc(d.cafe_name||"")}</span><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
+    <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div></div>
     <div class="body">${esc(d.content_text)||'<span style="color:var(--mut)">본문 없음</span>'}</div>
     <div class="cmts"><b>댓글 ${(d.comments||[]).length}</b>${cmts}</div>`;
   $("#modal").classList.add("show");
 }
 function closeModal(){ $("#modal").classList.remove("show"); }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
+function toast(msg){ const el=document.createElement("div"); el.className="t"; el.innerHTML=msg; $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000); }
 
-function toast(msg){
-  const el=document.createElement("div"); el.className="t"; el.innerHTML=msg;
-  $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000);
-}
-
-// ── WebSocket 실시간 ──
 function connect(){
   const ws=new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws");
   ws.onopen =()=>{$("#dot").classList.add("on"); $("#conn").textContent="실시간 연결됨";};
@@ -165,29 +155,28 @@ function connect(){
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==="new"){
+      const isPop=(m.board_key||"").includes("popular");
       const r={cafe_id:m.cafe_id,article_id:m.article_id,title:m.title,writer_nickname:m.writer,
-        boards:m.board_key,first_read_count:m.read_count,first_comment_count:m.comment_count,
+        cafe_name:m.cafe_name,boards:m.board_key,first_read_count:m.read_count,first_comment_count:m.comment_count,
         read_delta:null,revisit_done:0,seen_str:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})};
       rowsById[r.cafe_id+"_"+r.article_id]=r;
-      $("#rows").insertAdjacentHTML("afterbegin", rowHtml(r));
-      $("#rows").firstElementChild.classList.add("flash");
-      toast(`🆕 <b>${esc(m.board_name)}</b><br>${esc(m.title)} <span style="color:var(--mut)">(조회 ${m.read_count})</span>`);
+      const tb=$(isPop?"#rows-pop":"#rows-gen");
+      tb.insertAdjacentHTML("afterbegin",rowHtml(r));
+      tb.firstElementChild.classList.add("flash");
+      toast(`${isPop?'🔥':'🆕'} <b>${esc(m.cafe_name||'')}</b> · ${esc(m.board_name)}<br>${esc(m.title)} <span style="color:var(--mut)">(조회 ${m.read_count})</span>`);
       stats();
     } else if(m.type==="revisit"){
       const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
-      if(tr){ tr.querySelector("[data-delta]").innerHTML=`<span class="delta">+${m.read_delta}</span>`; }
+      if(tr) tr.querySelector("[data-delta]").innerHTML=`<span class="delta">+${m.read_delta}</span>`;
     } else if(m.type==="deleted"){
       const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
-      if(tr){ tr.classList.add("deleted"); tr.querySelector("td:nth-child(2)").innerHTML='<span class="tag del">삭제</span>'; }
+      if(tr){ tr.classList.add("deleted"); tr.querySelector("td:nth-child(3)").innerHTML='<span class="tag del">삭제</span>'; }
     } else if(m.type==="session"){
-      setSession(m.ok);
-      toast(m.ok ? "✅ 세션 정상 복구" : "⚠ 세션 만료 — 재로그인 필요");
+      setSession(m.ok); toast(m.ok?"✅ 세션 정상 복구":"⚠ 세션 만료 — 재로그인 필요");
     }
   };
 }
-
-load(); connect();
-setInterval(stats, 15000);
+load(); connect(); setInterval(stats,15000);
 </script>
 </body>
 </html>

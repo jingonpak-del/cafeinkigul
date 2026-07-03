@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS comments (
     PRIMARY KEY (cafe_id, article_id, comment_id, phase)
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_revisit
     ON articles (revisit_done, revisit_at);
 CREATE INDEX IF NOT EXISTS idx_articles_pending_body
@@ -140,6 +145,15 @@ class Database:
                ORDER BY revisit_at LIMIT ?""",
             (now_ms(), limit),
         ).fetchall()
+
+    # --- meta ----------------------------------------------------------------
+    def get_meta(self, key: str):
+        r = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return r[0] if r else None
+
+    def set_meta(self, key: str, value: str):
+        self.conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
+        self.conn.commit()
 
     def mark_deleted(self, cafe_id, article_id):
         self.conn.execute(

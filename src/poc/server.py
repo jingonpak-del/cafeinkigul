@@ -38,6 +38,14 @@ def _fmt(ms):
     return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M") if ms else ""
 
 
+def _cafe_names() -> dict:
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        return {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
+    except Exception:
+        return {}
+
+
 # ── WebSocket 브로드캐스트 ────────────────────────────────────────────────
 class Hub:
     def __init__(self):
@@ -95,28 +103,35 @@ def stats():
 
 
 @app.get("/api/articles")
-def articles(limit: int = 100, board: str = "", q: str = ""):
+def articles(limit: int = 100, type: str = "", q: str = ""):
+    """type: 'popular'(인기글) | 'general'(일반글) | '' (전체). 작성시간 최신순."""
+    names = _cafe_names()
     conn = _row_conn()
     try:
         sql = ["""SELECT a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname,
                          a.write_ts, a.first_seen_at, a.first_read_count, a.first_comment_count,
-                         a.like_count, a.second_read_count, a.read_delta, a.revisit_done,
+                         a.like_count, a.second_read_count, a.read_delta, a.revisit_done, a.status,
                          (SELECT group_concat(board_key, ',') FROM board_detections d
                           WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id) AS boards
                   FROM articles a"""]
         where, params = [], []
+        if type == "popular":
+            where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
+                            AND d.article_id=a.article_id AND d.board_key='popular')""")
+        elif type == "general":
+            where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
+                            AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
         if q:
             where.append("a.title LIKE ?"); params.append(f"%{q}%")
         if where:
             sql.append("WHERE " + " AND ".join(where))
-        sql.append("ORDER BY a.first_seen_at DESC LIMIT ?"); params.append(limit)
+        sql.append("ORDER BY a.write_ts DESC LIMIT ?"); params.append(limit)  # 작성시간 최신순
         rows = [dict(r) for r in conn.execute(" ".join(sql), params).fetchall()]
         for r in rows:
+            r["cafe_name"] = names.get(r["cafe_id"], str(r["cafe_id"]))
             r["write_str"] = _fmt(r["write_ts"])
             r["seen_str"] = _fmt(r["first_seen_at"])
             r["url"] = f"https://cafe.naver.com/ca-fe/cafes/{r['cafe_id']}/articles/{r['article_id']}"
-        if board:
-            rows = [r for r in rows if r["boards"] and board in r["boards"]]
         return rows
     finally:
         conn.close()
@@ -134,6 +149,7 @@ def article_detail(cafe_id: int, article_id: int):
             """SELECT * FROM comments WHERE cafe_id=? AND article_id=? AND phase='first'
                ORDER BY comment_id""", (cafe_id, article_id)).fetchall()]
         d = dict(a)
+        d["cafe_name"] = _cafe_names().get(d["cafe_id"], str(d["cafe_id"]))
         d["write_str"] = _fmt(d["write_ts"])
         d["comments"] = comments
         return d
@@ -169,7 +185,7 @@ def _start_watcher():
         hub.broadcast_threadsafe({"type": kind, **payload})
 
     w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit)
-    print(f"Watcher 백그라운드 시작 — {len(w.boards)}개 보드")
+    print(f"Watcher 백그라운드 시작 — 일반 {len(w.menu_boards)}개 / 인기글 {len(w.popular_boards)}개")
     w.run(tick_s=1.0)
 
 
@@ -184,7 +200,7 @@ def _force_utf8():
     import sys
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
         except Exception:
             pass
 

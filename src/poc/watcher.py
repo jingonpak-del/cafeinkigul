@@ -12,6 +12,7 @@ import itertools
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 
 from . import cafe_api
@@ -56,8 +57,13 @@ class Watcher:
         self.sheets = sheets          # SheetsBuffer | None (실시간 시트 push)
         self.on_event = on_event      # callable(kind:str, payload:dict) | None (대시보드 push)
         self.log = log
-        self.boards = load_boards(cfg)
+        all_boards = load_boards(cfg)
+        # 일반글은 연속 라운드로빈, 인기글은 하루 2회 스케줄 수집.
+        self.menu_boards = [b for b in all_boards if b.kind == "menu"]
+        self.popular_boards = [b for b in all_boards if b.kind == "popular"]
+        self.popular_hours = (2, 16)   # 매일 02:00 / 16:00 (네이버 1시/15시 갱신 직후)
         self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
+        self._cafe_name = {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
         self._last_request = 0.0
         # 하드닝 상태
         self.session_ok = True
@@ -105,6 +111,7 @@ class Watcher:
             self._push_sheets_new(a, b, body, comments)
             self._emit("new", {
                 "cafe_id": a.cafe_id, "article_id": a.article_id, "cluburl": b.cluburl,
+                "cafe_name": self._cafe_name.get(a.cafe_id, b.cluburl),
                 "board_key": b.board_key, "board_name": b.name, "menu_id": a.menu_id,
                 "title": a.title, "writer": a.writer_nickname, "url": a.url,
                 "read_count": a.read_count, "comment_count": len(comments),
@@ -146,6 +153,45 @@ class Watcher:
 
     def _on_success(self):
         self._errors = 0
+
+    # --- 인기글 스케줄 수집 (매일 2시/16시, 놓치면 보충) -------------------------
+    def _latest_scheduled(self, now: datetime) -> datetime:
+        """now 시점에서 가장 최근에 지난 예정시각(오늘 또는 어제)."""
+        hours = sorted(self.popular_hours)
+        today = now.date()
+        past = [datetime.combine(today, dt_time(h)) for h in hours
+                if datetime.combine(today, dt_time(h)) <= now]
+        if past:
+            return max(past)
+        return datetime.combine(today - timedelta(days=1), dt_time(max(hours)))
+
+    def maybe_collect_popular(self):
+        """예정시각이 지났고 그 이후 아직 수집 안 했으면 인기글 수집(보충 포함)."""
+        if not self.popular_boards:
+            return
+        now = datetime.now()
+        sched = self._latest_scheduled(now)
+        last = self.db.get_meta("last_popular_run")
+        last_dt = None
+        if last:
+            try:
+                last_dt = datetime.fromisoformat(last)
+            except ValueError:
+                last_dt = None
+        if last_dt is None or last_dt < sched:
+            self.log(f"🔥 인기글 수집 시작 (예정 {sched:%m-%d %H:%M} 회차)")
+            self.collect_popular()
+            self.db.set_meta("last_popular_run", now.isoformat())
+
+    def collect_popular(self):
+        for b in self.popular_boards:
+            try:
+                total, new = self.poll_board(b)
+                self.log(f"🔥 {b.cluburl}/{b.name}: {total}개 인기글, 신규 {new}건")
+            except Exception as e:
+                self.log(f"  ! 인기글 수집 실패 {b.cluburl}: {e}")
+        if self.sheets:
+            self.sheets.flush()
 
     def _push_sheets_new(self, a, b: Board, body, comments):
         if not self.sheets:
@@ -194,33 +240,38 @@ class Watcher:
     # --- main loops ----------------------------------------------------------
     def sweep_once(self):
         """One full pass over every board (used for testing / seeding)."""
-        for b in self.boards:
+        for b in self.menu_boards + self.popular_boards:
             total, new = self.poll_board(b)
             self.log(f"■ {b.cluburl}/{b.name}: {total}건 조회, 신규 {new}건")
         self.process_revisits()
         self.log(f"  통계: {self.db.counts()}")
 
     def run(self, tick_s: float = 1.0):
-        """Continuous round-robin: 1 board per tick + revisit sweep each cycle."""
-        self.log(f"Watcher 시작 — {len(self.boards)}개 보드, tick {tick_s}s, "
-                 f"재방문 {self.revisit_after_s}s 후")
-        cycle = itertools.cycle(self.boards)
-        self.check_session(force=True)      # 시작 시 1회 확인
+        """일반글: 라운드로빈 실시간 폴링. 인기글: 하루 2회 스케줄 수집."""
+        self.log(f"Watcher 시작 — 일반 {len(self.menu_boards)}개(실시간) / "
+                 f"인기글 {len(self.popular_boards)}개(매일 {self.popular_hours[0]}·{self.popular_hours[1]}시), "
+                 f"tick {tick_s}s, 재방문 {self.revisit_after_s}s 후")
+        self.check_session(force=True)        # 시작 시 1회 확인
+        self.maybe_collect_popular()          # 시작 시 놓친 인기글 회차 보충
+        n = max(1, len(self.menu_boards))
+        cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
         i = 0
         while True:
-            b = next(cycle)
-            try:
-                total, new = self.poll_board(b)
-                self._on_success()
-                if new:
-                    self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
-            except Exception as e:
-                self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
-                self._on_error()
+            if cycle is not None:
+                b = next(cycle)
+                try:
+                    total, new = self.poll_board(b)
+                    self._on_success()
+                    if new:
+                        self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
+                except Exception as e:
+                    self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
+                    self._on_error()
             i += 1
-            if i % len(self.boards) == 0:   # 한 사이클마다
+            if i % n == 0:                    # 한 사이클마다
                 self.process_revisits()
                 self.check_session()
+                self.maybe_collect_popular()  # 예정시각 도래 시 인기글 수집
                 if self.sheets:
                     self.sheets.flush()
             time.sleep(tick_s)
