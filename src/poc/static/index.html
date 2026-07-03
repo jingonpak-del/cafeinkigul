@@ -20,13 +20,14 @@
   .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
   select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
   button{cursor:pointer} button:hover{border-color:var(--accent)}
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 40px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 16px}
   @media(max-width:1100px){.cols{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
-  .panel .phd{padding:11px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;position:sticky;top:57px;background:var(--panel);z-index:5}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;display:flex;flex-direction:column}
+  .panel .phd{padding:11px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:var(--panel);flex:0 0 auto}
   .panel .phd h2{margin:0;font-size:15px} .panel .phd .sub{color:var(--mut);font-size:11px}
   .panel .cnt{margin-left:auto;color:var(--mut);font-size:12px}
-  .scroll{max-height:calc(100vh - 190px);overflow:auto}
+  .scroll{height:calc(100vh - 168px);overflow:auto}
+  @media(max-width:1100px){.scroll{height:70vh}}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{color:var(--mut);font-weight:600;position:sticky;top:0;background:#1b2233;z-index:1}
