@@ -184,7 +184,7 @@ def _start_watcher():
             STATE["session_ok"] = payload.get("ok", True)
         hub.broadcast_threadsafe({"type": kind, **payload})
 
-    w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit)
+    w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit, per_page=20)
     print(f"Watcher 백그라운드 시작 — 일반 {len(w.menu_boards)}개 / 인기글 {len(w.popular_boards)}개")
     w.run(tick_s=1.0)
 

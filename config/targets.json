@@ -15,6 +15,113 @@
         { "type": "menu", "menu_id": 70, "name": "여왕X여신X명예수다" },
         { "type": "popular", "name": "인기글" }
       ]
+    },
+    {
+      "cluburl": "no1cheonan",
+      "club_id": 26217677,
+      "name": "천안줌마",
+      "boards": [
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "smartbargain",
+      "club_id": 16948352,
+      "name": "스마트바겐",
+      "boards": [
+        { "type": "menu", "menu_id": 13, "name": "해외 핫딜" },
+        { "type": "menu", "menu_id": 109, "name": "국내 핫딜(패션)" },
+        { "type": "menu", "menu_id": 876, "name": "국내 핫딜(기타)" },
+        { "type": "menu", "menu_id": 892, "name": "여행호텔항공/딜" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "skybluezw4rh",
+      "club_id": 29434212,
+      "name": "맘이베베",
+      "boards": [
+        { "type": "menu", "menu_id": 2, "name": "핫딜방" },
+        { "type": "menu", "menu_id": 91, "name": "이득 정보방" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "hotdealplayground",
+      "club_id": 31213131,
+      "name": "핫딜맘",
+      "boards": [
+        { "type": "menu", "menu_id": 6, "name": "핫딜방" },
+        { "type": "menu", "menu_id": 46, "name": "전단지방" },
+        { "type": "menu", "menu_id": 45, "name": "이벤트정보방" },
+        { "type": "menu", "menu_id": 47, "name": "퀴즈정답방" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "gotogether0508",
+      "club_id": 31210388,
+      "name": "핫딜언니",
+      "boards": [
+        { "type": "menu", "menu_id": 23, "name": "핫딜떴어요" },
+        { "type": "menu", "menu_id": 113, "name": "티켓할인정보" },
+        { "type": "menu", "menu_id": 68, "name": "앱테크 정보" },
+        { "type": "menu", "menu_id": 91, "name": "정답방" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "malltail",
+      "club_id": 21820768,
+      "name": "몰테일",
+      "boards": [
+        { "type": "menu", "menu_id": 98, "name": "데일리 국내핫딜 정보" },
+        { "type": "menu", "menu_id": 1181, "name": "국쇼 정보 라운지" },
+        { "type": "menu", "menu_id": 1047, "name": "국내쇼핑 톡톡" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "famsale",
+      "club_id": 18997605,
+      "name": "페밀리세일",
+      "boards": [
+        { "type": "menu", "menu_id": 45, "name": "공식 패밀리세일" },
+        { "type": "menu", "menu_id": 428, "name": "팸셀 이벤트 NOW" },
+        { "type": "menu", "menu_id": 27, "name": "국내 쇼핑 : 핫딜" },
+        { "type": "menu", "menu_id": 65, "name": "해외 쇼핑 : 핫딜" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "imsanbu",
+      "club_id": 10094499,
+      "name": "맘스홀릭",
+      "boards": [
+        { "type": "menu", "menu_id": 924, "name": "추천인 요기요" },
+        { "type": "menu", "menu_id": 550, "name": "오늘의 유머" },
+        { "type": "menu", "menu_id": 599, "name": "쇼핑할인 정보방" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "pusanmom",
+      "club_id": 18077961,
+      "name": "부경맘",
+      "boards": [
+        { "type": "menu", "menu_id": 50, "name": "정보(홍보=강퇴)" },
+        { "type": "popular", "name": "인기글" }
+      ]
+    },
+    {
+      "cluburl": "remonterrace",
+      "club_id": 10298136,
+      "name": "레몬테라스",
+      "boards": [
+        { "type": "menu", "menu_id": 63, "name": "재테크 노하우" },
+        { "type": "menu", "menu_id": 25, "name": "나의 살림노하우" },
+        { "type": "popular", "name": "인기글" }
+      ]
     }
   ]
 }
