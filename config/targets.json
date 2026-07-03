@@ -21,6 +21,7 @@
       "club_id": 26217677,
       "name": "천안줌마",
       "boards": [
+        { "type": "menu", "menu_id": 676, "name": "믿쥬마켓 공지" },
         { "type": "popular", "name": "인기글" }
       ]
     },
