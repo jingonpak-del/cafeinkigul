@@ -29,6 +29,21 @@ POPULAR_LIST_URL = "https://apis.naver.com/cafe-web/cafe2/WeeklyPopularArticleLi
 # Article body + comments live on a different gateway host (article.cafe.naver.com/gw).
 ARTICLE_GW = "https://article.cafe.naver.com/gw"
 GW_HEADERS = {"Referer": "https://cafe.naver.com/", "Origin": "https://cafe.naver.com"}
+# 로그인 유효성 체크 (result.loggedIn: true/false)
+LOGIN_CHECK_URL = "https://apis.naver.com/cafe-home-web/cafe-home/v1/member/identifier"
+
+
+class ArticleGoneError(RuntimeError):
+    """삭제/비공개 등으로 더 이상 조회 불가한 글."""
+
+
+def check_login(client: httpx.Client) -> bool:
+    """세션이 여전히 로그인 상태인지 가볍게 확인."""
+    try:
+        r = client.get(LOGIN_CHECK_URL, headers={"Referer": "https://cafe.naver.com/"}, timeout=8)
+        return bool(r.json().get("message", {}).get("result", {}).get("loggedIn"))
+    except Exception:
+        return False
 
 
 @dataclass(frozen=True)
@@ -214,9 +229,11 @@ def fetch_article_body(
         params = {"query": "", "menuId": menu_id, "boardType": "L",
                   "useCafeId": "true", "requestFrom": "A"}
         r = client.get(url, params=params, headers=GW_HEADERS)
+        if r.status_code in (403, 404):
+            raise ArticleGoneError(f"삭제/비공개 글 (article {article_id}, HTTP {r.status_code})")
         art = r.json().get("result", {}).get("article", {})
-        if not art:
-            raise RuntimeError(f"본문 조회 실패 (article {article_id}, status={r.status_code})")
+        if not art or art.get("isReadable") is False:
+            raise ArticleGoneError(f"조회 불가 글 (article {article_id})")
         html = art.get("contentHtml", "") or ""
         return ArticleBody(
             cafe_id=club_id,

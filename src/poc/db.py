@@ -141,6 +141,12 @@ class Database:
             (now_ms(), limit),
         ).fetchall()
 
+    def mark_deleted(self, cafe_id, article_id):
+        self.conn.execute(
+            "UPDATE articles SET status='deleted', revisit_done=1 WHERE cafe_id=? AND article_id=?",
+            (cafe_id, article_id))
+        self.conn.commit()
+
     def complete_revisit(self, cafe_id, article_id, second_read, second_comment, first_read):
         self.conn.execute(
             """UPDATE articles SET revisit_done=1, second_read_count=?,
@@ -178,4 +184,5 @@ class Database:
             "comments": c("SELECT COUNT(*) FROM comments").fetchone()[0],
             "revisited": c("SELECT COUNT(*) FROM articles WHERE revisit_done=1").fetchone()[0],
             "pending_revisit": c("SELECT COUNT(*) FROM articles WHERE revisit_done=0").fetchone()[0],
+            "deleted": c("SELECT COUNT(*) FROM articles WHERE status='deleted'").fetchone()[0],
         }

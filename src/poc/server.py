@@ -69,6 +69,7 @@ class Hub:
 
 hub = Hub()
 app = FastAPI(title="인기글 트래커")
+STATE = {"session_ok": True}   # 워처가 갱신하는 런타임 상태
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -86,6 +87,8 @@ def stats():
             "comments": q("SELECT COUNT(*) FROM comments").fetchone()[0],
             "revisited": q("SELECT COUNT(*) FROM articles WHERE revisit_done=1").fetchone()[0],
             "pending_revisit": q("SELECT COUNT(*) FROM articles WHERE revisit_done=0").fetchone()[0],
+            "deleted": q("SELECT COUNT(*) FROM articles WHERE status='deleted'").fetchone()[0],
+            "session_ok": STATE["session_ok"],
         }
     finally:
         c.close()
@@ -161,6 +164,8 @@ def _start_watcher():
         except Exception as e:
             print("시트 비활성:", e)
     def emit(kind: str, payload: dict):
+        if kind == "session":
+            STATE["session_ok"] = payload.get("ok", True)
         hub.broadcast_threadsafe({"type": kind, **payload})
 
     w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit)

@@ -59,6 +59,12 @@ class Watcher:
         self.boards = load_boards(cfg)
         self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
         self._last_request = 0.0
+        # 하드닝 상태
+        self.session_ok = True
+        self._errors = 0                  # 연속 오류 → 지수 백오프
+        self._max_backoff = 60.0
+        self._last_session_check = 0.0
+        self._session_check_gap = 60.0    # 세션 체크 최소 간격(초)
 
     # --- rate limit ----------------------------------------------------------
     def _throttle(self):
@@ -114,6 +120,33 @@ class Watcher:
             except Exception as e:
                 self.log(f"  ! 이벤트 전송 실패: {e}")
 
+    # --- 하드닝: 세션 체크 / 백오프 --------------------------------------------
+    def check_session(self, force: bool = False):
+        """주기적으로 로그인 유효성 확인. 상태 변화 시 대시보드에 알림."""
+        if not force and (time.monotonic() - self._last_session_check) < self._session_check_gap:
+            return
+        self._last_session_check = time.monotonic()
+        ok = cafe_api.check_login(self.client)
+        if ok != self.session_ok:
+            self.session_ok = ok
+            if ok:
+                self.log("  ✓ 세션 정상 복구")
+            else:
+                self.log("  ⚠ 세션 만료 감지 — 재로그인 필요 (capture 다시 실행)")
+            self._emit("session", {"ok": ok})
+
+    def _on_error(self):
+        self._errors += 1
+        backoff = min(self._max_backoff, self.min_gap * (2 ** self._errors))
+        self.log(f"  … 오류 {self._errors}회 연속 → {backoff:.1f}s 백오프")
+        time.sleep(backoff)
+        # 오류가 이어지면 세션 만료일 수 있으니 확인
+        if self._errors >= 3:
+            self.check_session(force=True)
+
+    def _on_success(self):
+        self._errors = 0
+
     def _push_sheets_new(self, a, b: Board, body, comments):
         if not self.sheets:
             return
@@ -133,8 +166,14 @@ class Watcher:
         for row in due:
             try:
                 self._throttle()
-                body = cafe_api.fetch_article_body(row["cafe_id"], row["article_id"],
-                                                   menu_id=row["menu_id"] or 0, client=self.client)
+                try:
+                    body = cafe_api.fetch_article_body(row["cafe_id"], row["article_id"],
+                                                       menu_id=row["menu_id"] or 0, client=self.client)
+                except cafe_api.ArticleGoneError:
+                    self.db.mark_deleted(row["cafe_id"], row["article_id"])
+                    self.log(f"  x DELETED [{row['article_id']}] 삭제/비공개 감지")
+                    self._emit("deleted", {"cafe_id": row["cafe_id"], "article_id": row["article_id"]})
+                    continue
                 self._throttle()
                 comments = cafe_api.fetch_comments(row["cafe_id"], row["article_id"], client=self.client)
                 self.db.save_comments(row["cafe_id"], row["article_id"], comments, phase="revisit")
@@ -166,18 +205,22 @@ class Watcher:
         self.log(f"Watcher 시작 — {len(self.boards)}개 보드, tick {tick_s}s, "
                  f"재방문 {self.revisit_after_s}s 후")
         cycle = itertools.cycle(self.boards)
+        self.check_session(force=True)      # 시작 시 1회 확인
         i = 0
         while True:
             b = next(cycle)
             try:
                 total, new = self.poll_board(b)
+                self._on_success()
                 if new:
                     self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
             except Exception as e:
                 self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
+                self._on_error()
             i += 1
-            if i % len(self.boards) == 0:   # once per full cycle
+            if i % len(self.boards) == 0:   # 한 사이클마다
                 self.process_revisits()
+                self.check_session()
                 if self.sheets:
                     self.sheets.flush()
             time.sleep(tick_s)

@@ -31,6 +31,11 @@
   .title{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @keyframes flash{from{background:#123a24}to{background:transparent}}
   tr.flash{animation:flash 2.4s ease-out}
+  .banner{display:none;padding:10px 20px;background:#3a1414;color:#ff9a9a;border-bottom:1px solid #6b2020;font-size:13px}
+  .banner.show{display:block}
+  .banner code{background:#00000040;padding:1px 6px;border-radius:4px;color:#ffd0d0}
+  tr.deleted td{opacity:.5;text-decoration:line-through}
+  .tag.del{background:#4a1c1c;color:#ff9a9a;text-decoration:none;display:inline-block}
   #toast{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50}
   .t{background:var(--panel);border:1px solid var(--new);border-left:4px solid var(--new);padding:10px 14px;border-radius:8px;font-size:13px;max-width:340px;box-shadow:0 6px 20px #0008}
   /* modal */
@@ -55,6 +60,8 @@
   <span><span class="dot" id="dot"></span><span id="conn" style="font-size:12px;color:var(--mut)">연결 중…</span></span>
   <div class="stats" id="stats"></div>
 </header>
+
+<div class="banner" id="banner">⚠ <b>세션 만료</b> — 네이버 로그인이 풀렸습니다. 서버 PC 터미널에서 <code>python -m src.poc.cli capture --account 내네이버아이디</code> 를 다시 실행하세요.</div>
 
 <div class="bar">
   <label>보드
@@ -124,8 +131,10 @@ async function load(){
 
 async function stats(){
   const s = await (await fetch("/api/stats")).json();
-  $("#stats").innerHTML = `글 <b>${s.articles}</b> · 댓글 <b>${s.comments}</b> · 재방문완료 <b>${s.revisited}</b> · 대기 <b>${s.pending_revisit}</b>`;
+  $("#stats").innerHTML = `글 <b>${s.articles}</b> · 댓글 <b>${s.comments}</b> · 재방문 <b>${s.revisited}</b> · 대기 <b>${s.pending_revisit}</b> · 삭제 <b>${s.deleted??0}</b>`;
+  setSession(s.session_ok !== false);
 }
+function setSession(ok){ $("#banner").classList.toggle("show", !ok); }
 
 async function detail(cafe,art){
   const d = await (await fetch(`/api/articles/${cafe}/${art}`)).json();
@@ -167,6 +176,12 @@ function connect(){
     } else if(m.type==="revisit"){
       const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
       if(tr){ tr.querySelector("[data-delta]").innerHTML=`<span class="delta">+${m.read_delta}</span>`; }
+    } else if(m.type==="deleted"){
+      const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
+      if(tr){ tr.classList.add("deleted"); tr.querySelector("td:nth-child(2)").innerHTML='<span class="tag del">삭제</span>'; }
+    } else if(m.type==="session"){
+      setSession(m.ok);
+      toast(m.ok ? "✅ 세션 정상 복구" : "⚠ 세션 만료 — 재로그인 필요");
     }
   };
 }
