@@ -4,6 +4,9 @@ data/*.db               # 크롤된 게시글/댓글 DB
 data/
 *.session
 
+# 대시보드 로그인 자격증명 (비밀번호)
+config/dashboard_auth.json
+
 # 구글 서비스계정 / 인증
 credentials.json
 token.json

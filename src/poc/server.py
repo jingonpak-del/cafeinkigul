@@ -12,14 +12,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
+import secrets
 import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -78,6 +80,42 @@ class Hub:
 hub = Hub()
 app = FastAPI(title="인기글 트래커")
 STATE = {"session_ok": True}   # 워처가 갱신하는 런타임 상태
+
+
+def _load_auth():
+    """config/dashboard_auth.json 이 있으면 (user, password) 반환, 없으면 None(인증 끔)."""
+    p = ROOT / "config" / "dashboard_auth.json"
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if d.get("user") and d.get("password"):
+                return d["user"], d["password"]
+        except Exception:
+            pass
+    return None
+
+
+AUTH = _load_auth()
+
+
+def _auth_ok(header: str | None) -> bool:
+    if AUTH is None:
+        return True
+    if not header or not header.startswith("Basic "):
+        return False
+    try:
+        user, _, pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except Exception:
+        return False
+    return secrets.compare_digest(user, AUTH[0]) and secrets.compare_digest(pw, AUTH[1])
+
+
+@app.middleware("http")
+async def _basic_auth(request, call_next):
+    # 브라우저가 Basic 인증 통과 후 자격증명을 캐시 → /api, /ws 핸드셰이크에도 자동 전송.
+    if AUTH is None or _auth_ok(request.headers.get("Authorization")):
+        return await call_next(request)
+    return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Ingigeul Tracker"'})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -159,6 +197,9 @@ def article_detail(cafe_id: int, article_id: int):
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
+    if not _auth_ok(ws.headers.get("authorization")):
+        await ws.close(code=1008)   # policy violation (인증 실패)
+        return
     await hub.connect(ws)
     try:
         while True:
