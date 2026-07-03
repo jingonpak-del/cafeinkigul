@@ -180,7 +180,17 @@ async def _startup():
         threading.Thread(target=_start_watcher, daemon=True).start()
 
 
+def _force_utf8():
+    import sys
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main():
+    _force_utf8()   # Windows 콘솔 cp949에서 로그 특수문자 인코딩 오류 방지
     p = argparse.ArgumentParser()
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
