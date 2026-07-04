@@ -55,8 +55,8 @@ python -m src.poc.cli stats
 
 # 5) 웹 대시보드 (워처 포함) — 브라우저로 실시간 보기
 python -m src.poc.server
-#   → http://localhost:8000  접속
-#   → 같은 네트워크의 다른 PC는 http://<서버IP>:8000
+#   → http://localhost:8090  접속
+#   → 같은 네트워크의 다른 PC는 http://<서버IP>:8090
 ```
 
 ## 웹 대시보드

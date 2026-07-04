@@ -340,7 +340,7 @@ def main():
     _force_utf8()   # Windows 콘솔 cp949에서 로그 특수문자 인코딩 오류 방지
     p = argparse.ArgumentParser()
     p.add_argument("--host", default="0.0.0.0")
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--port", type=int, default=8090)   # 8000은 타 프로젝트와 충돌 → 전용 포트
     p.add_argument("--no-watch", action="store_true", help="워처 없이 DB 뷰어만")
     args = p.parse_args()
     app.state.watch = not args.no_watch

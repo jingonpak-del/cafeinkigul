@@ -13,5 +13,5 @@ echo   - 서버(python -m src.poc.server)도 함께 켜져 있어야 합니다.
 echo   - 실행할 때마다 주소가 새로 바뀝니다 (무료 Quick Tunnel 특성).
 echo.
 echo ------------------------------------------------------------
-"C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:8000
+"C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:8090
 pause
