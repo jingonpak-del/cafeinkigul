@@ -20,30 +20,39 @@
   .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
   select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
   button{cursor:pointer} button:hover{border-color:var(--accent)}
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px 16px}
+  .cols{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:14px;padding:0 20px 16px}
   @media(max-width:1100px){.cols{grid-template-columns:1fr}}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;display:flex;flex-direction:column}
-  .panel .phd{padding:11px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:var(--panel);flex:0 0 auto}
+  .panel .phd{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel);flex:0 0 auto}
   .panel .phd h2{margin:0;font-size:15px} .panel .phd .sub{color:var(--mut);font-size:11px}
   .panel .cnt{margin-left:auto;color:var(--mut);font-size:12px}
+  .tabs{display:flex;gap:6px}
+  .tab{padding:4px 11px;border-radius:14px;font-size:12.5px;background:#202a3f;color:var(--mut);border:1px solid transparent;cursor:pointer}
+  .tab.on{background:var(--accent);color:#fff;font-weight:600}
   .scroll{height:calc(100vh - 168px);overflow:auto}
-  @media(max-width:1100px){.scroll{height:70vh}}
+  @media(max-width:1100px){.scroll{height:76vh}}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{color:var(--mut);font-weight:600;position:sticky;top:0;background:#1b2233;z-index:1}
   tr.article{cursor:pointer} tr.article:hover{background:#1c2536}
+  tr.hot1{background:rgba(255,176,32,.06)} tr.hot2{background:rgba(255,140,20,.13)}
+  tr.hot3{background:rgba(255,80,40,.19);box-shadow:inset 3px 0 0 #ff5a2a}
+  .fire{font-size:11px;letter-spacing:-2px}
   .tag{font-size:10px;padding:2px 6px;border-radius:9px;background:#243049;color:#a9c0ff}
-  .tag.pop{background:#3a2c08;color:var(--pop)}
-  .tag.del{background:#4a1c1c;color:#ff9a9a}
+  .tag.pop{background:#3a2c08;color:var(--pop)} .tag.del{background:#4a1c1c;color:#ff9a9a}
   .cafe{color:#bcd0ff;font-weight:600}
   .num{text-align:right;font-variant-numeric:tabular-nums}
   .delta{color:var(--new);font-weight:600}
-  .title{max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .title{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   tr.deleted td{opacity:.5;text-decoration:line-through}
+  tr.datesep td{background:#131a28;color:var(--mut);font-size:11px;text-align:center;padding:4px;letter-spacing:1px;position:sticky;top:29px}
   @keyframes flash{from{background:#123a24}to{background:transparent}}
   tr.flash{animation:flash 2.4s ease-out}
+  .morewrap{padding:10px;text-align:center;flex:0 0 auto;border-top:1px solid var(--line)}
+  .more{background:#202a3f;padding:7px 20px;border-radius:8px} .more[disabled]{opacity:.4;cursor:default}
   #toast{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50}
   .t{background:var(--panel);border:1px solid var(--new);border-left:4px solid var(--new);padding:10px 14px;border-radius:8px;font-size:13px;max-width:340px;box-shadow:0 6px 20px #0008}
+  .t.hot{border-color:var(--pop);border-left-color:var(--pop)}
   #modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
   #modal.show{display:flex}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:760px;width:100%;max-height:88vh;overflow:auto}
@@ -67,25 +76,37 @@
 <div class="banner" id="banner">⚠ <b>세션 만료</b> — 네이버 로그인이 풀렸습니다. 서버 PC 터미널에서 <code>python -m src.poc.cli capture --account 내네이버아이디</code> 를 다시 실행하세요.</div>
 
 <div class="bar">
-  <input id="q" placeholder="제목 검색 (양쪽 모두)…" size="26"/>
-  <button onclick="load()">검색</button>
-  <button onclick="load()">↻ 새로고침</button>
+  <input id="q" placeholder="제목 검색…" size="26"/>
+  <button onclick="reloadAll()">검색</button>
+  <button onclick="reloadAll()">↻ 새로고침</button>
+  <span style="color:var(--mut);font-size:12px">🔥 = 호응(인기)점수 높은 글</span>
 </div>
 
 <div class="cols">
+  <!-- 인기글 -->
   <section class="panel">
     <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span><span class="cnt" id="cnt-pop"></span></div>
     <div class="scroll"><table>
       <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
       <tbody id="rows-pop"></tbody>
     </table></div>
+    <div class="morewrap"><button class="more" id="more-pop" onclick="loadMore('pop')">더보기</button></div>
   </section>
+  <!-- 일반글 (탭) -->
   <section class="panel">
-    <div class="phd"><h2>⚡ 실시간 일반글</h2><span class="sub">계속 축적</span><span class="cnt" id="cnt-gen"></span></div>
+    <div class="phd">
+      <div class="tabs">
+        <span class="tab on" id="tab-latest" onclick="setGenOrder('latest')">⚡ 최신순</span>
+        <span class="tab" id="tab-hot" onclick="setGenOrder('hot')">👍 호응순</span>
+      </div>
+      <span class="sub" id="gen-sub">작성시간 최신순</span>
+      <span class="cnt" id="cnt-gen"></span>
+    </div>
     <div class="scroll"><table>
       <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
       <tbody id="rows-gen"></tbody>
     </table></div>
+    <div class="morewrap"><button class="more" id="more-gen" onclick="loadMore('gen')">더보기</button></div>
   </section>
 </div>
 
@@ -95,7 +116,10 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => (s||"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const PAGE = 100;
 let rowsById = {};
+let genOrder = "latest";              // 일반글 탭: latest | hot
+const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
 function boardTag(boards){
   if(!boards) return "";
@@ -104,28 +128,74 @@ function boardTag(boards){
   if(/menu:/.test(boards)) t.push('<span class="tag">일반</span>');
   return t.join(" ");
 }
+function dayLabel(ms){
+  const d=new Date(ms), t=new Date();
+  const diff=Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);
+  const base=`${d.getMonth()+1}/${d.getDate()}`;
+  return diff===0?base+" (오늘)":diff===1?base+" (어제)":diff===2?base+" (그제)":base;
+}
+function sepHtml(label){ return `<tr class="datesep"><td colspan="8">─── ${label} ───</td></tr>`; }
+
 function rowHtml(r){
   const key=r.cafe_id+"_"+r.article_id;
   const delta=(r.revisit_done && r.read_delta!=null)?`<span class="delta">+${r.read_delta}</span>`:'<span style="color:var(--mut)">–</span>';
-  const del = r.status==="deleted";
-  return `<tr class="article ${del?'deleted':''}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
+  const del=r.status==="deleted";
+  const fire=r.tier?`<span class="fire" title="호응점수 ${r.hot_score}">${"🔥".repeat(r.tier)}</span> `:"";
+  const cls="article "+(del?"deleted ":"")+(r.tier?("hot"+r.tier):"");
+  return `<tr class="${cls}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
     <td style="color:var(--mut)">${r.seen_str||""}</td>
     <td class="cafe">${esc(r.cafe_name||"")}</td>
     <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}</td>
-    <td class="title" title="${esc(r.title)}">${esc(r.title)}</td>
+    <td class="title" title="${esc(r.title)}">${fire}${esc(r.title)}</td>
     <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
-    <td class="num">${r.first_read_count??""}</td>
-    <td class="num">${r.first_comment_count??""}</td>
+    <td class="num">${r.read_cnt??""}</td>
+    <td class="num">${r.comment_cnt??""}</td>
     <td class="num" data-delta>${delta}</td></tr>`;
 }
-async function fill(type, tbodyId, cntId){
-  const q=$("#q").value;
-  const rows=await (await fetch(`/api/articles?limit=300&type=${type}&q=${encodeURIComponent(q)}`)).json();
-  rows.forEach(r=>rowsById[r.cafe_id+"_"+r.article_id]=r);
-  $("#"+tbodyId).innerHTML=rows.map(rowHtml).join("");
-  $("#"+cntId).textContent=`${rows.length}건`;
+
+async function get(type, order, offset, limit){
+  const q=encodeURIComponent($("#q").value);
+  const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}`);
+  return r.json();
 }
-async function load(){ rowsById={}; await Promise.all([fill("popular","rows-pop","cnt-pop"),fill("general","rows-gen","cnt-gen")]); stats(); }
+function orderOf(key){ return key==="gen"?genOrder:"latest"; }
+
+function renderRows(key, rows, append){
+  const tb=$("#rows-"+key), order=orderOf(key);
+  let html="", lastDay=append?(tb.dataset.lastday||""):"";
+  for(const r of rows){
+    rowsById[r.cafe_id+"_"+r.article_id]=r;
+    if(order==="latest" && r.write_ts){ const dl=dayLabel(r.write_ts); if(dl!==lastDay){ html+=sepHtml(dl); lastDay=dl; } }
+    html+=rowHtml(r);
+  }
+  if(append) tb.insertAdjacentHTML("beforeend", html); else tb.innerHTML=html;
+  tb.dataset.lastday=lastDay;
+}
+async function reload(key){
+  const st=state[key];
+  const limit=Math.max(PAGE, st.loaded||PAGE);   // 확장 상태 유지하며 갱신
+  const data=await get(st.type, orderOf(key), 0, limit);
+  renderRows(key, data.rows, false);
+  st.loaded=data.rows.length; setMore(key, data.has_more);
+  $("#cnt-"+key).textContent=`${st.loaded}건`;
+}
+async function loadMore(key){
+  const st=state[key];
+  const data=await get(st.type, orderOf(key), st.loaded, PAGE);
+  renderRows(key, data.rows, true);
+  st.loaded+=data.rows.length; setMore(key, data.has_more);
+  $("#cnt-"+key).textContent=`${st.loaded}건`;
+}
+function setMore(key, has){ const b=$("#more-"+key); b.disabled=!has; b.textContent=has?"더보기":"끝"; }
+async function reloadAll(){ rowsById={}; await Promise.all([reload("pop"), reload("gen")]); stats(); }
+
+function setGenOrder(o){
+  genOrder=o;
+  $("#tab-latest").classList.toggle("on", o==="latest");
+  $("#tab-hot").classList.toggle("on", o==="hot");
+  $("#gen-sub").textContent = o==="hot" ? "최근 24시간 · 호응(인기)점수순" : "작성시간 최신순";
+  state.gen.loaded=0; reload("gen");
+}
 
 async function stats(){
   const s=await (await fetch("/api/stats")).json();
@@ -147,7 +217,7 @@ async function detail(cafe,art){
 }
 function closeModal(){ $("#modal").classList.remove("show"); }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
-function toast(msg){ const el=document.createElement("div"); el.className="t"; el.innerHTML=msg; $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000); }
+function toast(msg,hot){ const el=document.createElement("div"); el.className="t"+(hot?" hot":""); el.innerHTML=msg; $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000); }
 
 function connect(){
   const ws=new WebSocket((location.protocol==="https:"?"wss":"ws")+"://"+location.host+"/ws");
@@ -157,13 +227,22 @@ function connect(){
     const m=JSON.parse(e.data);
     if(m.type==="new"){
       const isPop=(m.board_key||"").includes("popular");
-      const r={cafe_id:m.cafe_id,article_id:m.article_id,title:m.title,writer_nickname:m.writer,
-        cafe_name:m.cafe_name,boards:m.board_key,first_read_count:m.read_count,first_comment_count:m.comment_count,
-        read_delta:null,revisit_done:0,seen_str:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})};
-      rowsById[r.cafe_id+"_"+r.article_id]=r;
-      const tb=$(isPop?"#rows-pop":"#rows-gen");
-      tb.insertAdjacentHTML("afterbegin",rowHtml(r));
-      tb.firstElementChild.classList.add("flash");
+      if(isPop){
+        const r={cafe_id:m.cafe_id,article_id:m.article_id,title:m.title,writer_nickname:m.writer,cafe_name:m.cafe_name,
+          boards:m.board_key,read_cnt:m.read_count,comment_cnt:m.comment_count,read_delta:null,revisit_done:0,tier:0,
+          seen_str:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})};
+        rowsById[r.cafe_id+"_"+r.article_id]=r;
+        $("#rows-pop").insertAdjacentHTML("afterbegin", rowHtml(r));
+        $("#rows-pop").firstElementChild.classList.add("flash");
+      } else if(genOrder==="latest"){
+        // 최신순일 때만 상단에 삽입 (호응순은 자동 새로고침으로 반영)
+        const r={cafe_id:m.cafe_id,article_id:m.article_id,title:m.title,writer_nickname:m.writer,cafe_name:m.cafe_name,
+          boards:m.board_key,read_cnt:m.read_count,comment_cnt:m.comment_count,read_delta:null,revisit_done:0,tier:0,
+          seen_str:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})};
+        rowsById[r.cafe_id+"_"+r.article_id]=r;
+        $("#rows-gen").insertAdjacentHTML("afterbegin", rowHtml(r));
+        $("#rows-gen").firstElementChild.classList.add("flash");
+      }
       toast(`${isPop?'🔥':'🆕'} <b>${esc(m.cafe_name||'')}</b> · ${esc(m.board_name)}<br>${esc(m.title)} <span style="color:var(--mut)">(조회 ${m.read_count})</span>`);
       stats();
     } else if(m.type==="revisit"){
@@ -177,7 +256,10 @@ function connect(){
     }
   };
 }
-load(); connect(); setInterval(stats,15000);
+
+reloadAll(); connect();
+setInterval(stats, 15000);
+setInterval(()=>{ reload("gen"); reload("pop"); }, 45000);   // 점수·카운트 자동 갱신
 </script>
 </body>
 </html>

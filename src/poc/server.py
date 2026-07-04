@@ -13,10 +13,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import bisect
 import json
 import secrets
 import sqlite3
 import threading
+import time
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -46,6 +49,75 @@ def _cafe_names() -> dict:
         return {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
     except Exception:
         return {}
+
+
+# ── 인기점수(호응) 계산 ────────────────────────────────────────────────────
+HOT_WINDOW_H = 24                       # '호응좋은 일반글' 대상 시간창
+W_VV, W_CV, W_ER, W_LR = 0.35, 0.30, 0.25, 0.10   # 조회속도/댓글속도/참여율/좋아요율
+ER_CAP, LR_CAP = 0.30, 0.10             # 참여율/좋아요율 상한(정규화용)
+MIN_READ = 50                           # 이 미만 조회는 채점 제외(이른 글 노이즈)
+TIERS = ((75, 3), (55, 2), (40, 1))     # 점수→티어(🔥 개수)
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _pct(sorted_vals, v) -> float:
+    # 값보다 '엄격히 작은' 항목 비율 → 0(댓글 없음 등) 동점은 하위로 감.
+    n = len(sorted_vals)
+    if n <= 1:
+        return 0.5
+    return bisect.bisect_left(sorted_vals, v) / (n - 1)
+
+
+def _recent_scores(conn) -> dict:
+    """최근 24h 일반글의 인기점수 {(cafe,article): score|None} (카페별 백분위 정규화)."""
+    since = _now_ms() - HOT_WINDOW_H * 3600 * 1000
+    rows = conn.execute(
+        """SELECT a.cafe_id, a.article_id, a.write_ts,
+                  COALESCE(a.cur_read, a.first_read_count, 0) AS r,
+                  COALESCE(a.cur_comment, a.first_comment_count, 0) AS c,
+                  COALESCE(a.cur_like, a.like_count, 0) AS lk
+           FROM articles a
+           WHERE a.write_ts >= ? AND a.status != 'deleted'
+             AND EXISTS (SELECT 1 FROM board_detections d
+                         WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id
+                           AND d.board_key LIKE 'menu:%')""",
+        (since,)).fetchall()
+    now = _now_ms()
+    by_cafe, met = defaultdict(list), {}
+    for row in rows:
+        key = (row["cafe_id"], row["article_id"])
+        r = row["r"] or 0
+        age_h = max((now - (row["write_ts"] or now)) / 3600000, 0.15)
+        vv = r / age_h
+        cv = (row["c"] or 0) / age_h
+        er = min((row["c"] or 0) / max(r, 1), ER_CAP) / ER_CAP
+        lr = min((row["lk"] or 0) / max(r, 1), LR_CAP) / LR_CAP
+        met[key] = (vv, cv, er, lr, r)
+        by_cafe[row["cafe_id"]].append(key)
+    scores = {}
+    for keys in by_cafe.values():
+        vvs = sorted(met[k][0] for k in keys)
+        cvs = sorted(met[k][1] for k in keys)
+        for k in keys:
+            vv, cv, er, lr, r = met[k]
+            if r < MIN_READ:
+                scores[k] = None
+                continue
+            scores[k] = round(100 * (W_VV * _pct(vvs, vv) + W_CV * _pct(cvs, cv)
+                                     + W_ER * er + W_LR * lr), 1)
+    return scores
+
+
+def _tier(s) -> int:
+    if s is None:
+        return 0
+    for thr, t in TIERS:
+        if s >= thr:
+            return t
+    return 0
 
 
 # ── WebSocket 브로드캐스트 ────────────────────────────────────────────────
@@ -141,36 +213,54 @@ def stats():
 
 
 @app.get("/api/articles")
-def articles(limit: int = 100, type: str = "", q: str = ""):
-    """type: 'popular'(인기글) | 'general'(일반글) | '' (전체). 작성시간 최신순."""
+def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, order: str = "latest"):
+    """type: 'popular'|'general'|''. order: 'latest'(작성시간 최신순) | 'hot'(24h 인기점수순).
+    반환: {rows, has_more}."""
     names = _cafe_names()
     conn = _row_conn()
     try:
-        sql = ["""SELECT a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname,
-                         a.write_ts, a.first_seen_at, a.first_read_count, a.first_comment_count,
-                         a.like_count, a.second_read_count, a.read_delta, a.revisit_done, a.status,
+        scores = _recent_scores(conn)
+        base = """SELECT a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname,
+                         a.write_ts, a.first_seen_at, a.read_delta, a.revisit_done, a.status,
+                         COALESCE(a.cur_read, a.first_read_count) AS read_cnt,
+                         COALESCE(a.cur_comment, a.first_comment_count) AS comment_cnt,
+                         COALESCE(a.cur_like, a.like_count) AS like_cnt,
                          (SELECT group_concat(board_key, ',') FROM board_detections d
                           WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id) AS boards
-                  FROM articles a"""]
+                  FROM articles a"""
         where, params = [], []
         if type == "popular":
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key='popular')""")
-        elif type == "general":
+        elif type == "general" or order == "hot":
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
         if q:
             where.append("a.title LIKE ?"); params.append(f"%{q}%")
-        if where:
-            sql.append("WHERE " + " AND ".join(where))
-        sql.append("ORDER BY a.write_ts DESC LIMIT ?"); params.append(limit)  # 작성시간 최신순
-        rows = [dict(r) for r in conn.execute(" ".join(sql), params).fetchall()]
-        for r in rows:
+
+        if order == "hot":
+            # 최근 24h 일반글 중 점수 있는 것만, 점수 내림차순
+            where.append("a.write_ts >= ?"); params.append(_now_ms() - HOT_WINDOW_H * 3600 * 1000)
+            where.append("a.status != 'deleted'")
+            sql = base + " WHERE " + " AND ".join(where)
+            allrows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+            allrows = [r for r in allrows if scores.get((r["cafe_id"], r["article_id"])) is not None]
+            allrows.sort(key=lambda r: scores[(r["cafe_id"], r["article_id"])], reverse=True)
+            page = allrows[offset:offset + limit]
+        else:
+            sql = base + (" WHERE " + " AND ".join(where) if where else "")
+            sql += " ORDER BY a.write_ts DESC LIMIT ? OFFSET ?"
+            page = [dict(r) for r in conn.execute(sql, params + [limit, offset]).fetchall()]
+
+        for r in page:
+            key = (r["cafe_id"], r["article_id"])
             r["cafe_name"] = names.get(r["cafe_id"], str(r["cafe_id"]))
             r["write_str"] = _fmt(r["write_ts"])
             r["seen_str"] = _fmt(r["first_seen_at"])
+            r["hot_score"] = scores.get(key)
+            r["tier"] = _tier(scores.get(key))
             r["url"] = f"https://cafe.naver.com/ca-fe/cafes/{r['cafe_id']}/articles/{r['article_id']}"
-        return rows
+        return {"rows": page, "has_more": len(page) == limit}
     finally:
         conn.close()
 

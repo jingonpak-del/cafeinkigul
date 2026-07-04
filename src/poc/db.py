@@ -85,7 +85,16 @@ class Database:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self):
+        """기존 DB에 없는 컬럼을 추가 (폴링 시 갱신되는 현재 카운트)."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(articles)")}
+        for col, decl in (("cur_read", "INTEGER"), ("cur_comment", "INTEGER"),
+                          ("cur_like", "INTEGER"), ("cur_snapshot_at", "INTEGER")):
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {decl}")
 
     def close(self):
         self.conn.close()
@@ -113,6 +122,18 @@ class Database:
         )
         self.conn.commit()
         return is_new
+
+    def update_current_counts_bulk(self, arts):
+        """폴링 시 목록이 준 현재 조회/댓글/좋아요를 일괄 갱신 (인기점수용)."""
+        if not arts:
+            return
+        ts = now_ms()
+        self.conn.executemany(
+            """UPDATE articles SET cur_read=?, cur_comment=?, cur_like=?, cur_snapshot_at=?
+               WHERE cafe_id=? AND article_id=?""",
+            [(a.read_count, a.comment_count, a.like_count, ts, a.cafe_id, a.article_id) for a in arts],
+        )
+        self.conn.commit()
 
     # --- body / comments -----------------------------------------------------
     def save_body(self, body):

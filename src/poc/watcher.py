@@ -88,13 +88,14 @@ class Watcher:
             arts = cafe_api.fetch_article_list(b.club_id, menu_id=b.menu_id,
                                                per_page=self.per_page, client=self.client)
         new_count = 0
-        for a in arts:
-            if a.blinded or a.is_notice:
-                continue
+        live = [a for a in arts if not (a.blinded or a.is_notice)]
+        for a in live:
             is_new = self.db.upsert_article_seen(a, b.board_key, self.revisit_after_s)
             if is_new:
                 new_count += 1
                 self._crawl_new(a, b)
+        # 기존/신규 모두 현재 카운트 갱신 (인기점수 실시간 반영, 추가 크롤 없음)
+        self.db.update_current_counts_bulk(live)
         return len(arts), new_count
 
     def _crawl_new(self, a, b: Board):
