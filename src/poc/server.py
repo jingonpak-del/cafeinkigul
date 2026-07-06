@@ -23,7 +23,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -154,40 +154,69 @@ app = FastAPI(title="인기글 트래커")
 STATE = {"session_ok": True}   # 워처가 갱신하는 런타임 상태
 
 
-def _load_auth():
-    """config/dashboard_auth.json 이 있으면 (user, password) 반환, 없으면 None(인증 끔)."""
+def _load_accounts():
+    """config/dashboard_auth.json → 계정 목록 [{user,password,group,admin?}].
+    구버전({user,password}) 호환. 파일 없으면 None(인증 끔)."""
     p = ROOT / "config" / "dashboard_auth.json"
     if p.exists():
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d.get("accounts"), list) and d["accounts"]:
+                return d["accounts"]
             if d.get("user") and d.get("password"):
-                return d["user"], d["password"]
+                return [{"user": d["user"], "password": d["password"], "group": "관리자", "admin": True}]
         except Exception:
             pass
     return None
 
 
-AUTH = _load_auth()
+ACCOUNTS = _load_accounts()
+ACCESS = {}   # (group, ip) -> [first_ms, last_ms, count]
 
 
-def _auth_ok(header: str | None) -> bool:
-    if AUTH is None:
-        return True
+def _auth_match(header: str | None):
+    """자격증명 일치하는 계정 dict 반환, 없으면 None. 인증 끔이면 관리자로 취급."""
+    if ACCOUNTS is None:
+        return {"group": "(무인증)", "admin": True}
     if not header or not header.startswith("Basic "):
-        return False
+        return None
     try:
         user, _, pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
     except Exception:
-        return False
-    return secrets.compare_digest(user, AUTH[0]) and secrets.compare_digest(pw, AUTH[1])
+        return None
+    for a in ACCOUNTS:
+        if secrets.compare_digest(user, a.get("user", "")) and secrets.compare_digest(pw, a.get("password", "")):
+            return a
+    return None
+
+
+def _client_ip(headers, fallback) -> str:
+    # Cloudflare 터널 뒤에선 실제 IP가 헤더에 있음.
+    return (headers.get("cf-connecting-ip")
+            or headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or fallback or "?")
+
+
+def _record_access(acct, ip):
+    key = (acct.get("group", "?"), ip)
+    now = _now_ms()
+    e = ACCESS.get(key)
+    if e:
+        e[1] = now; e[2] += 1
+    else:
+        ACCESS[key] = [now, now, 1]
 
 
 @app.middleware("http")
-async def _basic_auth(request, call_next):
+async def _basic_auth(request: Request, call_next):
     # 브라우저가 Basic 인증 통과 후 자격증명을 캐시 → /api, /ws 핸드셰이크에도 자동 전송.
-    if AUTH is None or _auth_ok(request.headers.get("Authorization")):
+    if ACCOUNTS is None:
         return await call_next(request)
-    return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Ingigeul Tracker"'})
+    acct = _auth_match(request.headers.get("Authorization"))
+    if acct is None:
+        return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Ingigeul Tracker"'})
+    _record_access(acct, _client_ip(request.headers, request.client.host if request.client else None))
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -285,11 +314,34 @@ def article_detail(cafe_id: int, article_id: int):
         conn.close()
 
 
+@app.get("/api/access")
+def access(request: Request):
+    """그룹별 접속 현황 (관리자 전용). 인원=고유 IP, 활성=최근 5분 접속."""
+    acct = _auth_match(request.headers.get("Authorization"))
+    if not (acct and acct.get("admin")):
+        return JSONResponse({"error": "관리자 계정만 볼 수 있습니다."}, status_code=403)
+    now = _now_ms()
+    groups = {}
+    for (g, ip), (first, last, cnt) in ACCESS.items():
+        st = groups.setdefault(g, {"group": g, "people": 0, "active": 0, "requests": 0, "last": 0})
+        st["people"] += 1
+        st["requests"] += cnt
+        st["last"] = max(st["last"], last)
+        if now - last <= 5 * 60 * 1000:
+            st["active"] += 1
+    out = sorted(groups.values(), key=lambda x: -x["last"])
+    for g in out:
+        g["last_str"] = _fmt(g["last"])
+    return {"groups": out, "total_ips": len(ACCESS)}
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
-    if not _auth_ok(ws.headers.get("authorization")):
+    acct = _auth_match(ws.headers.get("authorization"))
+    if acct is None:
         await ws.close(code=1008)   # policy violation (인증 실패)
         return
+    _record_access(acct, _client_ip(ws.headers, ws.client.host if ws.client else None))
     await hub.connect(ws)
     try:
         while True:

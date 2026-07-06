@@ -79,6 +79,7 @@
   <input id="q" placeholder="제목 검색…" size="26"/>
   <button onclick="reloadAll()">검색</button>
   <button onclick="reloadAll()">↻ 새로고침</button>
+  <button onclick="showAccess()">👥 접속현황</button>
   <span style="color:var(--mut);font-size:12px">🔥 = 호응(인기)점수 높은 글</span>
 </div>
 
@@ -213,6 +214,18 @@ async function detail(cafe,art){
     <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div></div>
     <div class="body">${esc(d.content_text)||'<span style="color:var(--mut)">본문 없음</span>'}</div>
     <div class="cmts"><b>댓글 ${(d.comments||[]).length}</b>${cmts}</div>`;
+  $("#modal").classList.add("show");
+}
+async function showAccess(){
+  const r=await fetch("/api/access");
+  if(r.status===403){ toast("👥 접속현황은 관리자 계정만 볼 수 있어요"); return; }
+  const d=await r.json();
+  const rows=(d.groups||[]).map(g=>`<tr><td class="cafe">${esc(g.group)}</td><td class="num">${g.people}</td><td class="num" style="color:var(--new)">${g.active}</td><td class="num">${g.requests}</td><td style="color:var(--mut)">${g.last_str||""}</td></tr>`).join("")||'<tr><td colspan="5" style="color:var(--mut)">아직 접속 기록 없음</td></tr>';
+  $("#card").innerHTML=`<div class="hd"><span class="x" onclick="closeModal()">✕</span><h2>👥 그룹별 접속 현황</h2>
+    <div class="meta">인원=고유 IP · 활성=최근 5분 접속 · 서버 재시작 시 초기화</div></div>
+    <div style="padding:12px 20px"><table>
+      <thead><tr><th>그룹</th><th class="num">인원</th><th class="num">활성</th><th class="num">요청수</th><th>마지막 접속</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
   $("#modal").classList.add("show");
 }
 function closeModal(){ $("#modal").classList.remove("show"); }
