@@ -119,6 +119,7 @@ const $ = s => document.querySelector(s);
 const esc = s => (s||"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const PAGE = 100;
 let rowsById = {};
+let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
 let genOrder = "latest";              // 일반글 탭: latest | hot
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
@@ -207,14 +208,34 @@ function setSession(ok){ $("#banner").classList.toggle("show",!ok); }
 
 async function detail(cafe,art){
   const d=await (await fetch(`/api/articles/${cafe}/${art}`)).json();
+  curDetail=d;
   const cmts=(d.comments||[]).map(c=>`<div class="cmt ${c.is_reply?'reply':''}"><span class="who">${esc(c.writer_nickname)}</span>${esc(c.content)}</div>`).join("")||'<div style="color:var(--mut)">댓글 없음</div>';
   $("#card").innerHTML=`<div class="hd"><span class="x" onclick="closeModal()">✕</span>
     <h2>${esc(d.title)}</h2>
     <div class="meta"><span class="cafe">${esc(d.cafe_name||"")}</span><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
-    <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div></div>
+    <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div>
+    <div style="margin-top:10px"><button class="more" style="border-color:var(--accent)" onclick="copyManuscript()">📋 원고복사 (제목·본문·댓글)</button></div></div>
     <div class="body">${esc(d.content_text)||'<span style="color:var(--mut)">본문 없음</span>'}</div>
     <div class="cmts"><b>댓글 ${(d.comments||[]).length}</b>${cmts}</div>`;
   $("#modal").classList.add("show");
+}
+function copyManuscript(){
+  const d=curDetail; if(!d) return;
+  const cmts=(d.comments||[]).slice(0,10).map((c,i)=>`${i+1}. ${(c.content||"").trim()}`).join("\n");
+  const text=`제목 ; ${d.title||""}\n\n본문 ;\n${(d.content_text||"").trim()}\n\n댓글 ;\n${cmts}`;
+  copyText(text);
+}
+function copyText(text){
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(()=>toast("📋 원고가 클립보드에 복사됐어요")).catch(()=>fallbackCopy(text));
+  } else { fallbackCopy(text); }
+}
+function fallbackCopy(text){
+  const ta=document.createElement("textarea"); ta.value=text;
+  ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand("copy"); toast("📋 원고가 클립보드에 복사됐어요"); }
+  catch(e){ toast("복사 실패 — 본문을 직접 선택해 복사하세요"); }
+  document.body.removeChild(ta);
 }
 async function showAccess(){
   const r=await fetch("/api/access");
