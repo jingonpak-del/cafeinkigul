@@ -92,7 +92,8 @@ class Database:
         """기존 DB에 없는 컬럼을 추가 (폴링 시 갱신되는 현재 카운트)."""
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(articles)")}
         for col, decl in (("cur_read", "INTEGER"), ("cur_comment", "INTEGER"),
-                          ("cur_like", "INTEGER"), ("cur_snapshot_at", "INTEGER")):
+                          ("cur_like", "INTEGER"), ("cur_snapshot_at", "INTEGER"),
+                          ("used", "INTEGER DEFAULT 0"), ("used_by", "TEXT"), ("used_at", "INTEGER")):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {decl}")
 

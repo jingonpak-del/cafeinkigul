@@ -40,6 +40,9 @@
   .fire{font-size:11px;letter-spacing:-2px}
   .tag{font-size:10px;padding:2px 6px;border-radius:9px;background:#243049;color:#a9c0ff}
   .tag.pop{background:#3a2c08;color:var(--pop)} .tag.del{background:#4a1c1c;color:#ff9a9a}
+  .tag.used{background:#173a2a;color:#7ee0a8;border:1px solid #2e6b4a}
+  tr.usedmark td{opacity:.5}
+  body.hideused tr.usedmark{display:none}
   .cafe{color:#bcd0ff;font-weight:600}
   .num{text-align:right;font-variant-numeric:tabular-nums}
   .delta{color:var(--new);font-weight:600}
@@ -80,7 +83,8 @@
   <button onclick="reloadAll()">검색</button>
   <button onclick="reloadAll()">↻ 새로고침</button>
   <button onclick="showAccess()">👥 접속현황</button>
-  <span style="color:var(--mut);font-size:12px">🔥 = 호응(인기)점수 높은 글</span>
+  <label style="color:var(--mut);font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="hideused" onchange="document.body.classList.toggle('hideused', this.checked)"> 미사용만 보기</label>
+  <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
 
 <div class="cols">
@@ -143,11 +147,12 @@ function rowHtml(r){
   const delta=(r.revisit_done && r.read_delta!=null)?`<span class="delta">+${r.read_delta}</span>`:'<span style="color:var(--mut)">–</span>';
   const del=r.status==="deleted";
   const fire=r.tier?`<span class="fire" title="호응점수 ${r.hot_score}">${"🔥".repeat(r.tier)}</span> `:"";
-  const cls="article "+(del?"deleted ":"")+(r.tier?("hot"+r.tier):"");
+  const used=r.used?`<span class="tag used" title="${esc(r.used_by||'')} 사용">✓ ${esc(r.used_by||'사용')}</span>`:"";
+  const cls="article "+(del?"deleted ":"")+(r.used?"usedmark ":"")+(r.tier?("hot"+r.tier):"");
   return `<tr class="${cls}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
     <td style="color:var(--mut)">${r.seen_str||""}</td>
     <td class="cafe">${esc(r.cafe_name||"")}</td>
-    <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}</td>
+    <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}${used}</td>
     <td class="title" title="${esc(r.title)}">${fire}${esc(r.title)}</td>
     <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
     <td class="num">${r.read_cnt??""}</td>
@@ -214,7 +219,10 @@ async function detail(cafe,art){
     <h2>${esc(d.title)}</h2>
     <div class="meta"><span class="cafe">${esc(d.cafe_name||"")}</span><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
     <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div>
-    <div style="margin-top:10px"><button class="more" style="border-color:var(--accent)" onclick="copyManuscript()">📋 원고복사 (제목·본문·댓글)</button></div></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="more" style="border-color:var(--accent)" onclick="copyManuscript()">📋 원고복사 (제목·본문·댓글)</button>
+      <button class="more" id="usebtn" onclick="toggleUsed()">${d.used?'☑ 사용됨 해제':'⬜ 사용함 표시'}</button>
+    </div></div>
     <div class="body">${esc(d.content_text)||'<span style="color:var(--mut)">본문 없음</span>'}</div>
     <div class="cmts"><b>댓글 ${(d.comments||[]).length}</b>${cmts}</div>`;
   $("#modal").classList.add("show");
@@ -224,6 +232,16 @@ function copyManuscript(){
   const cmts=(d.comments||[]).slice(0,10).map((c,i)=>`${i+1}. ${(c.content||"").trim()}`).join("\n");
   const text=`제목 ; ${d.title||""}\n\n본문 ;\n${(d.content_text||"").trim()}\n\n댓글 ;\n${cmts}`;
   copyText(text);
+}
+async function toggleUsed(){
+  const d=curDetail; if(!d) return;
+  const newUsed=!d.used;
+  const r=await fetch(`/api/articles/${d.cafe_id}/${d.article_id}/use`,
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({used:newUsed})});
+  if(!r.ok){ toast("표시 실패 (로그인 확인)"); return; }
+  d.used=newUsed;
+  const b=$("#usebtn"); if(b) b.innerHTML=newUsed?'☑ 사용됨 해제':'⬜ 사용함 표시';
+  toast(newUsed?"✅ '사용됨'으로 표시했어요":"표시를 해제했어요");
 }
 function copyText(text){
   if(navigator.clipboard && window.isSecureContext){
@@ -285,6 +303,14 @@ function connect(){
     } else if(m.type==="deleted"){
       const tr=$(`tr[data-id="${m.cafe_id}_${m.article_id}"]`);
       if(tr){ tr.classList.add("deleted"); tr.querySelector("td:nth-child(3)").innerHTML='<span class="tag del">삭제</span>'; }
+    } else if(m.type==="used"){
+      const key=m.cafe_id+"_"+m.article_id, r=rowsById[key];
+      if(r){ r.used=m.used; r.used_by=m.used_by; }
+      const tr=$(`tr[data-id="${key}"]`);
+      if(tr && r) tr.outerHTML=rowHtml(r);          // 뱃지·딤 즉시 반영
+      if(curDetail && curDetail.cafe_id===m.cafe_id && curDetail.article_id===m.article_id){
+        curDetail.used=m.used; const b=$("#usebtn"); if(b) b.innerHTML=m.used?'☑ 사용됨 해제':'⬜ 사용함 표시';
+      }
     } else if(m.type==="session"){
       setSession(m.ok); toast(m.ok?"✅ 세션 정상 복구":"⚠ 세션 만료 — 재로그인 필요");
     }

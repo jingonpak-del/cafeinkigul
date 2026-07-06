@@ -39,6 +39,12 @@ def _row_conn():
     return conn
 
 
+def _write_conn():
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout=10000")
+    return conn
+
+
 def _fmt(ms):
     return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M") if ms else ""
 
@@ -254,6 +260,7 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
                          COALESCE(a.cur_read, a.first_read_count) AS read_cnt,
                          COALESCE(a.cur_comment, a.first_comment_count) AS comment_cnt,
                          COALESCE(a.cur_like, a.like_count) AS like_cnt,
+                         COALESCE(a.used, 0) AS used, a.used_by, a.used_at,
                          (SELECT group_concat(board_key, ',') FROM board_detections d
                           WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id) AS boards
                   FROM articles a"""
@@ -333,6 +340,36 @@ def access(request: Request):
     for g in out:
         g["last_str"] = _fmt(g["last"])
     return {"groups": out, "total_ips": len(ACCESS)}
+
+
+@app.post("/api/articles/{cafe_id}/{article_id}/use")
+async def mark_used(cafe_id: int, article_id: int, request: Request):
+    """소프트 '사용됨' 표시 토글. 표시자 그룹 기록 + 전 접속자에 실시간 브로드캐스트."""
+    acct = _auth_match(request.headers.get("Authorization"))
+    if acct is None:
+        return JSONResponse({"error": "auth"}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    used = 1 if body.get("used") else 0
+    group = acct.get("group", "?")
+    now = _now_ms()
+    conn = _write_conn()
+    try:
+        if used:
+            conn.execute("UPDATE articles SET used=1, used_by=?, used_at=? WHERE cafe_id=? AND article_id=?",
+                         (group, now, cafe_id, article_id))
+        else:
+            conn.execute("UPDATE articles SET used=0, used_by=NULL, used_at=NULL WHERE cafe_id=? AND article_id=?",
+                         (cafe_id, article_id))
+        conn.commit()
+    finally:
+        conn.close()
+    payload = {"type": "used", "cafe_id": cafe_id, "article_id": article_id,
+               "used": bool(used), "used_by": group if used else None, "used_at": now if used else None}
+    await hub._send_all(payload)   # 모든 접속 브라우저에 즉시 반영
+    return {"ok": True, **payload}
 
 
 @app.websocket("/ws")
