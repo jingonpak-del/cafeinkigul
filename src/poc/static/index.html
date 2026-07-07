@@ -49,6 +49,32 @@
   .title{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   tr.deleted td{opacity:.5;text-decoration:line-through}
   tr.datesep td{background:#131a28;color:var(--mut);font-size:11px;text-align:center;padding:4px;letter-spacing:1px;position:sticky;top:29px}
+  /* ── 모바일: 상단 탭 전환 + 카드형 ── */
+  .mtabs{display:none}
+  @media(max-width:1100px){
+    .mtabs{display:flex;gap:8px;padding:8px 14px;position:sticky;top:57px;background:var(--bg);z-index:15;border-bottom:1px solid var(--line)}
+    .mtab{flex:1;padding:10px;border-radius:8px;background:#202a3f;color:var(--mut);border:1px solid var(--line);font-size:14px}
+    .mtab.on{background:var(--accent);color:#fff;font-weight:600}
+    .panel.mhide{display:none}
+    .cols{padding:0 10px 20px}
+    .scroll{height:calc(100vh - 212px)}
+  }
+  @media(max-width:760px){
+    .panel .phd{flex-wrap:wrap;gap:6px}
+    thead{display:none}
+    table,tbody{display:block}
+    tr.article{display:block;padding:11px 13px}
+    tr.article td{display:inline;padding:0;border:0;white-space:normal;vertical-align:baseline}
+    tr.article td:nth-child(1),tr.article td:nth-child(5),tr.article td:nth-child(8){display:none}
+    tr.article td:nth-child(2){font-size:11.5px;margin-right:6px}
+    tr.article td:nth-child(3){font-size:11px}
+    tr.article td:nth-child(4){display:block;font-size:15.5px;font-weight:600;line-height:1.35;max-width:none;margin:5px 0 6px}
+    tr.article td:nth-child(6),tr.article td:nth-child(7){display:inline-block;color:var(--mut);font-size:12.5px}
+    tr.article td:nth-child(6)::before{content:"👁 "}
+    tr.article td:nth-child(7)::before{content:"    💬 "}
+    tr.datesep td{position:static;display:block}
+    .card .hd .more{flex:1;padding:12px;font-size:13px}
+  }
   @keyframes flash{from{background:#123a24}to{background:transparent}}
   tr.flash{animation:flash 2.4s ease-out}
   .morewrap{padding:10px;text-align:center;flex:0 0 auto;border-top:1px solid var(--line)}
@@ -87,9 +113,14 @@
   <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
 
+<div class="mtabs" id="mtabs">
+  <button class="mtab on" id="mtab-pop" onclick="setMobilePanel('pop')">🔥 인기글</button>
+  <button class="mtab" id="mtab-gen" onclick="setMobilePanel('gen')">⚡ 일반글</button>
+</div>
+
 <div class="cols">
   <!-- 인기글 -->
-  <section class="panel">
+  <section class="panel pop">
     <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span><span class="cnt" id="cnt-pop"></span></div>
     <div class="scroll"><table>
       <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
@@ -98,7 +129,7 @@
     <div class="morewrap"><button class="more" id="more-pop" onclick="loadMore('pop')">더보기</button></div>
   </section>
   <!-- 일반글 (탭) -->
-  <section class="panel">
+  <section class="panel gen mhide">
     <div class="phd">
       <div class="tabs">
         <span class="tab on" id="tab-latest" onclick="setGenOrder('latest')">⚡ 최신순</span>
@@ -196,6 +227,12 @@ async function loadMore(key){
 function setMore(key, has){ const b=$("#more-"+key); b.disabled=!has; b.textContent=has?"더보기":"끝"; }
 async function reloadAll(){ rowsById={}; await Promise.all([reload("pop"), reload("gen")]); stats(); }
 
+function setMobilePanel(p){
+  document.querySelector(".panel.pop").classList.toggle("mhide", p!=="pop");
+  document.querySelector(".panel.gen").classList.toggle("mhide", p!=="gen");
+  $("#mtab-pop").classList.toggle("on", p==="pop");
+  $("#mtab-gen").classList.toggle("on", p==="gen");
+}
 function setGenOrder(o){
   genOrder=o;
   $("#tab-latest").classList.toggle("on", o==="latest");
