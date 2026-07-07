@@ -20,7 +20,8 @@
   .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
   select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
   button{cursor:pointer} button:hover{border-color:var(--accent)}
-  .cols{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:14px;padding:0 20px 16px}
+  .cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:14px;padding:0 20px 16px}
+  .cols .gen{order:0} .cols .pop{order:1}   /* 좌=일반글, 우=인기글 */
   @media(max-width:1100px){.cols{grid-template-columns:1fr}}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;display:flex;flex-direction:column}
   .panel .phd{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel);flex:0 0 auto}
@@ -115,13 +116,13 @@
 </div>
 
 <div class="mtabs" id="mtabs">
-  <button class="mtab on" id="mtab-pop" onclick="setMobilePanel('pop')">🔥 인기글</button>
-  <button class="mtab" id="mtab-gen" onclick="setMobilePanel('gen')">⚡ 일반글</button>
+  <button class="mtab on" id="mtab-gen" onclick="setMobilePanel('gen')">⚡ 일반글</button>
+  <button class="mtab" id="mtab-pop" onclick="setMobilePanel('pop')">🔥 인기글</button>
 </div>
 
 <div class="cols">
-  <!-- 인기글 -->
-  <section class="panel pop">
+  <!-- 인기글 (우측) -->
+  <section class="panel pop mhide">
     <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span><span class="cnt" id="cnt-pop"></span></div>
     <div class="scroll"><table>
       <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
@@ -129,15 +130,15 @@
     </table></div>
     <div class="morewrap"><button class="more" id="more-pop" onclick="loadMore('pop')">더보기</button></div>
   </section>
-  <!-- 일반글 (탭) -->
-  <section class="panel gen mhide">
+  <!-- 일반글 (좌측, 탭) -->
+  <section class="panel gen">
     <div class="phd">
       <div class="tabs">
-        <span class="tab on" id="tab-latest" onclick="setGenOrder('latest')">⚡ 최신순</span>
-        <span class="tab" id="tab-surge" onclick="setGenOrder('surge')">🚀 급상승</span>
+        <span class="tab" id="tab-latest" onclick="setGenOrder('latest')">⚡ 최신순</span>
+        <span class="tab on" id="tab-surge" onclick="setGenOrder('surge')">🚀 급상승</span>
         <span class="tab" id="tab-hot" onclick="setGenOrder('hot')">👍 호응순</span>
       </div>
-      <span class="sub" id="gen-sub">작성시간 최신순</span>
+      <span class="sub" id="gen-sub">최근 1시간 · 게시판 평균 대비 급상승</span>
       <span class="cnt" id="cnt-gen"></span>
     </div>
     <div class="scroll"><table>
@@ -157,7 +158,7 @@ const esc = s => (s||"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&g
 const PAGE = 100;
 let rowsById = {};
 let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
-let genOrder = "latest";              // 일반글 탭: latest | hot
+let genOrder = "surge";               // 일반글 기본 탭: surge | latest | hot
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
 function boardTag(boards){
