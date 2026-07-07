@@ -14,6 +14,8 @@ import argparse
 import asyncio
 import base64
 import bisect
+import hashlib
+import hmac
 import json
 import secrets
 import sqlite3
@@ -268,6 +270,25 @@ def _record_access(acct, ip):
 SESSIONS = {}   # cookie token -> account (인메모리, 재시작 시 재로그인)
 
 
+def _load_sso_secret():
+    p = ROOT / "config" / "sso_secret.txt"
+    if p.exists():
+        s = p.read_text(encoding="utf-8").strip()
+        if s:
+            return s.encode()
+    return None
+
+
+SSO_SECRET = _load_sso_secret()
+
+
+def _sso_sign(payload: dict) -> str:
+    """통합 SSO 서명 토큰: base64url(payload).hmac_sha256 (다른 앱이 검증)."""
+    body = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    sig = hmac.new(SSO_SECRET, body.encode(), hashlib.sha256).hexdigest()
+    return f"{body}.{sig}"
+
+
 def _new_session(acct) -> str:
     token = secrets.token_urlsafe(24)
     SESSIONS[token] = acct
@@ -341,8 +362,21 @@ async def login_submit(request: Request):
             resp = RedirectResponse("/", status_code=303)
             resp.set_cookie("sess", _new_session(a), httponly=True, samesite="lax",
                             max_age=60 * 60 * 24 * 30, path="/")
+            # 통합 SSO 쿠키 (.whitedr.com 공유 → checker 등 다른 앱에서 검증)
+            host = (request.headers.get("host") or "").split(":")[0]
+            if SSO_SECRET and host.endswith("whitedr.com"):
+                tok = _sso_sign({"group": a.get("group", "?"), "admin": bool(a.get("admin")),
+                                 "exp": int(time.time()) + 60 * 60 * 24 * 30})
+                resp.set_cookie("sso", tok, domain=".whitedr.com", httponly=True,
+                                samesite="lax", max_age=60 * 60 * 24 * 30, path="/")
             return resp
     return RedirectResponse("/login?err=1", status_code=303)
+
+
+@app.get("/api/me")
+def me(request: Request):
+    a = _conn_account(request) or {}
+    return {"group": a.get("group"), "admin": bool(a.get("admin"))}
 
 
 @app.get("/logout")

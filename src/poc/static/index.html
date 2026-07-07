@@ -95,6 +95,12 @@
   .cmt .who{color:var(--accent);font-weight:600;margin-right:8px} .cmt.reply{padding-left:20px;color:var(--mut)}
   .x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1}
   a{color:var(--accent)}
+  .masteronly{display:none} body.ismaster .masteronly{display:inline-block}
+  .fsmodal{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column}
+  .fsmodal.show{display:flex}
+  .fsbar{padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;font-weight:600}
+  .fsbar .x{margin-left:auto;cursor:pointer;color:var(--mut);font-weight:400}
+  .fsmodal iframe{flex:1;width:100%;border:0;background:#fff}
 </style>
 </head>
 <body>
@@ -110,7 +116,8 @@
   <input id="q" placeholder="제목 검색…" size="26"/>
   <button onclick="reloadAll()">검색</button>
   <button onclick="reloadAll()">↻ 새로고침</button>
-  <button onclick="showAccess()">👥 접속현황</button>
+  <button onclick="showAccess()" class="masteronly">👥 접속현황</button>
+  <button onclick="openChecker()" class="masteronly" style="border-color:var(--pop)">🗂 게시글 관리</button>
   <label style="color:var(--mut);font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="hideused" onchange="document.body.classList.toggle('hideused', this.checked)"> 미사용만 보기</label>
   <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
@@ -147,6 +154,11 @@
     </table></div>
     <div class="morewrap"><button class="more" id="more-gen" onclick="loadMore('gen')">더보기</button></div>
   </section>
+</div>
+
+<div id="checker" class="fsmodal">
+  <div class="fsbar">🗂 게시글 관리 <span style="color:var(--mut);font-weight:400;font-size:12px">(naver cafe content checker)</span><span class="x" onclick="closeChecker()">✕ 닫기</span></div>
+  <iframe id="checkerframe" src="about:blank"></iframe>
 </div>
 
 <div id="toast"></div>
@@ -311,6 +323,11 @@ async function showAccess(){
       <tbody>${rows}</tbody></table></div>`;
   $("#modal").classList.add("show");
 }
+function openChecker(){ $("#checkerframe").src="https://checker.whitedr.com/"; $("#checker").classList.add("show"); }
+function closeChecker(){ $("#checker").classList.remove("show"); $("#checkerframe").src="about:blank"; }
+async function loadMe(){
+  try{ const m=await (await fetch("/api/me")).json(); if(m.admin) document.body.classList.add("ismaster"); }catch(e){}
+}
 function closeModal(){ $("#modal").classList.remove("show"); }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
 function toast(msg,hot){ const el=document.createElement("div"); el.className="t"+(hot?" hot":""); el.innerHTML=msg; $("#toast").appendChild(el); setTimeout(()=>el.remove(),6000); }
@@ -361,7 +378,7 @@ function connect(){
   };
 }
 
-reloadAll(); connect();
+reloadAll(); connect(); loadMe();
 setInterval(stats, 15000);
 setInterval(()=>{ reload("gen"); reload("pop"); }, 45000);   // 점수·카운트 자동 갱신
 </script>

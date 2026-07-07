@@ -6,6 +6,8 @@ data/
 
 # 대시보드 로그인 자격증명 (비밀번호)
 config/dashboard_auth.json
+# SSO 공유 시크릿 (대시보드 ↔ 다른 앱 통합 로그인)
+config/sso_secret.txt
 
 # 구글 서비스계정 / 인증
 credentials.json
