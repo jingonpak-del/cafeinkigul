@@ -41,6 +41,7 @@
   .tag{font-size:10px;padding:2px 6px;border-radius:9px;background:#243049;color:#a9c0ff}
   .tag.pop{background:#3a2c08;color:var(--pop)} .tag.del{background:#4a1c1c;color:#ff9a9a}
   .tag.used{background:#173a2a;color:#7ee0a8;border:1px solid #2e6b4a}
+  .tag.surge{background:#3a2408;color:#ffc14d;border:1px solid #6b4a1a}
   tr.usedmark td{opacity:.5}
   body.hideused tr.usedmark{display:none}
   .cafe{color:#bcd0ff;font-weight:600}
@@ -133,6 +134,7 @@
     <div class="phd">
       <div class="tabs">
         <span class="tab on" id="tab-latest" onclick="setGenOrder('latest')">⚡ 최신순</span>
+        <span class="tab" id="tab-surge" onclick="setGenOrder('surge')">🚀 급상승</span>
         <span class="tab" id="tab-hot" onclick="setGenOrder('hot')">👍 호응순</span>
       </div>
       <span class="sub" id="gen-sub">작성시간 최신순</span>
@@ -172,19 +174,22 @@ function dayLabel(ms){
   return diff===0?base+" (오늘)":diff===1?base+" (어제)":diff===2?base+" (그제)":base;
 }
 function sepHtml(label){ return `<tr class="datesep"><td colspan="8">─── ${label} ───</td></tr>`; }
+function minsAgo(ms){ if(!ms) return ""; const m=Math.max(0,Math.round((Date.now()-ms)/60000)); return m<60?m+"분 전":Math.floor(m/60)+"시간 전"; }
 
 function rowHtml(r){
   const key=r.cafe_id+"_"+r.article_id;
   const delta=(r.revisit_done && r.read_delta!=null)?`<span class="delta">+${r.read_delta}</span>`:'<span style="color:var(--mut)">–</span>';
   const del=r.status==="deleted";
   const fire=r.tier?`<span class="fire" title="호응점수 ${r.hot_score}">${"🔥".repeat(r.tier)}</span> `:"";
+  let surge="";
+  if("surge_z" in r){ const rt=r.surge_ratio!=null?`평균 ${r.surge_ratio}배`:"급상승"; surge=`<span class="tag surge">🚀 ${rt} · ${minsAgo(r.write_ts)}</span> `; }
   const used=r.used?`<span class="tag used" title="${esc(r.used_by||'')} 사용">✓ ${esc(r.used_by||'사용')}</span>`:"";
   const cls="article "+(del?"deleted ":"")+(r.used?"usedmark ":"")+(r.tier?("hot"+r.tier):"");
   return `<tr class="${cls}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
     <td style="color:var(--mut)">${r.seen_str||""}</td>
     <td class="cafe">${esc(r.cafe_name||"")}</td>
     <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}${used}</td>
-    <td class="title" title="${esc(r.title)}">${fire}${esc(r.title)}</td>
+    <td class="title" title="${esc(r.title)}">${fire}${surge}${esc(r.title)}</td>
     <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
     <td class="num">${r.read_cnt??""}</td>
     <td class="num">${r.comment_cnt??""}</td>
@@ -235,9 +240,10 @@ function setMobilePanel(p){
 }
 function setGenOrder(o){
   genOrder=o;
-  $("#tab-latest").classList.toggle("on", o==="latest");
-  $("#tab-hot").classList.toggle("on", o==="hot");
-  $("#gen-sub").textContent = o==="hot" ? "최근 24시간 · 호응(인기)점수순" : "작성시간 최신순";
+  for(const [id,v] of [["tab-latest","latest"],["tab-surge","surge"],["tab-hot","hot"]])
+    $("#"+id).classList.toggle("on", o===v);
+  $("#gen-sub").textContent = o==="surge" ? "최근 1시간 · 게시판 평균 대비 급상승"
+    : o==="hot" ? "최근 24시간 · 호응(인기)점수순" : "작성시간 최신순";
   state.gen.loaded=0; reload("gen");
 }
 

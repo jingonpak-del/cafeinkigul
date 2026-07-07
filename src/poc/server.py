@@ -17,6 +17,7 @@ import bisect
 import json
 import secrets
 import sqlite3
+import statistics
 import threading
 import time
 from collections import defaultdict
@@ -124,6 +125,57 @@ def _tier(s) -> int:
         if s >= thr:
             return t
     return 0
+
+
+# ── 급상승(1시간): 게시판별 조회속도 평균+2σ 이상 이상치 ─────────────────────
+SURGE_WINDOW_H = 1        # 후보: 최근 1시간 작성글
+SURGE_BASELINE_H = 24     # 기준 분포: 최근 24시간 그 게시판 글
+SURGE_SIGMA = 2.0         # 평균 + Nσ 이상 = 급상승
+SURGE_MIN_SAMPLES = 5     # 게시판 표본 이만큼 미만이면 폴백(절대 조회)
+SURGE_MIN_READ = 20       # 이 미만 조회는 급상승에서 제외(잡음)
+SURGE_FALLBACK_READ = 100 # 표본 부족 게시판은 절대 조회 이 이상만
+
+
+def _surge_list(conn) -> dict:
+    """최근 1시간 일반글 중 '게시판 평균 조회속도 대비 이례적으로 빠른' 글.
+    반환 {(cafe,article): {"z": 표준편차배수, "ratio": 평균대비배율}}."""
+    now = _now_ms()
+    rows = conn.execute(
+        """SELECT a.cafe_id, a.article_id, a.menu_id, a.write_ts,
+                  COALESCE(a.cur_read, a.first_read_count, 0) AS r
+           FROM articles a
+           WHERE a.write_ts >= ? AND a.status != 'deleted'
+             AND EXISTS (SELECT 1 FROM board_detections d
+                         WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id
+                           AND d.board_key LIKE 'menu:%')""",
+        (now - SURGE_BASELINE_H * 3600 * 1000,)).fetchall()
+    board_vel, info = defaultdict(list), {}
+    for row in rows:
+        age_h = max((now - (row["write_ts"] or now)) / 3600000, 0.15)
+        vel = (row["r"] or 0) / age_h
+        board = (row["cafe_id"], row["menu_id"])
+        board_vel[board].append(vel)
+        info[(row["cafe_id"], row["article_id"])] = (board, vel, row["write_ts"], row["r"])
+    stat = {}
+    for board, vels in board_vel.items():
+        if len(vels) >= SURGE_MIN_SAMPLES:
+            mu = statistics.mean(vels)
+            sd = statistics.pstdev(vels) or 1.0
+            stat[board] = (mu, sd)
+    cut1h = now - SURGE_WINDOW_H * 3600 * 1000
+    out = {}
+    for key, (board, vel, wts, r) in info.items():
+        if (wts or 0) < cut1h or r < SURGE_MIN_READ:
+            continue
+        st = stat.get(board)
+        if st:
+            mu, sd = st
+            z = (vel - mu) / sd
+            if z >= SURGE_SIGMA:
+                out[key] = {"z": round(z, 2), "ratio": round(vel / mu, 1) if mu > 0 else None}
+        elif r >= SURGE_FALLBACK_READ:      # 표본 부족 게시판 폴백
+            out[key] = {"z": None, "ratio": None}
+    return out
 
 
 # ── WebSocket 브로드캐스트 ────────────────────────────────────────────────
@@ -346,13 +398,26 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         if type == "popular":
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key='popular')""")
-        elif type == "general" or order == "hot":
+        elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
         if q:
             where.append("a.title LIKE ?"); params.append(f"%{q}%")
 
-        if order == "hot":
+        if order == "surge":
+            # 최근 1h 일반글 중 게시판 평균+2σ 이상 급상승, 이상치 큰 순
+            surge = _surge_list(conn)
+            where.append("a.write_ts >= ?"); params.append(_now_ms() - SURGE_WINDOW_H * 3600 * 1000)
+            where.append("a.status != 'deleted'")
+            sql = base + " WHERE " + " AND ".join(where)
+            allrows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+            allrows = [r for r in allrows if (r["cafe_id"], r["article_id"]) in surge]
+            for r in allrows:
+                s = surge[(r["cafe_id"], r["article_id"])]
+                r["surge_z"], r["surge_ratio"] = s["z"], s["ratio"]
+            allrows.sort(key=lambda r: (r["surge_z"] if r["surge_z"] is not None else 0), reverse=True)
+            page = allrows[offset:offset + limit]
+        elif order == "hot":
             # 최근 24h 일반글 중 점수 있는 것만, 점수 내림차순
             where.append("a.write_ts >= ?"); params.append(_now_ms() - HOT_WINDOW_H * 3600 * 1000)
             where.append("a.status != 'deleted'")
