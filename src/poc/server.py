@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -213,16 +213,94 @@ def _record_access(acct, ip):
         ACCESS[key] = [now, now, 1]
 
 
+SESSIONS = {}   # cookie token -> account (인메모리, 재시작 시 재로그인)
+
+
+def _new_session(acct) -> str:
+    token = secrets.token_urlsafe(24)
+    SESSIONS[token] = acct
+    return token
+
+
+def _conn_account(conn):
+    """Request/WebSocket 공통: 쿠키 세션 또는 Basic Auth로 계정 판별."""
+    if ACCOUNTS is None:
+        return {"group": "(무인증)", "admin": True}
+    tok = conn.cookies.get("sess")
+    if tok and tok in SESSIONS:
+        return SESSIONS[tok]
+    return _auth_match(conn.headers.get("authorization"))
+
+
+_PUBLIC = {"/login", "/favicon.ico"}
+
+
 @app.middleware("http")
-async def _basic_auth(request: Request, call_next):
-    # 브라우저가 Basic 인증 통과 후 자격증명을 캐시 → /api, /ws 핸드셰이크에도 자동 전송.
+async def _auth(request: Request, call_next):
     if ACCOUNTS is None:
         return await call_next(request)
-    acct = _auth_match(request.headers.get("Authorization"))
+    path = request.url.path
+    if path in _PUBLIC or path.startswith("/static"):
+        return await call_next(request)
+    acct = _conn_account(request)
     if acct is None:
+        # 브라우저(HTML)는 로그인 페이지로, API/도구는 401.
+        if "text/html" in request.headers.get("accept", ""):
+            return RedirectResponse("/login", status_code=303)
         return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Ingigeul Tracker"'})
     _record_access(acct, _client_ip(request.headers, request.client.host if request.client else None))
     return await call_next(request)
+
+
+LOGIN_HTML = """<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/><title>로그인 · 인기글 트래커</title>
+<style>
+ body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1420;
+   font-family:"Segoe UI","Malgun Gothic",sans-serif;color:#e6ebf5}
+ .box{background:#171d2b;border:1px solid #26304a;border-radius:14px;padding:28px 26px;width:300px;box-shadow:0 10px 40px #0007}
+ h1{font-size:19px;margin:0 0 4px;text-align:center} .sub{color:#8a97b5;font-size:12px;text-align:center;margin-bottom:18px}
+ input{width:100%;box-sizing:border-box;background:#0f1420;border:1px solid #26304a;border-radius:8px;
+   padding:11px 12px;color:#e6ebf5;font-size:15px;margin-bottom:10px}
+ input:focus{outline:none;border-color:#4c8dff}
+ button{width:100%;background:#4c8dff;color:#fff;border:0;border-radius:8px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+ .err{color:#ff9a9a;font-size:12.5px;text-align:center;min-height:16px;margin-bottom:6px}
+</style></head><body>
+ <form class="box" method="post" action="/login">
+   <h1>📈 인기글 트래커</h1><div class="sub">팀 계정으로 로그인하세요</div>
+   <div class="err">{{ERR}}</div>
+   <input name="username" placeholder="아이디" autofocus autocapitalize="off" autocorrect="off" spellcheck="false"/>
+   <input name="password" type="password" placeholder="비밀번호"/>
+   <button type="submit">로그인</button>
+ </form></body></html>"""
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(err: str = ""):
+    return LOGIN_HTML.replace("{{ERR}}", "아이디 또는 비밀번호가 올바르지 않습니다." if err else "")
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    user = (form.get("username") or "").strip()
+    pw = form.get("password") or ""
+    for a in (ACCOUNTS or []):
+        if secrets.compare_digest(user, a.get("user", "")) and secrets.compare_digest(pw, a.get("password", "")):
+            resp = RedirectResponse("/", status_code=303)
+            resp.set_cookie("sess", _new_session(a), httponly=True, samesite="lax",
+                            max_age=60 * 60 * 24 * 30, path="/")
+            return resp
+    return RedirectResponse("/login?err=1", status_code=303)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    tok = request.cookies.get("sess")
+    if tok:
+        SESSIONS.pop(tok, None)
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie("sess", path="/")
+    return resp
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -324,7 +402,7 @@ def article_detail(cafe_id: int, article_id: int):
 @app.get("/api/access")
 def access(request: Request):
     """그룹별 접속 현황 (관리자 전용). 인원=고유 IP, 활성=최근 5분 접속."""
-    acct = _auth_match(request.headers.get("Authorization"))
+    acct = _conn_account(request)
     if not (acct and acct.get("admin")):
         return JSONResponse({"error": "관리자 계정만 볼 수 있습니다."}, status_code=403)
     now = _now_ms()
@@ -345,7 +423,7 @@ def access(request: Request):
 @app.post("/api/articles/{cafe_id}/{article_id}/use")
 async def mark_used(cafe_id: int, article_id: int, request: Request):
     """소프트 '사용됨' 표시 토글. 표시자 그룹 기록 + 전 접속자에 실시간 브로드캐스트."""
-    acct = _auth_match(request.headers.get("Authorization"))
+    acct = _conn_account(request)
     if acct is None:
         return JSONResponse({"error": "auth"}, status_code=401)
     try:
@@ -374,7 +452,7 @@ async def mark_used(cafe_id: int, article_id: int, request: Request):
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
-    acct = _auth_match(ws.headers.get("authorization"))
+    acct = _conn_account(ws)
     if acct is None:
         await ws.close(code=1008)   # policy violation (인증 실패)
         return
