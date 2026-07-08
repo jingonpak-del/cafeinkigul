@@ -158,7 +158,7 @@
 </div>
 
 <div id="checker" class="fsmodal">
-  <div class="fsbar">🗂 게시글 관리 <span style="color:var(--mut);font-weight:400;font-size:12px">(naver cafe content checker)</span><span style="margin-left:auto;display:flex;gap:14px"><span class="x" style="margin:0" onclick="reloadChecker()">↻ 새로고침</span><span class="x" style="margin:0" onclick="closeChecker()">✕ 닫기</span></span></div>
+  <div class="fsbar">🗂 <span id="fs-title">게시글 관리</span><span style="margin-left:auto;display:flex;gap:14px"><span class="x" style="margin:0" onclick="reloadChecker()">↻ 새로고침</span><span class="x" style="margin:0" onclick="closeChecker()">✕ 닫기</span></span></div>
   <iframe id="checkerframe" src="about:blank"></iframe>
 </div>
 
@@ -326,13 +326,20 @@ async function showAccess(){
       <tbody>${rows}</tbody></table></div>`;
   $("#modal").classList.add("show");
 }
-function openChecker(){
+// 서비스 열기 — PC(넓은화면)=새 탭 / 모바일=임베드. 앞으로 서비스 추가도 이 함수 재사용.
+const MOBILE_MAX = 820;
+let _curService = "";
+function openService(url, title){
+  if(window.innerWidth > MOBILE_MAX){ window.open(url, "_blank", "noopener"); return; }  // PC: 새 탭(즉시·네이티브)
+  _curService = url;
+  if(title) $("#fs-title").textContent = title;               // 모바일: 임베드
   const f=$("#checkerframe");
-  if(f.dataset.loaded!=="1"){ f.src="https://checker.whitedr.com/"; f.dataset.loaded="1"; }  // 최초 1회만 로드
+  if(f.dataset.src!==url){ f.src=url; f.dataset.src=url; }
   $("#checker").classList.add("show");
 }
-function closeChecker(){ $("#checker").classList.remove("show"); }   // iframe 유지 → 재열 때 즉시(로딩 없음)
-function reloadChecker(){ const f=$("#checkerframe"); f.src="https://checker.whitedr.com/"; }  // 필요시 수동 새로고침
+function openChecker(){ openService("https://checker.whitedr.com/", "게시글 관리"); }
+function closeChecker(){ $("#checker").classList.remove("show"); }
+function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_curService; }
 async function loadMe(){
   try{ const m=await (await fetch("/api/me")).json(); if(m.admin) document.body.classList.add("ismaster"); }catch(e){}
 }
