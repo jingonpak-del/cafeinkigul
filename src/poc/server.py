@@ -60,6 +60,20 @@ def _cafe_names() -> dict:
         return {}
 
 
+def _board_names() -> dict:
+    """{(club_id, menu_id): 게시판명} — 크롤 menuName이 없을 때 폴백."""
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        m = {}
+        for c in cfg["cafes"]:
+            for b in c.get("boards", []):
+                if b.get("type") == "menu" and b.get("name"):
+                    m[(c["club_id"], b["menu_id"])] = b["name"]
+        return m
+    except Exception:
+        return {}
+
+
 # ── 인기점수(호응) 계산 ────────────────────────────────────────────────────
 HOT_WINDOW_H = 24                       # '호응좋은 일반글' 대상 시간창
 W_VV, W_CV, W_ER, W_LR = 0.35, 0.30, 0.25, 0.10   # 조회속도/댓글속도/참여율/좋아요율
@@ -416,10 +430,11 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
     """type: 'popular'|'general'|''. order: 'latest'(작성시간 최신순) | 'hot'(24h 인기점수순).
     반환: {rows, has_more}."""
     names = _cafe_names()
+    bnames = _board_names()
     conn = _row_conn()
     try:
         scores = _recent_scores(conn)
-        base = """SELECT a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname,
+        base = """SELECT a.cafe_id, a.article_id, a.menu_id, a.menu_name, a.title, a.writer_nickname,
                          a.write_ts, a.first_seen_at, a.read_delta, a.revisit_done, a.status,
                          COALESCE(a.cur_read, a.first_read_count) AS read_cnt,
                          COALESCE(a.cur_comment, a.first_comment_count) AS comment_cnt,
@@ -468,6 +483,7 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         for r in page:
             key = (r["cafe_id"], r["article_id"])
             r["cafe_name"] = names.get(r["cafe_id"], str(r["cafe_id"]))
+            r["board_name"] = r.get("menu_name") or bnames.get((r["cafe_id"], r["menu_id"]), "")
             r["write_str"] = _fmt(r["write_ts"])
             r["seen_str"] = _fmt(r["first_seen_at"])
             r["hot_score"] = scores.get(key)
@@ -491,6 +507,7 @@ def article_detail(cafe_id: int, article_id: int):
                ORDER BY comment_id""", (cafe_id, article_id)).fetchall()]
         d = dict(a)
         d["cafe_name"] = _cafe_names().get(d["cafe_id"], str(d["cafe_id"]))
+        d["board_name"] = d.get("menu_name") or _board_names().get((d["cafe_id"], d["menu_id"]), "")
         d["write_str"] = _fmt(d["write_ts"])
         d["comments"] = comments
         return d

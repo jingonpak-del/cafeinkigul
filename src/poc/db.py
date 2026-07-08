@@ -93,7 +93,8 @@ class Database:
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(articles)")}
         for col, decl in (("cur_read", "INTEGER"), ("cur_comment", "INTEGER"),
                           ("cur_like", "INTEGER"), ("cur_snapshot_at", "INTEGER"),
-                          ("used", "INTEGER DEFAULT 0"), ("used_by", "TEXT"), ("used_at", "INTEGER")):
+                          ("used", "INTEGER DEFAULT 0"), ("used_by", "TEXT"), ("used_at", "INTEGER"),
+                          ("menu_name", "TEXT")):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {decl}")
 
@@ -107,11 +108,11 @@ class Database:
         ts = now_ms()
         cur = self.conn.execute(
             """INSERT OR IGNORE INTO articles
-               (cafe_id, article_id, menu_id, title, writer_nickname, member_key,
+               (cafe_id, article_id, menu_id, menu_name, title, writer_nickname, member_key,
                 write_ts, first_seen_at, first_read_count, first_comment_count,
                 like_count, revisit_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (a.cafe_id, a.article_id, a.menu_id, a.title, a.writer_nickname, a.member_key,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (a.cafe_id, a.article_id, a.menu_id, a.menu_name, a.title, a.writer_nickname, a.member_key,
              a.write_ts, ts, a.read_count, a.comment_count, a.like_count,
              ts + revisit_after_s * 1000),
         )
@@ -130,9 +131,11 @@ class Database:
             return
         ts = now_ms()
         self.conn.executemany(
-            """UPDATE articles SET cur_read=?, cur_comment=?, cur_like=?, cur_snapshot_at=?
+            """UPDATE articles SET cur_read=?, cur_comment=?, cur_like=?, cur_snapshot_at=?,
+                   menu_name=COALESCE(NULLIF(?, ''), menu_name)
                WHERE cafe_id=? AND article_id=?""",
-            [(a.read_count, a.comment_count, a.like_count, ts, a.cafe_id, a.article_id) for a in arts],
+            [(a.read_count, a.comment_count, a.like_count, ts, a.menu_name, a.cafe_id, a.article_id)
+             for a in arts],
         )
         self.conn.commit()
 

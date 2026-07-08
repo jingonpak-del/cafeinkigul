@@ -43,6 +43,7 @@
   .tag.pop{background:#3a2c08;color:var(--pop)} .tag.del{background:#4a1c1c;color:#ff9a9a}
   .tag.used{background:#173a2a;color:#7ee0a8;border:1px solid #2e6b4a}
   .tag.surge{background:#3a2408;color:#ffc14d;border:1px solid #6b4a1a}
+  .tag.board{background:#232d44;color:#c3d0ea}
   tr.usedmark td{opacity:.5}
   body.hideused tr.usedmark{display:none}
   .cafe{color:#bcd0ff;font-weight:600}
@@ -197,11 +198,13 @@ function rowHtml(r){
   let surge="";
   if("surge_z" in r){ const rt=r.surge_ratio!=null?`평균 ${r.surge_ratio}배`:"급상승"; surge=`<span class="tag surge">🚀 ${rt} · ${minsAgo(r.write_ts)}</span> `; }
   const used=r.used?`<span class="tag used" title="${esc(r.used_by||'')} 사용">✓ ${esc(r.used_by||'사용')}</span>`:"";
+  const isPop=r.boards&&r.boards.includes("popular");
+  const bd=(isPop?'<span class="tag pop">🔥인기</span> ':"")+(r.board_name?`<span class="tag board" title="${esc(r.board_name)}">${esc(r.board_name.slice(0,11))}</span>`:"");
   const cls="article "+(del?"deleted ":"")+(r.used?"usedmark ":"")+(r.tier?("hot"+r.tier):"");
   return `<tr class="${cls}" data-id="${key}" onclick="detail(${r.cafe_id},${r.article_id})">
     <td style="color:var(--mut)">${r.seen_str||""}</td>
     <td class="cafe">${esc(r.cafe_name||"")}</td>
-    <td>${del?'<span class="tag del">삭제</span>':boardTag(r.boards)}${used}</td>
+    <td>${del?'<span class="tag del">삭제</span>':bd}${used}</td>
     <td class="title" title="${esc(r.title)}">${fire}${surge}${esc(r.title)}</td>
     <td style="color:var(--mut)">${esc(r.writer_nickname)}</td>
     <td class="num">${r.read_cnt??""}</td>
@@ -273,7 +276,7 @@ async function detail(cafe,art){
   const cmts=(d.comments||[]).map(c=>`<div class="cmt ${c.is_reply?'reply':''}"><span class="who">${esc(c.writer_nickname)}</span>${esc(c.content)}</div>`).join("")||'<div style="color:var(--mut)">댓글 없음</div>';
   $("#card").innerHTML=`<div class="hd"><span class="x" onclick="closeModal()">✕</span>
     <h2>${esc(d.title)}</h2>
-    <div class="meta"><span class="cafe">${esc(d.cafe_name||"")}</span><span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
+    <div class="meta"><span class="cafe">${esc(d.cafe_name||"")}</span>${d.board_name?`<span>📋 ${esc(d.board_name)}</span>`:""}<span>👤 ${esc(d.writer_nickname)}</span><span>👁 ${d.first_read_count}${d.revisit_done?` → ${d.second_read_count} (+${d.read_delta})`:''}</span><span>💬 ${d.first_comment_count}</span><span>${d.write_str}</span>
     <a href="https://cafe.naver.com/ca-fe/cafes/${d.cafe_id}/articles/${d.article_id}" target="_blank">원문↗</a></div>
     <div style="margin-top:10px;display:flex;gap:8px">
       <button class="more" style="border-color:var(--accent)" onclick="copyManuscript()">📋 원고복사 (제목·본문·댓글)</button>
