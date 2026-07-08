@@ -342,7 +342,10 @@ function openChecker(){ openService("https://checker.whitedr.com/", "게시글 �
 function closeChecker(){ $("#checker").classList.remove("show"); }
 function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_curService; }
 async function loadMe(){
-  try{ const m=await (await fetch("/api/me")).json(); if(m.admin) document.body.classList.add("ismaster"); }catch(e){}
+  try{
+    const m=await (await fetch("/api/me",{cache:"no-store"})).json();   // 캐시된 권한 방지
+    document.body.classList.toggle("ismaster", !!m.admin);              // admin 아니면 확실히 제거
+  }catch(e){ document.body.classList.remove("ismaster"); }
 }
 function closeModal(){ $("#modal").classList.remove("show"); }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
