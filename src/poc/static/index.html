@@ -97,6 +97,7 @@
   .x{float:right;cursor:pointer;color:var(--mut);font-size:20px;line-height:1}
   a{color:var(--accent)}
   .masteronly{display:none} body.ismaster .masteronly{display:inline-block}
+  .perm{display:none}   /* 권한 있는 버튼만 loadMe가 노출 */
   .fsmodal{position:fixed;inset:0;background:var(--bg);z-index:200;display:none;flex-direction:column}
   .fsmodal.show{display:flex}
   .fsbar{padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;font-weight:600}
@@ -117,9 +118,9 @@
   <input id="q" placeholder="제목 검색…" size="26"/>
   <button onclick="reloadAll()">검색</button>
   <button onclick="reloadAll()">↻ 새로고침</button>
-  <button onclick="showAccess()" class="masteronly">👥 접속현황</button>
-  <button onclick="openChecker()" class="masteronly" style="border-color:var(--pop)">🗂 게시글 관리</button>
-  <button onclick="openService('https://generator.whitedr.com/', '원고 작성')" class="masteronly" style="border-color:var(--pop)">✍️ 원고 작성</button>
+  <button onclick="showAccess()" class="perm" data-perm="admin">👥 접속현황</button>
+  <button onclick="openChecker()" class="perm" data-perm="checker" style="border-color:var(--pop)">🗂 게시글 관리</button>
+  <button onclick="openService('https://generator.whitedr.com/', '원고 작성')" class="perm" data-perm="generator" style="border-color:var(--pop)">✍️ 원고 작성</button>
   <label style="color:var(--mut);font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="hideused" onchange="document.body.classList.toggle('hideused', this.checked)"> 미사용만 보기</label>
   <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
@@ -342,10 +343,14 @@ function openChecker(){ openService("https://checker.whitedr.com/", "게시글 �
 function closeChecker(){ $("#checker").classList.remove("show"); }
 function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_curService; }
 async function loadMe(){
-  try{
-    const m=await (await fetch("/api/me",{cache:"no-store"})).json();   // 캐시된 권한 방지
-    document.body.classList.toggle("ismaster", !!m.admin);              // admin 아니면 확실히 제거
-  }catch(e){ document.body.classList.remove("ismaster"); }
+  let me={admin:false,perms:[]};
+  try{ me=await (await fetch("/api/me",{cache:"no-store"})).json(); }catch(e){}
+  const perms=new Set(me.perms||[]);
+  document.querySelectorAll(".perm").forEach(el=>{
+    const need=el.dataset.perm;
+    const ok = need==="admin" ? !!me.admin : (!!me.admin || perms.has(need));   // admin=전부
+    el.style.display = ok ? "inline-block" : "none";
+  });
 }
 function closeModal(){ $("#modal").classList.remove("show"); }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});

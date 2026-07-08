@@ -380,6 +380,7 @@ async def login_submit(request: Request):
             host = (request.headers.get("host") or "").split(":")[0]
             if SSO_SECRET and host.endswith("whitedr.com"):
                 tok = _sso_sign({"group": a.get("group", "?"), "admin": bool(a.get("admin")),
+                                 "perms": a.get("perms", []),
                                  "exp": int(time.time()) + 60 * 60 * 24 * 30})
                 resp.set_cookie("sso", tok, domain=".whitedr.com", httponly=True,
                                 samesite="lax", max_age=60 * 60 * 24 * 30, path="/")
@@ -390,7 +391,7 @@ async def login_submit(request: Request):
 @app.get("/api/me")
 def me(request: Request):
     a = _conn_account(request) or {}
-    return {"group": a.get("group"), "admin": bool(a.get("admin"))}
+    return {"group": a.get("group"), "admin": bool(a.get("admin")), "perms": a.get("perms", [])}
 
 
 @app.get("/logout")
