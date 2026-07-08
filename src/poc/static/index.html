@@ -157,7 +157,7 @@
 </div>
 
 <div id="checker" class="fsmodal">
-  <div class="fsbar">🗂 게시글 관리 <span style="color:var(--mut);font-weight:400;font-size:12px">(naver cafe content checker)</span><span class="x" onclick="closeChecker()">✕ 닫기</span></div>
+  <div class="fsbar">🗂 게시글 관리 <span style="color:var(--mut);font-weight:400;font-size:12px">(naver cafe content checker)</span><span style="margin-left:auto;display:flex;gap:14px"><span class="x" style="margin:0" onclick="reloadChecker()">↻ 새로고침</span><span class="x" style="margin:0" onclick="closeChecker()">✕ 닫기</span></span></div>
   <iframe id="checkerframe" src="about:blank"></iframe>
 </div>
 
@@ -323,8 +323,13 @@ async function showAccess(){
       <tbody>${rows}</tbody></table></div>`;
   $("#modal").classList.add("show");
 }
-function openChecker(){ $("#checkerframe").src="https://checker.whitedr.com/"; $("#checker").classList.add("show"); }
-function closeChecker(){ $("#checker").classList.remove("show"); $("#checkerframe").src="about:blank"; }
+function openChecker(){
+  const f=$("#checkerframe");
+  if(f.dataset.loaded!=="1"){ f.src="https://checker.whitedr.com/"; f.dataset.loaded="1"; }  // 최초 1회만 로드
+  $("#checker").classList.add("show");
+}
+function closeChecker(){ $("#checker").classList.remove("show"); }   // iframe 유지 → 재열 때 즉시(로딩 없음)
+function reloadChecker(){ const f=$("#checkerframe"); f.src="https://checker.whitedr.com/"; }  // 필요시 수동 새로고침
 async function loadMe(){
   try{ const m=await (await fetch("/api/me")).json(); if(m.admin) document.body.classList.add("ismaster"); }catch(e){}
 }
