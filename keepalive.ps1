@@ -17,16 +17,9 @@ if (-not (Test-Path $py)) { $py = "python" }
 Log "keepalive start (proj=$proj)"
 
 while ($true) {
-  # 1) server on port 8090
-  if (-not (Get-NetTCPConnection -LocalPort 8090 -State Listen -ErrorAction SilentlyContinue)) {
-    Start-Process -FilePath $py -ArgumentList "-m", "src.poc.server", "--port", "8090" `
-      -WorkingDirectory $proj -WindowStyle Hidden `
-      -RedirectStandardOutput (Join-Path $logdir "server.out.log") `
-      -RedirectStandardError  (Join-Path $logdir "server.err.log")
-    Log "server 8090 was down -> restarted"
-    Start-Sleep -Seconds 6
-  }
-  # 2) cloudflared tunnel
+  # NOTE: 8090 서버는 다른 세션의 supervisor(svc\supervisor.ps1)가 관리하므로 여기선 손대지 않음.
+  # 이 keepalive는 cloudflared 터널만 유지한다.
+  # cloudflared tunnel
   if (-not (Get-Process cloudflared -ErrorAction SilentlyContinue)) {
     Start-Process -FilePath $cfd -ArgumentList "tunnel", "run", "ingigeul" -WindowStyle Hidden
     Log "tunnel was down -> restarted"
