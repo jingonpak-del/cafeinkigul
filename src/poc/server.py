@@ -606,6 +606,7 @@ def _start_watcher():
 
 @app.on_event("startup")
 async def _startup():
+    _force_utf8()   # uvicorn 실행 시에도 stdout UTF-8 → 워처 로그(엠대시 등) cp949 인코딩 크래시 방지
     hub.loop = asyncio.get_running_loop()
     if getattr(app.state, "watch", True):   # uvicorn CLI(--reload) 실행 시 기본 워처 ON
         threading.Thread(target=_start_watcher, daemon=True).start()
