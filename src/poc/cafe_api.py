@@ -119,6 +119,27 @@ def make_client(cookies: list[dict[str, Any]] | None = None) -> httpx.Client:
     )
 
 
+MENU_LIST_URL = "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{club_id}/menus"
+
+
+def fetch_board_list(club_id: int, client: httpx.Client | None = None) -> list[dict]:
+    """카페의 게시판 목록 추출: [{menu_id, name}]. 실제 글 게시판(menuType 'B', 숨김 제외)만.
+    (핵심 헤더: X-Cafe-Product: pc)"""
+    own = client is None
+    client = client or make_client()
+    try:
+        r = client.get(
+            MENU_LIST_URL.format(club_id=club_id),
+            headers={"Referer": f"https://cafe.naver.com/f-e/cafes/{club_id}", "X-Cafe-Product": "pc"},
+        )
+        menus = r.json().get("result", {}).get("menus", [])
+        return [{"menu_id": m["menuId"], "name": m.get("name", "")}
+                for m in menus if m.get("menuType") == "B" and not m.get("hidden")]
+    finally:
+        if own:
+            client.close()
+
+
 def resolve_club_id(cluburl: str, client: httpx.Client | None = None) -> int:
     """Resolve a cafe vanity url (e.g. 'memberupup3') to its numeric clubId."""
     own = client is None

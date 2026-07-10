@@ -34,6 +34,23 @@ def cmd_resolve(args):
     print(cafe_api.resolve_club_id(args.cafe))
 
 
+def cmd_boards(args):
+    """카페 주소로 게시판 목록(menu_id + 이름) 추출."""
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    sm = SessionManager(SESSION_DIR)
+    account = cfg.get("account")
+    cookies = sm.load_cookies(account) if account and sm.verify(account).ok else None
+    client = cafe_api.make_client(cookies)
+    try:
+        cid = args.club or cafe_api.resolve_club_id(args.cafe, client=client)
+        boards = cafe_api.fetch_board_list(cid, client=client)
+        print(f"{args.cafe} (clubId {cid}) — 게시판 {len(boards)}개:")
+        for b in boards:
+            print(f"  menu {b['menu_id']:>5} — {b['name']}")
+    finally:
+        client.close()
+
+
 def cmd_capture(args):
     path = SessionManager(SESSION_DIR).capture(args.account)
     print(f"세션 저장됨: {path}")
@@ -203,6 +220,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("resolve"); sp.add_argument("--cafe", required=True); sp.set_defaults(func=cmd_resolve)
+    sp = sub.add_parser("boards"); sp.add_argument("--cafe", required=True); sp.add_argument("--club", type=int); sp.set_defaults(func=cmd_boards)
     sp = sub.add_parser("capture"); sp.add_argument("--account", required=True); sp.set_defaults(func=cmd_capture)
     sp = sub.add_parser("verify");  sp.add_argument("--account", required=True); sp.set_defaults(func=cmd_verify)
     sp = sub.add_parser("fetch")
