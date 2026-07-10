@@ -180,9 +180,11 @@ class Watcher:
             except ValueError:
                 last_dt = None
         if last_dt is None or last_dt < sched:
+            # 수집 시작 시점에 먼저 기록 → 중간에 서버가 죽어도 재시작 때
+            # 인기글 수집을 처음부터 다시 하지 않음(일반글 폴링 정지 방지).
+            self.db.set_meta("last_popular_run", now.isoformat())
             self.log(f"🔥 인기글 수집 시작 (예정 {sched:%m-%d %H:%M} 회차)")
             self.collect_popular()
-            self.db.set_meta("last_popular_run", now.isoformat())
 
     def collect_popular(self):
         for b in self.popular_boards:
