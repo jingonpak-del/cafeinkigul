@@ -607,7 +607,7 @@ def _start_watcher():
 @app.on_event("startup")
 async def _startup():
     hub.loop = asyncio.get_running_loop()
-    if app.state.watch:
+    if getattr(app.state, "watch", True):   # uvicorn CLI(--reload) 실행 시 기본 워처 ON
         threading.Thread(target=_start_watcher, daemon=True).start()
 
 
