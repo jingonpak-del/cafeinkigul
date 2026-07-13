@@ -423,6 +423,17 @@ def index():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/api/categories")
+def categories_list():
+    """대시보드 카테고리 바용 — config의 동적 카테고리 목록."""
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        return {"categories": cfg.get("categories", []),
+                "popular_category": cfg.get("popular_category", "일반인기글")}
+    except Exception:
+        return {"categories": [], "popular_category": "일반인기글"}
+
+
 @app.get("/api/stats")
 def stats():
     c = _row_conn()

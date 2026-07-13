@@ -1,5 +1,12 @@
 {
   "account": "내네이버아이디",
+  "categories": [
+    "핫딜",
+    "앱체크",
+    "유머",
+    "일반인기글"
+  ],
+  "popular_category": "일반인기글",
   "sheets": {
     "credentials_path": "C:\\Users\\USER\\cwnews\\credentials.json",
     "service_account_email": "cwcrawler@zumma-81454.iam.gserviceaccount.com",
@@ -116,13 +123,13 @@
           "type": "menu",
           "menu_id": 45,
           "name": "이벤트정보방",
-          "category": "이벤트"
+          "category": "앱체크"
         },
         {
           "type": "menu",
           "menu_id": 47,
           "name": "퀴즈정답방",
-          "category": "이벤트"
+          "category": "앱체크"
         },
         {
           "type": "popular",

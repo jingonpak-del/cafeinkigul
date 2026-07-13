@@ -133,12 +133,7 @@
   <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
 
-<div class="catbar" id="catbar">
-  <button class="catbtn on" data-cat="" onclick="setCategory('')">전체</button>
-  <button class="catbtn" data-cat="핫딜" onclick="setCategory('핫딜')">🔥 핫딜</button>
-  <button class="catbtn" data-cat="이벤트" onclick="setCategory('이벤트')">🎉 이벤트</button>
-  <button class="catbtn" data-cat="일상인기글" onclick="setCategory('일상인기글')">💬 일상인기글</button>
-</div>
+<div class="catbar" id="catbar"></div>
 
 <div class="mtabs" id="mtabs">
   <button class="mtab on" id="mtab-gen" onclick="setMobilePanel('gen')">⚡ 일반글</button>
@@ -189,7 +184,8 @@ const PAGE = 100;
 let rowsById = {};
 let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
 let genOrder = "surge";               // 일반글 기본 탭: surge | latest | hot
-let category = "";                    // '' 전체 | 핫딜 | 이벤트 | 일상인기글
+let category = "";                    // '' 전체 | (동적 카테고리명)
+let popularCategory = "일반인기글";     // 인기글 보드에 해당하는 카테고리
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
 function boardTag(boards){
@@ -232,17 +228,27 @@ function rowHtml(r){
 
 async function get(type, order, offset, limit){
   const q=encodeURIComponent($("#q").value);
-  const cat=(type==="general" && (category==="핫딜"||category==="이벤트")) ? "&category="+encodeURIComponent(category) : "";
+  const cat=(type==="general" && category && category!==popularCategory) ? "&category="+encodeURIComponent(category) : "";
   const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}${cat}`);
   return r.json();
+}
+async function loadCategories(){
+  try{
+    const d=await (await fetch("/api/categories")).json();
+    popularCategory = d.popular_category || popularCategory;
+    const icon = c => c===popularCategory?"💬":"🏷️";
+    const btns = [`<button class="catbtn on" data-cat="" onclick="setCategory('')">전체</button>`]
+      .concat((d.categories||[]).map(c=>`<button class="catbtn" data-cat="${esc(c)}" onclick="setCategory('${esc(c)}')">${icon(c)} ${esc(c)}</button>`));
+    $("#catbar").innerHTML = btns.join("");
+  }catch(e){}
 }
 function setCategory(cat){
   category=cat;
   document.querySelectorAll(".catbtn").forEach(b=>b.classList.toggle("on", b.dataset.cat===cat));
   const cols=document.querySelector(".cols");
   cols.classList.remove("cat-gen","cat-pop");
-  if(cat==="핫딜"||cat==="이벤트") cols.classList.add("cat-gen");
-  else if(cat==="일상인기글") cols.classList.add("cat-pop");
+  if(cat===popularCategory) cols.classList.add("cat-pop");
+  else if(cat) cols.classList.add("cat-gen");
   $("#mtabs").style.display = cat==="" ? "" : "none";   // 카테고리 선택 시 모바일 탭 숨김
   reloadAll();
 }
@@ -457,7 +463,7 @@ function setupResizers(){
   });
 }
 
-reloadAll(); connect(); loadMe(); setupResizers();
+loadCategories(); reloadAll(); connect(); loadMe(); setupResizers();
 setInterval(stats, 15000);
 setInterval(()=>{ reload("gen"); reload("pop"); }, 45000);   // 점수·카운트 자동 갱신
 </script>
