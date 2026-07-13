@@ -74,6 +74,20 @@ def _board_names() -> dict:
         return {}
 
 
+def _board_categories() -> dict:
+    """{(club_id, menu_id): category} — config에서 지정한 일반게시판 분류."""
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        m = {}
+        for c in cfg["cafes"]:
+            for b in c.get("boards", []):
+                if b.get("type") == "menu" and b.get("category"):
+                    m[(c["club_id"], b["menu_id"])] = b["category"]
+        return m
+    except Exception:
+        return {}
+
+
 # ── 인기점수(호응) 계산 ────────────────────────────────────────────────────
 HOT_WINDOW_H = 24                       # '호응좋은 일반글' 대상 시간창
 W_VV, W_CV, W_ER, W_LR = 0.35, 0.30, 0.25, 0.10   # 조회속도/댓글속도/참여율/좋아요율
@@ -427,11 +441,13 @@ def stats():
 
 
 @app.get("/api/articles")
-def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, order: str = "latest"):
-    """type: 'popular'|'general'|''. order: 'latest'(작성시간 최신순) | 'hot'(24h 인기점수순).
-    반환: {rows, has_more}."""
+def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, order: str = "latest",
+             category: str = ""):
+    """type: 'popular'|'general'|''. order: 'latest'|'hot'|'surge'.
+    category: 일반게시판 분류(핫딜/이벤트 등) 필터. 반환: {rows, has_more}."""
     names = _cafe_names()
     bnames = _board_names()
+    bcats = _board_categories()
     conn = _row_conn()
     try:
         scores = _recent_scores(conn)
@@ -451,6 +467,15 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
+        # 카테고리(핫딜/이벤트 등) → 해당 분류 게시판의 글만
+        if category:
+            pairs = [k for k, v in bcats.items() if v == category]
+            if pairs:
+                where.append("(" + " OR ".join(["(a.cafe_id=? AND a.menu_id=?)"] * len(pairs)) + ")")
+                for cid, mid in pairs:
+                    params.extend([cid, mid])
+            else:
+                where.append("1=0")   # 해당 카테고리 게시판 없음 → 빈 결과
         if q:
             where.append("a.title LIKE ?"); params.append(f"%{q}%")
 
@@ -485,6 +510,8 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
             key = (r["cafe_id"], r["article_id"])
             r["cafe_name"] = names.get(r["cafe_id"], str(r["cafe_id"]))
             r["board_name"] = r.get("menu_name") or bnames.get((r["cafe_id"], r["menu_id"]), "")
+            _pop = (r.get("boards") or "").find("popular") >= 0
+            r["category"] = bcats.get((r["cafe_id"], r["menu_id"])) or ("일상인기글" if _pop else "")
             r["write_str"] = _fmt(r["write_ts"])
             r["seen_str"] = _fmt(r["first_seen_at"])
             r["hot_score"] = scores.get(key)

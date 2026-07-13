@@ -20,8 +20,13 @@
   .bar{display:flex;gap:10px;padding:12px 20px;align-items:center;flex-wrap:wrap}
   select,input,button{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
   button{cursor:pointer} button:hover{border-color:var(--accent)}
-  .cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:14px;padding:0 20px 16px}
+  .catbar{display:flex;gap:8px;padding:10px 20px 2px;flex-wrap:wrap}
+  .catbtn{padding:7px 16px;border-radius:18px;background:var(--panel);color:var(--mut);border:1px solid var(--line);font-size:13.5px;cursor:pointer}
+  .catbtn.on{background:var(--accent);color:#fff;font-weight:600;border-color:var(--accent)}
+  .cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);gap:14px;padding:8px 20px 16px}
   .cols .gen{order:0} .cols .pop{order:1}   /* 좌=일반글, 우=인기글 */
+  .cols.cat-gen{grid-template-columns:1fr} .cols.cat-gen .pop{display:none}
+  .cols.cat-pop{grid-template-columns:1fr} .cols.cat-pop .gen{display:none}
   @media(max-width:1100px){.cols{grid-template-columns:1fr}}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0;display:flex;flex-direction:column}
   .panel .phd{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel);flex:0 0 auto}
@@ -128,6 +133,13 @@
   <span style="color:var(--mut);font-size:12px">🔥 호응글 · ✓ 사용됨</span>
 </div>
 
+<div class="catbar" id="catbar">
+  <button class="catbtn on" data-cat="" onclick="setCategory('')">전체</button>
+  <button class="catbtn" data-cat="핫딜" onclick="setCategory('핫딜')">🔥 핫딜</button>
+  <button class="catbtn" data-cat="이벤트" onclick="setCategory('이벤트')">🎉 이벤트</button>
+  <button class="catbtn" data-cat="일상인기글" onclick="setCategory('일상인기글')">💬 일상인기글</button>
+</div>
+
 <div class="mtabs" id="mtabs">
   <button class="mtab on" id="mtab-gen" onclick="setMobilePanel('gen')">⚡ 일반글</button>
   <button class="mtab" id="mtab-pop" onclick="setMobilePanel('pop')">🔥 인기글</button>
@@ -177,6 +189,7 @@ const PAGE = 100;
 let rowsById = {};
 let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
 let genOrder = "surge";               // 일반글 기본 탭: surge | latest | hot
+let category = "";                    // '' 전체 | 핫딜 | 이벤트 | 일상인기글
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
 function boardTag(boards){
@@ -219,8 +232,19 @@ function rowHtml(r){
 
 async function get(type, order, offset, limit){
   const q=encodeURIComponent($("#q").value);
-  const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}`);
+  const cat=(type==="general" && (category==="핫딜"||category==="이벤트")) ? "&category="+encodeURIComponent(category) : "";
+  const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}${cat}`);
   return r.json();
+}
+function setCategory(cat){
+  category=cat;
+  document.querySelectorAll(".catbtn").forEach(b=>b.classList.toggle("on", b.dataset.cat===cat));
+  const cols=document.querySelector(".cols");
+  cols.classList.remove("cat-gen","cat-pop");
+  if(cat==="핫딜"||cat==="이벤트") cols.classList.add("cat-gen");
+  else if(cat==="일상인기글") cols.classList.add("cat-pop");
+  $("#mtabs").style.display = cat==="" ? "" : "none";   // 카테고리 선택 시 모바일 탭 숨김
+  reloadAll();
 }
 function orderOf(key){ return key==="gen"?genOrder:"latest"; }
 
