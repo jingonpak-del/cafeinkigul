@@ -110,6 +110,27 @@
   .fsbar{padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;font-weight:600}
   .fsbar .x{margin-left:auto;cursor:pointer;color:var(--mut);font-weight:400}
   .fsmodal iframe{flex:1;width:100%;border:0;background:#fff}
+  /* ⚙️ 설정 화면 */
+  #settings .setbody{flex:1;overflow:auto;padding:20px;max-width:960px;margin:0 auto;width:100%}
+  .setsec{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:18px}
+  .setsec h3{margin:0 0 12px;font-size:15px}
+  .setsec .hint{color:var(--mut);font-size:12px;margin:-6px 0 12px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:16px;background:#202a3f;border:1px solid var(--line);font-size:13px}
+  .chip.pop{border-color:var(--pop);color:var(--pop)}
+  .chip .rm{cursor:pointer;color:var(--mut);font-weight:700} .chip .rm:hover{color:#ff9a9a}
+  .setrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .boardbox{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:12px}
+  .boardbox table{width:100%;border-collapse:collapse;font-size:13px;table-layout:auto}
+  .boardbox th,.boardbox td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
+  .boardbox th{position:sticky;top:0;background:#1b2233;color:var(--mut);z-index:1}
+  .boardbox tr.tracked{background:rgba(46,194,106,.07)}
+  .boardbox select{padding:4px 8px}
+  .cafechip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;background:#202a3f;border:1px solid var(--line);font-size:13px;cursor:pointer;margin:0 6px 6px 0}
+  .cafechip:hover{border-color:var(--accent)}
+  .cafechip b{color:var(--txt)} .cafechip span{color:var(--mut);font-size:11px}
+  .btnp{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .setmsg{font-size:12px;margin-left:8px}
 </style>
 </head>
 <body>
@@ -126,6 +147,7 @@
   <button onclick="reloadAll()">검색</button>
   <button onclick="reloadAll()">↻ 새로고침</button>
   <button onclick="showAccess()" class="perm" data-perm="admin">👥 접속현황</button>
+  <button onclick="openSettings()" class="masteronly" style="border-color:var(--new)">⚙️ 설정</button>
   <button onclick="openChecker()" class="perm" data-perm="checker" style="border-color:var(--pop)">🗂 게시글 관리</button>
   <button onclick="openService('https://generator.whitedr.com/', '원고 작성')" class="perm" data-perm="generator" style="border-color:var(--pop)">✍️ 원고 작성</button>
   <button onclick="openService('https://rank.whitedr.com/', '노출 체크')" class="perm" data-perm="rank" style="border-color:var(--pop)">📊 노출 체크</button>
@@ -172,6 +194,61 @@
 <div id="checker" class="fsmodal">
   <div class="fsbar">🗂 <span id="fs-title">게시글 관리</span><span style="margin-left:auto;display:flex;gap:14px"><span class="x" style="margin:0" onclick="reloadChecker()">↻ 새로고침</span><span class="x" style="margin:0" onclick="closeChecker()">✕ 닫기</span></span></div>
   <iframe id="checkerframe" src="about:blank"></iframe>
+</div>
+
+<div id="settings" class="fsmodal">
+  <div class="fsbar">⚙️ 설정 <span style="color:var(--mut);font-weight:400;font-size:12px">— master 전용</span>
+    <span class="x" style="margin:0" onclick="closeSettings()">✕ 닫기</span></div>
+  <div class="setbody">
+
+    <div class="setsec">
+      <h3>분류(카테고리)</h3>
+      <p class="hint">게시판을 등록할 때 지정할 분류입니다. 추가·삭제하면 즉시 반영됩니다. (인기글 분류는 삭제할 수 없습니다)</p>
+      <div class="chips" id="catchips"></div>
+      <div class="setrow">
+        <input id="newcat" placeholder="새 분류 이름" size="16" onkeydown="if(event.key==='Enter')addCat()"/>
+        <button class="btnp" onclick="addCat()">+ 추가</button>
+        <span class="setmsg" id="catmsg"></span>
+      </div>
+    </div>
+
+    <div class="setsec">
+      <h3>카페 게시판 등록</h3>
+      <p class="hint">카페 주소(예: <code>masanmam</code>)를 입력하고 [불러오기]를 누르면 게시판 목록이 자동 추출됩니다.
+        수집할 게시판에 체크하고 분류를 지정한 뒤 [저장]하세요. 워처가 자동으로 반영합니다.</p>
+      <div class="setrow">
+        <input id="cafeurl" placeholder="카페 주소 (cafe.naver.com/○○○)" size="26"
+               onkeydown="if(event.key==='Enter')loadCafeBoards()"/>
+        <button class="btnp" onclick="loadCafeBoards()">불러오기</button>
+        <span class="setmsg" id="cafemsg"></span>
+      </div>
+      <div id="cafeedit" style="display:none">
+        <div class="setrow">
+          <b id="cafename"></b>
+          <label style="display:flex;align-items:center;gap:5px;color:var(--pop);font-size:13px">
+            <input type="checkbox" id="cafepop"> 🔥 인기글 수집</label>
+          <input id="boardfilter" placeholder="게시판 검색…" size="16" oninput="filterBoards()" style="margin-left:auto"/>
+        </div>
+        <div class="boardbox">
+          <table>
+            <thead><tr><th style="width:44px">수집</th><th style="width:70px">메뉴ID</th><th>게시판명</th><th style="width:150px">분류</th></tr></thead>
+            <tbody id="boardrows"></tbody>
+          </table>
+        </div>
+        <div class="setrow">
+          <button class="btnp" onclick="saveCafe()">💾 저장</button>
+          <span class="setmsg" id="savemsg"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="setsec">
+      <h3>등록된 카페</h3>
+      <p class="hint">클릭하면 위 편집기에 불러옵니다.</p>
+      <div id="cafelist"></div>
+    </div>
+
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -375,10 +452,115 @@ function openService(url, title){
 function openChecker(){ openService("https://checker.whitedr.com/", "게시글 관리"); }
 function closeChecker(){ $("#checker").classList.remove("show"); }
 function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_curService; }
+
+/* ===== ⚙️ 설정 (master 전용) ===== */
+let setCats=[], setPopCat="일반인기글", curCafe=null;   // curCafe={cluburl,club_id,name,boards:[{menu_id,name,category,tracked}],popular}
+function openSettings(){ $("#settings").classList.add("show"); loadAdminConfig(); }
+function closeSettings(){ $("#settings").classList.remove("show"); }
+async function loadAdminConfig(){
+  let d;
+  try{ d=await (await fetch("/api/admin/config",{cache:"no-store"})).json(); }
+  catch(e){ $("#catmsg").textContent="불러오기 실패"; return; }
+  setCats=d.categories||[]; setPopCat=d.popular_category||"일반인기글";
+  renderCatChips(); renderCafeList(d.cafes||[]);
+}
+function renderCatChips(){
+  $("#catchips").innerHTML = setCats.map(c=>{
+    const isPop=c===setPopCat;
+    const rm=isPop?"":`<span class="rm" onclick="removeCat('${esc(c)}')" title="삭제">✕</span>`;
+    return `<span class="chip${isPop?' pop':''}">${isPop?'🔥 ':''}${esc(c)}${rm}</span>`;
+  }).join("");
+}
+async function saveCats(){
+  const r=await fetch("/api/admin/categories",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({categories:setCats, popular_category:setPopCat})});
+  if(!r.ok){ $("#catmsg").textContent="저장 실패"; return false; }
+  $("#catmsg").textContent="✓ 저장됨"; setTimeout(()=>$("#catmsg").textContent="",2000);
+  loadCategories();                       // 대시보드 상단 탭도 갱신
+  if(curCafe) renderBoardRows();          // 편집 중인 분류 드롭다운 갱신
+  return true;
+}
+async function addCat(){
+  const v=$("#newcat").value.trim();
+  if(!v) return;
+  if(setCats.includes(v)){ $("#catmsg").textContent="이미 있는 분류"; return; }
+  setCats.push(v); $("#newcat").value=""; renderCatChips(); saveCats();
+}
+async function removeCat(c){
+  if(c===setPopCat) return;
+  if(!confirm(`'${c}' 분류를 삭제할까요?\n이 분류로 지정된 게시판은 분류 없음으로 바뀝니다.`)) return;
+  setCats=setCats.filter(x=>x!==c); renderCatChips(); saveCats();
+}
+function catOptions(sel){
+  return setCats.filter(c=>c!==setPopCat)
+    .map(c=>`<option${c===sel?' selected':''}>${esc(c)}</option>`).join("");
+}
+
+async function loadCafeBoards(url){
+  const cafe=(typeof url==="string"?url:$("#cafeurl").value).trim();
+  if(!cafe){ return; }
+  $("#cafeurl").value=cafe; $("#cafemsg").textContent="불러오는 중…";
+  let d;
+  try{ d=await (await fetch("/api/admin/cafe-boards?cafe="+encodeURIComponent(cafe),{cache:"no-store"})).json(); }
+  catch(e){ $("#cafemsg").textContent="실패"; return; }
+  if(d.error){ $("#cafemsg").textContent="⚠ "+d.error; return; }
+  curCafe={ cluburl:d.cluburl||cafe, club_id:d.club_id, name:d.name||cafe,
+            boards:(d.boards||[]).map(b=>({menu_id:b.menu_id,name:b.name,tracked:!!b.tracked,category:b.category||""})),
+            popular:!!d.popular };
+  $("#cafemsg").textContent="✓ "+curCafe.boards.length+"개 게시판";
+  $("#cafename").textContent=`${curCafe.name} (${curCafe.cluburl} · clubId ${curCafe.club_id})`;
+  $("#cafepop").checked=curCafe.popular;
+  $("#boardfilter").value="";
+  renderBoardRows();
+  $("#cafeedit").style.display="";
+}
+function renderBoardRows(){
+  const rows=curCafe.boards.map((b,i)=>{
+    return `<tr class="${b.tracked?'tracked':''}" data-name="${esc(b.name)}">
+      <td><input type="checkbox" ${b.tracked?'checked':''} onchange="toggleBoard(${i},this.checked)"></td>
+      <td style="color:var(--mut)">${b.menu_id}</td>
+      <td>${esc(b.name)}</td>
+      <td><select onchange="setBoardCat(${i},this.value)" ${b.tracked?'':'disabled'}>
+        <option value="">— 분류 선택 —</option>${catOptions(b.category)}</select></td>
+    </tr>`;
+  });
+  $("#boardrows").innerHTML=rows.join("");
+}
+function toggleBoard(i,on){ curCafe.boards[i].tracked=on; if(!on) curCafe.boards[i].category=""; renderBoardRows(); filterBoards(); }
+function setBoardCat(i,v){ curCafe.boards[i].category=v; }
+function filterBoards(){
+  const q=$("#boardfilter").value.trim().toLowerCase();
+  document.querySelectorAll("#boardrows tr").forEach(tr=>{
+    tr.style.display = !q || (tr.dataset.name||"").toLowerCase().includes(q) ? "" : "none";
+  });
+}
+async function saveCafe(){
+  if(!curCafe) return;
+  const boards=curCafe.boards.filter(b=>b.tracked)
+    .map(b=>({menu_id:b.menu_id,name:b.name,category:b.category||""}));
+  $("#savemsg").textContent="저장 중…";
+  const r=await fetch("/api/admin/save-cafe",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({cluburl:curCafe.cluburl, club_id:curCafe.club_id, name:curCafe.name,
+                         boards, popular:$("#cafepop").checked})});
+  if(!r.ok){ $("#savemsg").textContent="⚠ 저장 실패"; return; }
+  $("#savemsg").textContent=`✓ 저장됨 (수집 ${boards.length}개${$("#cafepop").checked?' + 인기글':''}) — 워처 자동 반영`;
+  loadAdminConfig(); loadCategories();
+}
+function renderCafeList(cafes){
+  if(!cafes.length){ $("#cafelist").innerHTML='<span style="color:var(--mut);font-size:13px">등록된 카페가 없습니다.</span>'; return; }
+  $("#cafelist").innerHTML = cafes.map(c=>{
+    const n=(c.boards||[]).filter(b=>b.type!=="popular").length;
+    const pop=(c.boards||[]).some(b=>b.type==="popular");
+    return `<span class="cafechip" onclick="loadCafeBoards('${esc(c.cluburl)}')">
+      <b>${esc(c.name||c.cluburl)}</b> <span>${esc(c.cluburl)} · 수집 ${n}${pop?' +🔥':''}</span></span>`;
+  }).join("");
+}
+
 async function loadMe(){
   let me={admin:false,perms:[]};
   try{ me=await (await fetch("/api/me",{cache:"no-store"})).json(); }catch(e){}
   const perms=new Set(me.perms||[]);
+  document.body.classList.toggle("ismaster", !!me.admin);
   document.querySelectorAll(".perm").forEach(el=>{
     const need=el.dataset.perm;
     const ok = need==="admin" ? !!me.admin : (!!me.admin || perms.has(need));   // admin=전부
