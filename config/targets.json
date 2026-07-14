@@ -25,6 +25,12 @@
           "name": "여왕X여신X명예수다"
         },
         {
+          "type": "menu",
+          "menu_id": 87,
+          "name": "자유이야기방",
+          "category": "유머"
+        },
+        {
           "type": "popular",
           "name": "인기글"
         }

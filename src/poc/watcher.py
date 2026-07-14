@@ -20,6 +20,14 @@ from .db import Database, now_ms
 from .session import SessionManager
 
 ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = ROOT / "config" / "targets.json"
+
+
+def _cfg_mtime():
+    try:
+        return CONFIG_PATH.stat().st_mtime
+    except OSError:
+        return 0
 
 
 @dataclass
@@ -64,6 +72,7 @@ class Watcher:
         self.popular_hours = (2, 16)   # 매일 02:00 / 16:00 (네이버 1시/15시 갱신 직후)
         self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
         self._cafe_name = {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
+        self._cfg_mtime = _cfg_mtime()   # config 핫리로드 감지용
         self._last_request = 0.0
         # 하드닝 상태
         self.session_ok = True
@@ -249,6 +258,30 @@ class Watcher:
         self.process_revisits()
         self.log(f"  통계: {self.db.counts()}")
 
+    def reload_boards_if_changed(self) -> bool:
+        """config 파일이 바뀌었으면 게시판 목록을 다시 읽어 갱신(재시작 불필요). 변경 시 True."""
+        m = _cfg_mtime()
+        if m == self._cfg_mtime:
+            return False
+        self._cfg_mtime = m
+        try:
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        except Exception as e:
+            self.log(f"  ! config 재읽기 실패: {e}")
+            return False
+        all_boards = load_boards(cfg)
+        new_menu = [b for b in all_boards if b.kind == "menu"]
+        new_pop = [b for b in all_boards if b.kind == "popular"]
+        changed = ({(b.club_id, b.menu_id) for b in new_menu} != {(b.club_id, b.menu_id) for b in self.menu_boards}
+                   or len(new_pop) != len(self.popular_boards))
+        self.menu_boards = new_menu
+        self.popular_boards = new_pop
+        self._cluburl = {c["club_id"]: c["cluburl"] for c in cfg["cafes"]}
+        self._cafe_name = {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
+        if changed:
+            self.log(f"⟳ 게시판 목록 갱신 — 일반 {len(new_menu)}개 / 인기글 {len(new_pop)}개")
+        return changed
+
     def run(self, tick_s: float = 1.0):
         """일반글: 라운드로빈 실시간 폴링. 인기글: 하루 2회 스케줄 수집."""
         self.log(f"Watcher 시작 — 일반 {len(self.menu_boards)}개(실시간) / "
@@ -277,6 +310,10 @@ class Watcher:
                 self.maybe_collect_popular()  # 예정시각 도래 시 인기글 수집
                 if self.sheets:
                     self.sheets.flush()
+                if self.reload_boards_if_changed():   # config 변경 시 게시판 갱신 + 사이클 재구성
+                    cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
+                    n = max(1, len(self.menu_boards))
+                    i = 0
             time.sleep(tick_s)
 
 
