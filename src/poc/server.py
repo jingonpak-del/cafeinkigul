@@ -434,6 +434,100 @@ def categories_list():
         return {"categories": [], "popular_category": "일반인기글"}
 
 
+def _naver_client():
+    """크롤 계정 세션으로 인증된 httpx 클라이언트 (게시판 추출용)."""
+    from .session import SessionManager
+    from . import cafe_api
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    acct = cfg.get("account")
+    sm = SessionManager(ROOT / "data" / "sessions")
+    cookies = sm.load_cookies(acct) if acct and sm.verify(acct).ok else None
+    return cafe_api.make_client(cookies)
+
+
+def _require_admin(request):
+    acct = _conn_account(request)
+    return acct if (acct and acct.get("admin")) else None
+
+
+@app.get("/api/admin/config")
+def admin_config(request: Request):
+    """현재 설정(카페·게시판·카테고리) — 설정 화면용. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return {"categories": cfg.get("categories", []),
+            "popular_category": cfg.get("popular_category", "일반인기글"),
+            "cafes": [{"cluburl": c["cluburl"], "club_id": c["club_id"], "name": c.get("name", ""),
+                       "boards": c.get("boards", [])} for c in cfg.get("cafes", [])]}
+
+
+@app.get("/api/admin/cafe-boards")
+def admin_cafe_boards(request: Request, cafe: str):
+    """카페 주소로 게시판 목록 자동추출 + 현재 추적/분류 표시. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from . import cafe_api
+    cl = _naver_client()
+    try:
+        cid = cafe_api.resolve_club_id(cafe, client=cl)
+        boards = cafe_api.fetch_board_list(cid, client=cl)
+    except Exception as e:
+        return JSONResponse({"error": f"게시판 추출 실패: {e}"}, status_code=400)
+    finally:
+        cl.close()
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    tracked, has_pop, name = {}, False, cafe
+    for c in cfg["cafes"]:
+        if c["club_id"] == cid:
+            name = c.get("name", cafe)
+            for b in c["boards"]:
+                if b.get("type") == "menu":
+                    tracked[b["menu_id"]] = b.get("category", "")
+                if b.get("type") == "popular":
+                    has_pop = True
+    for b in boards:
+        b["tracked"] = b["menu_id"] in tracked
+        b["category"] = tracked.get(b["menu_id"], "")
+    return {"club_id": cid, "cluburl": cafe, "name": name, "popular": has_pop, "boards": boards}
+
+
+@app.post("/api/admin/save-cafe")
+async def admin_save_cafe(request: Request):
+    """한 카페의 추적 게시판·분류 저장(체크된 것만). master 전용. → 워처 핫리로드."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    cid = int(body["club_id"]); cluburl = body["cluburl"]; name = body.get("name") or cluburl
+    boards = []
+    for b in body.get("boards", []):     # 체크된 일반게시판만 전달됨
+        boards.append({"type": "menu", "menu_id": int(b["menu_id"]),
+                       "name": b.get("name", ""), "category": b.get("category", "")})
+    if body.get("popular"):
+        boards.append({"type": "popular", "name": "인기글"})
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    cfg["cafes"] = [c for c in cfg["cafes"] if c["club_id"] != cid]   # 기존 제거
+    if boards:
+        cfg["cafes"].append({"cluburl": cluburl, "club_id": cid, "name": name, "boards": boards})
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "boards": len(boards)}
+
+
+@app.post("/api/admin/categories")
+async def admin_categories(request: Request):
+    """카테고리 목록 저장(추가/이름변경/삭제 반영). master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    cats = [str(x).strip() for x in body.get("categories", []) if str(x).strip()]
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    cfg["categories"] = cats
+    if body.get("popular_category"):
+        cfg["popular_category"] = body["popular_category"]
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "categories": cats}
+
+
 @app.get("/api/stats")
 def stats():
     c = _row_conn()
