@@ -22,6 +22,20 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"[ \t\r\f\v]*\n\s*\n\s*", re.S)
 
 
+def fetch_text(url: str, timeout: int = 20) -> str:
+    """HTML 본문을 다중 인코딩 폴백으로 안전 디코딩.
+    옛 정부/공공 사이트는 euc-kr/cp949가 많아 헤더 charset만 믿으면 깨진다."""
+    r = httpx.get(url, timeout=timeout, headers={"User-Agent": UA}, follow_redirects=True)
+    r.raise_for_status()
+    raw = r.content
+    for enc in ("utf-8", "cp949", "euc-kr"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="ignore")
+
+
 def _strip_html(s: str, limit: int = 2000) -> str:
     """HTML → 순수 txt. 태그 제거 + 공백 정리 + 길이 제한."""
     if not s:
@@ -233,9 +247,7 @@ def collect_html(source: dict) -> list[dict]:
     title/link_selector 미지정 시 행 안의 첫 <a>를 사용.
     """
     url = source["list_url"]
-    r = httpx.get(url, timeout=20, headers={"User-Agent": UA}, follow_redirects=True)
-    r.raise_for_status()
-    return _extract_items(r.text, url, source)
+    return _extract_items(fetch_text(url), url, source)
 
 
 def _chrome_major() -> int | None:
