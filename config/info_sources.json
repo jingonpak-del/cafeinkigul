@@ -1,0 +1,14 @@
+{
+  "default_window_days": 30,
+  "categories": ["정부", "비영리", "교육", "기타"],
+  "sources": [
+    {
+      "id": "naver_blog:mltmkr",
+      "type": "naver_blog",
+      "blog_id": "mltmkr",
+      "name": "국토교통부",
+      "category": "정부",
+      "enabled": true
+    }
+  ]
+}

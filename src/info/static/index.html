@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>정보 수집 대시보드 · info</title>
+<style>
+ :root{
+   --bg:#0f1420; --panel:#171d2b; --panel2:#131a28; --border:#26304a;
+   --text:#e6ebf5; --muted:#8a97b5; --accent:#4c8dff; --accent2:#2b3a5c;
+ }
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--text);
+   font-family:"Segoe UI","Malgun Gothic",sans-serif;font-size:14px}
+ header{position:sticky;top:0;z-index:10;background:var(--bg);
+   border-bottom:1px solid var(--border);padding:12px 18px}
+ .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+ h1{font-size:18px;margin:0;font-weight:700}
+ .stat{color:var(--muted);font-size:12.5px}
+ .spacer{flex:1}
+ .search{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+   padding:8px 11px;color:var(--text);font-size:13.5px;min-width:200px}
+ .search:focus{outline:none;border-color:var(--accent)}
+ button.act{background:var(--accent);color:#fff;border:0;border-radius:8px;
+   padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+ button.act:disabled{opacity:.5;cursor:default}
+ .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+ .chip{background:var(--panel);border:1px solid var(--border);border-radius:20px;
+   padding:6px 14px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+ .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+ .wrap{padding:14px 18px 60px}
+ table{width:100%;border-collapse:collapse}
+ thead th{position:sticky;top:0;text-align:left;color:var(--muted);font-weight:600;
+   font-size:12px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--bg)}
+ tbody td{padding:9px 10px;border-bottom:1px solid #1d2536;vertical-align:top}
+ tbody tr.row{cursor:pointer}
+ tbody tr.row:hover{background:var(--panel2)}
+ .c-date{white-space:nowrap;color:var(--muted);font-size:12.5px;width:120px}
+ .c-title{font-weight:600;line-height:1.4}
+ .c-src{white-space:nowrap}
+ .badge{display:inline-block;background:var(--accent2);color:#cdddff;border-radius:6px;
+   padding:2px 8px;font-size:11.5px;margin-right:6px}
+ .c-author{white-space:nowrap;color:var(--muted);font-size:12.5px;width:110px}
+ .c-view{white-space:nowrap;color:var(--muted);text-align:right;width:70px}
+ .empty{color:var(--muted)}
+ tr.detail td{background:var(--panel2);border-bottom:1px solid var(--border);padding:0}
+ .body{padding:14px 18px;white-space:pre-wrap;line-height:1.65;color:#d3dbeb;
+   max-height:340px;overflow:auto}
+ .meta{color:var(--muted);font-size:12.5px;margin-bottom:10px}
+ .meta a{color:var(--accent);text-decoration:none}
+ .meta a:hover{text-decoration:underline}
+ .more{display:block;margin:18px auto 0;background:var(--panel);border:1px solid var(--border);
+   color:var(--text);border-radius:8px;padding:9px 22px;font-size:13px;cursor:pointer}
+ .loading{color:var(--muted);text-align:center;padding:30px}
+ @media(max-width:640px){
+   .c-author,.c-view,thead .h-author,thead .h-view{display:none}
+   .c-date{width:auto}
+ }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>📡 정보 수집 대시보드</h1>
+    <span class="stat" id="stat">불러오는 중…</span>
+    <span class="spacer"></span>
+    <input class="search" id="q" placeholder="제목·본문 검색"/>
+    <button class="act" id="refresh">새로고침</button>
+    <button class="act" id="ingest">지금 수집</button>
+  </div>
+  <div class="tabs" id="cats"></div>
+  <div class="tabs" id="srcs"></div>
+</header>
+
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th class="c-date">수집일</th>
+      <th>제목</th>
+      <th class="c-src">출처</th>
+      <th class="h-author c-author">작성자</th>
+      <th class="h-view c-view">조회수</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="loading" id="loading" style="display:none">불러오는 중…</div>
+  <button class="more" id="more" style="display:none">더 보기</button>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let state = {category:"", source:"", q:"", offset:0, limit:100, done:false};
+
+function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function loadMeta(){
+  const [srcRes, stat] = await Promise.all([
+    fetch('/api/sources').then(r=>r.json()),
+    fetch('/api/stats').then(r=>r.json())
+  ]);
+  // 카테고리 칩
+  const cats = ['전체', ...(srcRes.categories||[])];
+  $('#cats').innerHTML = cats.map(c=>{
+    const val = c==='전체'?'':c;
+    return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
+  }).join('');
+  // 소스 칩
+  const srcs = srcRes.sources||[];
+  $('#srcs').innerHTML = '<span class="chip '+(state.source===''?'on':'')+'" data-src="">전체 출처</span>' +
+    srcs.map(s=>`<span class="chip ${state.source===s.id?'on':''}" data-src="${esc(s.id)}">${esc(s.name)}</span>`).join('');
+  document.querySelectorAll('[data-cat]').forEach(el=>el.onclick=()=>{state.category=el.dataset.cat;reset();loadMeta();});
+  document.querySelectorAll('[data-src]').forEach(el=>el.onclick=()=>{state.source=el.dataset.src;reset();loadMeta();});
+  refreshStat(stat);
+}
+
+function refreshStat(s){
+  $('#stat').textContent = `글 ${s.posts}건 · 출처 ${s.sources}곳` +
+    (s.last_ingest? ` · 최근수집 ${s.last_ingest}`:'');
+}
+
+function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; load(); }
+
+async function load(){
+  $('#loading').style.display='block'; $('#more').style.display='none';
+  const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
+    limit:state.limit, offset:state.offset});
+  const data = await fetch('/api/posts?'+p).then(r=>r.json());
+  $('#loading').style.display='none';
+  const tb = $('#rows');
+  if(state.offset===0 && data.rows.length===0){
+    tb.innerHTML = '<tr><td colspan="5" class="loading">표시할 글이 없습니다. “지금 수집”을 눌러보세요.</td></tr>';
+    return;
+  }
+  for(const r of data.rows){
+    const tr = document.createElement('tr');
+    tr.className='row';
+    tr.innerHTML = `
+      <td class="c-date">${esc(r.collected_str)}</td>
+      <td class="c-title">${esc(r.title)||'<span class=empty>(제목없음)</span>'}</td>
+      <td class="c-src"><span class="badge">${esc(r.category)||'-'}</span>${esc(r.source_name)}</td>
+      <td class="c-author">${esc(r.author)||'<span class=empty>—</span>'}</td>
+      <td class="c-view">${r.view_count!=null?r.view_count.toLocaleString():'<span class=empty>—</span>'}</td>`;
+    const detail = document.createElement('tr');
+    detail.className='detail'; detail.style.display='none';
+    detail.innerHTML = `<td colspan="5"><div class="body">
+      <div class="meta">🗓 발행 ${esc(r.published_str)||'-'} · 수집 ${esc(r.collected_str)}
+        · <a href="${esc(r.url)}" target="_blank" rel="noopener">원문 보기 ↗</a></div>
+      ${esc(r.content_text)||'<span class=empty>(본문 없음)</span>'}
+    </div></td>`;
+    tr.onclick=()=>{detail.style.display = detail.style.display==='none'?'':'none';};
+    tb.appendChild(tr); tb.appendChild(detail);
+  }
+  state.offset += data.rows.length;
+  state.done = !data.has_more;
+  $('#more').style.display = state.done?'none':'block';
+}
+
+$('#more').onclick = load;
+$('#refresh').onclick = ()=>{reset();fetch('/api/stats').then(r=>r.json()).then(refreshStat);};
+$('#q').addEventListener('input', ()=>{clearTimeout(window._t);
+  window._t=setTimeout(()=>{state.q=$('#q').value.trim();reset();},350);});
+$('#ingest').onclick = async ()=>{
+  const b=$('#ingest'); b.disabled=true; b.textContent='수집 중…';
+  try{ await fetch('/api/ingest',{method:'POST'}); }catch(e){}
+  b.disabled=false; b.textContent='지금 수집';
+  reset(); fetch('/api/stats').then(r=>r.json()).then(refreshStat);
+};
+
+loadMeta().then(load);
+</script>
+</body>
+</html>
