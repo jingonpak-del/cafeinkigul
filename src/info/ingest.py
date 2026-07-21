@@ -26,12 +26,19 @@ def load_config() -> dict:
 
 
 def ingest_source(db: Database, source: dict, window_days: int) -> dict:
-    """단일 소스 수집. 결과 요약 dict 반환."""
-    first_time = db.latest_published(source["id"]) is None
+    """단일 소스 수집. 결과 요약 dict 반환.
+
+    첫 등록: 최근 window_days 이내 글만. 이후(증분): 이미 저장된 최신 발행일보다
+    새로운 글만 저장 → 과거 이력이 큰 피드(예: 1000건 RSS)를 백필하지 않음.
+    """
+    latest = db.latest_published(source["id"])
+    first_time = latest is None
     posts = collectors.collect(source)
     fetched = len(posts)
     if first_time:
         posts = collectors.within_window(posts, window_days)
+    else:
+        posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
     inserted = sum(1 for p in posts if db.upsert_post(p))
     return {
         "id": source["id"],
