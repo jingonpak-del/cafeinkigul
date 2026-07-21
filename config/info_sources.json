@@ -344,6 +344,20 @@
       "name": "아름다운재단",
       "category": "비영리",
       "enabled": true
+    },
+    {
+      "id": "html:mois_press",
+      "type": "html",
+      "name": "행정안전부 보도자료",
+      "category": "정부",
+      "enabled": true,
+      "list_url": "https://www.mois.go.kr/frt/bbs/type010/commonSelectBoardList.do?bbsId=BBSMSTR_000000000008",
+      "item_selector": "table tbody tr",
+      "link_selector": "td.l a",
+      "title_selector": "td.l a",
+      "author_selector": "td:nth-of-type(4)",
+      "date_selector": "td:nth-of-type(5)",
+      "view_selector": "td:nth-of-type(6)"
     }
   ]
 }

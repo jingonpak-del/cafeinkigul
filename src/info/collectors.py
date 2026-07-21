@@ -112,9 +112,110 @@ def collect_generic_rss(source: dict) -> list[dict]:
     return collect_rss(source, source["url"], source.get("name", ""))
 
 
+_DATE_RE = re.compile(r"(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})")
+
+
+def _parse_date_ms(text: str) -> int | None:
+    """'2026-07-21' '2026.07.21' '2026년 7월 21일' 등에서 날짜 추출 → ms."""
+    if not text:
+        return None
+    m = _DATE_RE.search(text)
+    if not m:
+        return None
+    try:
+        import datetime as _dt
+        y, mo, d = (int(x) for x in m.groups())
+        return int(_dt.datetime(y, mo, d).timestamp() * 1000)
+    except Exception:
+        return None
+
+
+_ID_KEYS = ("nttId", "articleNo", "boardSeq", "bbsSeq", "idx", "seq", "no", "id", "num")
+
+
+def _normalize_article_url(link: str) -> str:
+    """휘발성 세션토큰(;jsessionid=...) 제거. 글 식별 쿼리는 유지."""
+    return re.sub(r";jsessionid=[^?#]*", "", link, flags=re.I)
+
+
+def _html_post_key(link: str) -> str:
+    """게시판 상세 링크에서 안정적인 글 키 추출.
+    쿼리의 nttId/seq 등 id 파라미터 우선, 없으면 세션제거한 URL."""
+    from urllib.parse import urlparse, parse_qs
+    clean = _normalize_article_url(link)
+    qs = parse_qs(urlparse(clean).query)
+    for k in _ID_KEYS:
+        if k in qs and qs[k]:
+            return f"{k}={qs[k][0]}"
+    return clean
+
+
+def _to_int(text: str) -> int | None:
+    d = re.sub(r"[^\d]", "", text or "")
+    return int(d) if d else None
+
+
+def collect_html(source: dict) -> list[dict]:
+    """범용 HTML 목록 크롤러 (RSS 없는 서버렌더링 게시판용).
+
+    config 예:
+      {"type":"html", "list_url":"...", "item_selector":"table tbody tr",
+       "title_selector":"td.l a", "link_selector":"td.l a",
+       "date_selector":"td:nth-of-type(5)", "author_selector":"td:nth-of-type(4)",
+       "view_selector":"td:nth-of-type(6)", "summary_selector":"td.summary"}
+    title/link_selector 미지정 시 행 안의 첫 <a>를 사용.
+    """
+    from urllib.parse import urljoin
+    from bs4 import BeautifulSoup
+
+    url = source["list_url"]
+    r = httpx.get(url, timeout=20, headers={"User-Agent": UA}, follow_redirects=True)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
+    rows = soup.select(source["item_selector"])
+    name = source.get("name") or url
+
+    def cell(row, sel):
+        n = row.select_one(sel) if sel else None
+        return n.get_text(" ", strip=True) if n else ""
+
+    out = []
+    for row in rows:
+        a = row.select_one(source["link_selector"]) if source.get("link_selector") else row.find("a")
+        if a is None:
+            continue
+        href = a.get("href") or ""
+        if not href or href.startswith("javascript") or href.startswith("#"):
+            continue
+        link = _normalize_article_url(urljoin(url, href))
+        title = cell(row, source["title_selector"]) if source.get("title_selector") \
+            else (a.get_text(strip=True) or (a.get("title") or "").strip())
+        if not title:
+            continue
+        published = _parse_date_ms(cell(row, source.get("date_selector")))
+        views = _to_int(cell(row, source["view_selector"])) if source.get("view_selector") else None
+        author = cell(row, source["author_selector"]) if source.get("author_selector") else source.get("author")
+        summary = cell(row, source.get("summary_selector"))
+        out.append({
+            "source_id": source["id"],
+            "post_key": _html_post_key(link),
+            "source_name": name,
+            "source_type": source.get("type", "html"),
+            "category": source.get("category", ""),
+            "title": title,
+            "author": author or None,
+            "url": link,
+            "published_at": published,
+            "view_count": views,
+            "content_text": (summary[:2000] if summary else ""),
+        })
+    return out
+
+
 COLLECTORS = {
     "naver_blog": collect_naver_blog,
     "rss": collect_generic_rss,
+    "html": collect_html,
 }
 
 
