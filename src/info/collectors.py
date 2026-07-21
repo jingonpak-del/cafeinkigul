@@ -144,7 +144,7 @@ def _parse_date_ms(text: str) -> int | None:
         return None
 
 
-_ID_KEYS = ("nttId", "articleNo", "boardSeq", "bbsSeq", "idx", "seq", "no", "id", "num")
+_ID_KEYS = ("wr_id", "nttId", "articleNo", "boardSeq", "bbsSeq", "idx", "seq", "no", "id", "num")
 
 
 def _normalize_article_url(link: str) -> str:
@@ -309,11 +309,140 @@ def collect_browser(source: dict) -> list[dict]:
     return _extract_items(html, url, source)
 
 
+# ── Gnuboard 게시판 collector (한국 공공기관 표준 CMS) ──────────────────────
+# 온동네 플랫폼 GenericGnuboardAdapter에서 이식. bo_table/wr_id 패턴 기반.
+_GNU_INCLUDE = [
+    "모집", "신청", "참여", "교육", "프로그램", "행사", "공모", "공모전", "지원사업",
+    "상담", "강좌", "체험", "특강", "설명회", "멘토링", "컨설팅", "워크숍", "세미나",
+    "입주", "참가", "수강", "접수", "운영", "공연", "전시", "안내",
+]
+_GNU_EXCLUDE = [
+    "채용", "합격", "서류전형", "면접", "휴관", "휴무", "점검", "공사", "결산", "예산",
+    "선정결과", "선정 결과", "수상자", "당선", "대관", "회의결과", "회의 결과",
+]
+
+
+def _gnu_canonical(board_url: str, url: str) -> str:
+    from urllib.parse import urljoin
+    mb = re.search(r"bo_table=([^&]+)", url)
+    mi = re.search(r"wr_id=(\d+)", url)
+    if mb and mi:
+        return urljoin(board_url, f"/bbs/board.php?bo_table={mb.group(1)}&wr_id={mi.group(1)}")
+    return _normalize_article_url(url)
+
+
+def _gnu_clean_title(text: str) -> str:
+    text = html.unescape(text or "")
+    text = re.sub(r"\b\d{2,4}[.\-/]\d{1,2}[.\-/]\d{1,2}\b", " ", text)
+    text = re.sub(r"조회수?\s*[:：]?\s*\d+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"^(공지|알림)\s*", "", text).strip()
+
+
+def collect_gnuboard(source: dict) -> list[dict]:
+    """Gnuboard 게시판 목록 수집. 상세 본문은 fetch_detail=True일 때만.
+
+    config 예:
+      {"type":"gnuboard", "name":"...", "category":"...",
+       "board_url":"https://site/bbs/board.php?bo_table=notice",
+       "include_keywords":[...], "exclude_keywords":[...],
+       "max_pages":3, "since_days":30, "fetch_detail":false}
+    include/exclude 미지정 시 행사·모집 기본 어휘 사용(빈 리스트로 끄기 가능).
+    """
+    from urllib.parse import urljoin
+    from .html_utils import strip_tags, first_match, all_links
+    from . import date_parser as dp
+
+    board_url = source["board_url"]
+    include = source.get("include_keywords", _GNU_INCLUDE)
+    exclude = source.get("exclude_keywords", _GNU_EXCLUDE)
+    since_days = int(source.get("since_days", 30))
+    max_pages = int(source.get("max_pages", 3))
+    limit = int(source.get("limit", 100))
+    name = source.get("name") or board_url
+    href_re = r'<a[^>]+href=["\']([^"\']*wr_id=\d+[^"\']*)["\'][^>]*>(.*?)</a>'
+
+    def relevant(title: str) -> bool:
+        norm = re.sub(r"\s+", "", title)
+        if any(k.replace(" ", "") in norm for k in exclude):
+            return False
+        return (not include) or any(k in title for k in include)
+
+    items, seen = [], set()
+    for page in range(1, max_pages + 1):
+        if len(items) >= limit:
+            break
+        sep = "&" if "?" in board_url else "?"
+        url = board_url if page == 1 else f"{board_url}{sep}page={page}"
+        try:
+            html_text = fetch_text(url)
+        except Exception:
+            break
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html_text, re.S | re.I) \
+            or re.findall(r"<li[^>]*>(.*?)</li>", html_text, re.S | re.I)
+        added = 0
+        for row in rows:
+            m = re.search(href_re, row, re.S | re.I)
+            if not m:
+                continue
+            href, inner = m.groups()
+            title = _gnu_clean_title(strip_tags(inner))
+            subj = strip_tags(first_match(
+                r'<td[^>]+class=["\'][^"\']*(?:td_subject|subject|title)[^"\']*["\'][^>]*>(.*?)</td>', row))
+            if subj and len(subj) > len(title):
+                title = _gnu_clean_title(subj)
+            date_text = strip_tags(first_match(
+                r'<td[^>]+class=["\'][^"\']*(?:td_datetime|date|time)[^"\']*["\'][^>]*>(.*?)</td>', row)) \
+                or first_match(r'(20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2})', row)
+            published = dp.parse_first_ms(date_text)
+            if len(title) < 4 or not relevant(title):
+                continue
+            if published is not None and published < time.time() * 1000 - since_days * 86400 * 1000:
+                continue   # 목록에 날짜가 있고 창 밖이면 제외(발행일 없으면 통과)
+            link = _gnu_canonical(board_url, urljoin(board_url, html.unescape(href).replace("&amp;", "&")))
+            if link in seen:
+                continue
+            seen.add(link)
+            items.append({
+                "source_id": source["id"],
+                "post_key": _html_post_key(link),
+                "source_name": name,
+                "source_type": "gnuboard",
+                "category": source.get("category", ""),
+                "title": title,
+                "author": source.get("author") or None,
+                "url": link,
+                "published_at": published,
+                "view_count": None,
+                "content_text": "",
+            })
+            added += 1
+            if len(items) >= limit:
+                break
+        if added == 0 and page > 1:
+            break
+
+    if source.get("fetch_detail"):
+        for it in items:
+            try:
+                dh = fetch_text(it["url"])
+            except Exception:
+                continue
+            body_html = first_match(
+                r'<div[^>]+id=["\']bo_v_con["\'][^>]*>(.*?)</div>\s*(?:<script|<section|</article)', dh) \
+                or first_match(r'<div[^>]+id=["\']bo_v_con["\'][^>]*>(.*?)</div>', dh)
+            body = strip_tags(body_html)
+            if body:
+                it["content_text"] = body[:2000]
+    return items
+
+
 COLLECTORS = {
     "naver_blog": collect_naver_blog,
     "rss": collect_generic_rss,
     "html": collect_html,
     "browser": collect_browser,
+    "gnuboard": collect_gnuboard,
 }
 
 
@@ -358,14 +487,17 @@ def resolve_source(raw: str) -> dict:
 
     is_url = raw.startswith("http")
     is_naver = ("blog.naver.com" in raw) or ("blogId=" in raw)
+    is_gnu = ("bo_table=" in raw) or ("board.php" in raw)
     bid = parse_naver_blog_id(raw)
 
     if bid and (is_naver or not is_url):
         src = {"id": f"naver_blog:{bid}", "type": "naver_blog", "blog_id": bid}
+    elif is_gnu:
+        src = {"id": f"gnuboard:{raw}", "type": "gnuboard", "board_url": raw}   # Gnuboard 게시판
     elif is_url:
         src = {"id": f"rss:{raw}", "type": "rss", "url": raw}   # RSS/Atom 주소로 간주
     else:
-        raise ValueError("네이버 블로그 ID/주소 또는 RSS 주소를 입력하세요.")
+        raise ValueError("네이버 블로그 ID/주소 또는 RSS/게시판 주소를 입력하세요.")
 
     # 실제 수집 시도로 유효성 확인 + 기본 이름 추출
     posts = collect({**src, "name": "", "category": ""})
