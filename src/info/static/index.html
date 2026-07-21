@@ -52,6 +52,20 @@
  .more{display:block;margin:18px auto 0;background:var(--panel);border:1px solid var(--border);
    color:var(--text);border-radius:8px;padding:9px 22px;font-size:13px;cursor:pointer}
  .loading{color:var(--muted);text-align:center;padding:30px}
+ .adminbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;align-items:center}
+ button.act.ghost{background:var(--panel);border:1px solid var(--border);color:var(--text)}
+ .addmsg{font-size:12.5px;margin-top:7px;min-height:16px}
+ .addmsg.ok{color:#8fe3b0} .addmsg.err{color:#ff9a9a}
+ .manage{margin-top:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+   max-height:320px;overflow:auto}
+ .manage table{width:100%} .manage td,.manage th{padding:7px 10px;font-size:12.5px}
+ .manage th{color:var(--muted);text-align:left;border-bottom:1px solid var(--border)}
+ .manage tr+tr td{border-top:1px solid #1d2536}
+ .mini{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;
+   padding:3px 9px;font-size:12px;cursor:pointer}
+ .mini:hover{color:var(--text);border-color:var(--accent)}
+ .mini.del:hover{color:#ff9a9a;border-color:#ff9a9a}
+ .off{opacity:.45}
  @media(max-width:640px){
    .c-author,.c-view,thead .h-author,thead .h-view{display:none}
    .c-date{width:auto}
@@ -70,6 +84,17 @@
   </div>
   <div class="tabs" id="cats"></div>
   <div class="tabs" id="srcs"></div>
+
+  <div id="admin" style="display:none">
+    <div class="adminbar">
+      <input class="search" id="addInput" placeholder="블로그 ID 또는 주소 입력 (예: mltmkr · blog.naver.com/mltmkr · RSS주소)" style="flex:1;min-width:240px"/>
+      <select class="search" id="addCat" style="min-width:96px"></select>
+      <button class="act" id="addBtn">+ 추가</button>
+      <button class="act ghost" id="manageBtn">소스 관리</button>
+    </div>
+    <div class="addmsg" id="addMsg"></div>
+    <div class="manage" id="managePanel" style="display:none"></div>
+  </div>
 </header>
 
 <div class="wrap">
@@ -99,6 +124,7 @@ async function loadMeta(){
     fetch('/api/stats').then(r=>r.json())
   ]);
   // 카테고리 칩
+  CATS = srcRes.categories || [];
   const cats = ['전체', ...(srcRes.categories||[])];
   $('#cats').innerHTML = cats.map(c=>{
     const val = c==='전체'?'':c;
@@ -166,7 +192,66 @@ $('#ingest').onclick = async ()=>{
   reset(); fetch('/api/stats').then(r=>r.json()).then(refreshStat);
 };
 
-loadMeta().then(load);
+// ── 관리자: 블로그 추가 + 소스 관리 ──
+let CATS = [];
+async function initAdmin(){
+  let me; try { me = await fetch('/api/admin/me').then(r=>r.json()); } catch(e){ return; }
+  if(!me.admin) return;
+  $('#admin').style.display='block';
+  const cats = CATS.length?CATS:['정부','지자체','공공기관','교육','비영리','기타'];
+  $('#addCat').innerHTML = cats.map(c=>`<option>${esc(c)}</option>`).join('');
+  const catSel = $('#addCat'); if(cats.includes('기타')) catSel.value='기타';
+}
+function setMsg(t, ok){ const m=$('#addMsg'); m.textContent=t; m.className='addmsg '+(ok?'ok':'err'); }
+async function addSource(){
+  const val = $('#addInput').value.trim();
+  if(!val){ setMsg('주소나 ID를 입력하세요.', false); return; }
+  const b=$('#addBtn'); b.disabled=true; b.textContent='확인 중…'; setMsg('피드 확인 중…', true);
+  try{
+    const r = await fetch('/api/admin/add-source',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({input:val, category:$('#addCat').value})});
+    const d = await r.json();
+    if(!r.ok){ setMsg('❌ '+(d.error||'추가 실패'), false); }
+    else{
+      setMsg(`✅ "${d.name}" 추가됨 (${d.category}) · ${d.inserted}건 수집`, true);
+      $('#addInput').value='';
+      await loadMeta(); reset();
+      if($('#managePanel').style.display!=='none') loadManage();
+    }
+  }catch(e){ setMsg('❌ 오류: '+e.message, false); }
+  b.disabled=false; b.textContent='+ 추가';
+}
+async function loadManage(){
+  const p=$('#managePanel'); p.style.display='block'; p.innerHTML='<div class="loading">불러오는 중…</div>';
+  const d = await fetch('/api/admin/sources').then(r=>r.json());
+  const rows = (d.sources||[]).map(s=>`
+    <tr class="${s.enabled?'':'off'}">
+      <td>${esc(s.name)}</td>
+      <td><span class="badge">${esc(s.category)||'-'}</span></td>
+      <td style="color:var(--muted)">${esc(s.type)}</td>
+      <td style="text-align:right">${s.posts.toLocaleString()}건</td>
+      <td><button class="mini" data-tgl="${esc(s.id)}" data-en="${s.enabled?0:1}">${s.enabled?'끄기':'켜기'}</button></td>
+      <td><button class="mini del" data-del="${esc(s.id)}" data-nm="${esc(s.name)}">삭제</button></td>
+    </tr>`).join('');
+  p.innerHTML = `<table><tr><th>출처</th><th>분류</th><th>유형</th><th style="text-align:right">글</th><th></th><th></th></tr>${rows}</table>`;
+  p.querySelectorAll('[data-tgl]').forEach(el=>el.onclick=async()=>{
+    await fetch('/api/admin/toggle-source',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:el.dataset.tgl, enabled:el.dataset.en==='1'})});
+    loadManage();
+  });
+  p.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{
+    const purge = confirm(`"${el.dataset.nm}" 소스를 삭제합니다.\n\n확인=수집된 글까지 함께 삭제\n취소=삭제 안 함`);
+    if(!purge) return;
+    await fetch('/api/admin/delete-source',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:el.dataset.del, purge:true})});
+    await loadMeta(); reset(); loadManage();
+  });
+}
+$('#addBtn').onclick = addSource;
+$('#addInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addSource(); });
+$('#manageBtn').onclick = ()=>{ const p=$('#managePanel'); if(p.style.display==='none'){ loadManage(); } else { p.style.display='none'; } };
+
+loadMeta().then(()=>{ load(); initAdmin(); });
 </script>
 </body>
 </html>

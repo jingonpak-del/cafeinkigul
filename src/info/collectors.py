@@ -104,11 +104,12 @@ def _post_key_from_link(link: str) -> str | None:
 def collect_naver_blog(source: dict) -> list[dict]:
     blog_id = source["blog_id"]
     feed = f"https://rss.blog.naver.com/{blog_id}.xml"
-    return collect_rss(source, feed, source.get("name") or blog_id)
+    # 이름 미지정 시 collect_rss가 RSS 채널 제목으로 자동 채움
+    return collect_rss(source, feed, source.get("name", ""))
 
 
 def collect_generic_rss(source: dict) -> list[dict]:
-    return collect_rss(source, source["url"], source.get("name") or source.get("url", ""))
+    return collect_rss(source, source["url"], source.get("name", ""))
 
 
 COLLECTORS = {
@@ -129,3 +130,47 @@ def within_window(posts: list[dict], window_days: int) -> list[dict]:
     """등록 시점 기준 window_days 이내 발행 글만. 발행일 없는 글은 포함."""
     cutoff = int(time.time() * 1000) - window_days * 86400 * 1000
     return [p for p in posts if p["published_at"] is None or p["published_at"] >= cutoff]
+
+
+# ── 입력값 → 소스 자동판별 (관리 UI '블로그 추가' 용) ────────────────────────
+def parse_naver_blog_id(s: str) -> str | None:
+    """네이버 블로그 ID 추출. 허용 입력:
+    'mltmkr' | 'blog.naver.com/mltmkr' | 'https://m.blog.naver.com/mltmkr/123'
+    | 'https://blog.naver.com/PostList.naver?blogId=mltmkr'"""
+    s = s.strip()
+    m = re.search(r"blogId=([A-Za-z0-9_-]+)", s)
+    if m:
+        return m.group(1)
+    m = re.search(r"blog\.naver\.com/([A-Za-z0-9_-]+)", s)
+    if m and m.group(1).lower() not in ("postlist", "postview"):
+        return m.group(1)
+    # 순수 ID (슬래시·점·공백 없음)
+    if re.fullmatch(r"[A-Za-z0-9_-]+", s):
+        return s
+    return None
+
+
+def resolve_source(raw: str) -> dict:
+    """입력 문자열을 소스 dict로 판별하고 실제 피드를 확인.
+    반환: {source, sample_count, sample_name}. 실패 시 ValueError."""
+    raw = (raw or "").strip()
+    if not raw:
+        raise ValueError("입력이 비었습니다.")
+
+    is_url = raw.startswith("http")
+    is_naver = ("blog.naver.com" in raw) or ("blogId=" in raw)
+    bid = parse_naver_blog_id(raw)
+
+    if bid and (is_naver or not is_url):
+        src = {"id": f"naver_blog:{bid}", "type": "naver_blog", "blog_id": bid}
+    elif is_url:
+        src = {"id": f"rss:{raw}", "type": "rss", "url": raw}   # RSS/Atom 주소로 간주
+    else:
+        raise ValueError("네이버 블로그 ID/주소 또는 RSS 주소를 입력하세요.")
+
+    # 실제 수집 시도로 유효성 확인 + 기본 이름 추출
+    posts = collect({**src, "name": "", "category": ""})
+    if not posts:
+        raise ValueError("글을 찾지 못했습니다. 주소/ID를 확인하세요(비공개·잘못된 주소일 수 있음).")
+    return {"source": src, "sample_count": len(posts),
+            "sample_name": posts[0].get("source_name") or src.get("blog_id") or src["id"]}

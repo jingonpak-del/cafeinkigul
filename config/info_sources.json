@@ -1,51 +1,349 @@
 {
   "default_window_days": 30,
-  "categories": ["정부", "지자체", "공공기관", "교육", "비영리", "기타"],
+  "categories": [
+    "정부",
+    "지자체",
+    "공공기관",
+    "교육",
+    "비영리",
+    "기타"
+  ],
   "sources": [
-    { "id": "naver_blog:mltmkr",         "type": "naver_blog", "blog_id": "mltmkr",          "name": "국토교통부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mosfnet",        "type": "naver_blog", "blog_id": "mosfnet",         "name": "기획재정부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mohw2016",       "type": "naver_blog", "blog_id": "mohw2016",        "name": "보건복지부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:molab_suda",     "type": "naver_blog", "blog_id": "molab_suda",      "name": "고용노동부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mogefkorea",     "type": "naver_blog", "blog_id": "mogefkorea",      "name": "여성가족부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mofakr",         "type": "naver_blog", "blog_id": "mofakr",          "name": "외교부",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mojjustice",     "type": "naver_blog", "blog_id": "mojjustice",      "name": "법무부",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mnd9090",        "type": "naver_blog", "blog_id": "mnd9090",         "name": "국방부",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mifaffgov",      "type": "naver_blog", "blog_id": "mifaffgov",       "name": "농림축산식품부",   "category": "정부",     "enabled": true },
-    { "id": "naver_blog:koreamof",       "type": "naver_blog", "blog_id": "koreamof",        "name": "해양수산부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:bizinfo1357",    "type": "naver_blog", "blog_id": "bizinfo1357",     "name": "중소벤처기업부",   "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mcstkorea",      "type": "naver_blog", "blog_id": "mcstkorea",       "name": "문화체육관광부",   "category": "정부",     "enabled": true },
-    { "id": "naver_blog:motirnews",      "type": "naver_blog", "blog_id": "motirnews",       "name": "산업통상부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mopaspr",        "type": "naver_blog", "blog_id": "mopaspr",         "name": "행정안전부",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mceekorea",      "type": "naver_blog", "blog_id": "mceekorea",       "name": "기후에너지환경부", "category": "정부",     "enabled": true },
-    { "id": "naver_blog:primeministerkr","type": "naver_blog", "blog_id": "primeministerkr", "name": "국무조정실",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:blogfsc",        "type": "naver_blog", "blog_id": "blogfsc",         "name": "금융위원회",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:gounikorea",     "type": "naver_blog", "blog_id": "gounikorea",      "name": "통일부",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:ntscafe",        "type": "naver_blog", "blog_id": "ntscafe",         "name": "국세청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:k_customs",      "type": "naver_blog", "blog_id": "k_customs",       "name": "관세청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:polinlove2",     "type": "naver_blog", "blog_id": "polinlove2",      "name": "경찰청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:safeppy",        "type": "naver_blog", "blog_id": "safeppy",         "name": "소방청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:forest_news",    "type": "naver_blog", "blog_id": "forest_news",     "name": "산림청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:ppspr",          "type": "naver_blog", "blog_id": "ppspr",           "name": "조달청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:mirae_saram",    "type": "naver_blog", "blog_id": "mirae_saram",     "name": "인사혁신처",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:hi_nso",         "type": "naver_blog", "blog_id": "hi_nso",          "name": "국가데이터처(통계)", "category": "정부",   "enabled": true },
-    { "id": "naver_blog:chagov",         "type": "naver_blog", "blog_id": "chagov",          "name": "국가유산청",       "category": "정부",     "enabled": true },
-    { "id": "naver_blog:kma_131",        "type": "naver_blog", "blog_id": "kma_131",         "name": "기상청",           "category": "정부",     "enabled": true },
-    { "id": "naver_blog:loveacrc",       "type": "naver_blog", "blog_id": "loveacrc",        "name": "국민권익위원회",   "category": "정부",     "enabled": true },
-    { "id": "naver_blog:smgcstory",      "type": "naver_blog", "blog_id": "smgcstory",       "name": "새만금개발청",     "category": "정부",     "enabled": true },
-
-    { "id": "naver_blog:moeblog",        "type": "naver_blog", "blog_id": "moeblog",         "name": "교육부",           "category": "교육",     "enabled": true },
-    { "id": "naver_blog:seouledu2012",   "type": "naver_blog", "blog_id": "seouledu2012",    "name": "서울시교육청",     "category": "교육",     "enabled": true },
-    { "id": "naver_blog:gne_education",  "type": "naver_blog", "blog_id": "gne_education",    "name": "경남교육청",       "category": "교육",     "enabled": true },
-    { "id": "naver_blog:ebsstory",       "type": "naver_blog", "blog_id": "ebsstory",        "name": "EBS",              "category": "교육",     "enabled": true },
-
-    { "id": "naver_blog:haechiseoul",    "type": "naver_blog", "blog_id": "haechiseoul",     "name": "서울특별시",       "category": "지자체",   "enabled": true },
-    { "id": "naver_blog:gyeonggi_gov",   "type": "naver_blog", "blog_id": "gyeonggi_gov",    "name": "경기도",           "category": "지자체",   "enabled": true },
-    { "id": "naver_blog:cooolbusan",     "type": "naver_blog", "blog_id": "cooolbusan",      "name": "부산광역시",       "category": "지자체",   "enabled": true },
-    { "id": "naver_blog:storydaejeon",   "type": "naver_blog", "blog_id": "storydaejeon",    "name": "대전광역시",       "category": "지자체",   "enabled": true },
-    { "id": "naver_blog:jejudo_official","type": "naver_blog", "blog_id": "jejudo_official",  "name": "제주특별자치도",   "category": "지자체",   "enabled": true },
-
-    { "id": "naver_blog:nhicblog",       "type": "naver_blog", "blog_id": "nhicblog",        "name": "국민건강보험공단", "category": "공공기관", "enabled": true },
-
-    { "id": "naver_blog:habitatkorea",   "type": "naver_blog", "blog_id": "habitatkorea",    "name": "한국해비타트",     "category": "비영리",   "enabled": true }
+    {
+      "id": "naver_blog:mltmkr",
+      "type": "naver_blog",
+      "blog_id": "mltmkr",
+      "name": "국토교통부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mosfnet",
+      "type": "naver_blog",
+      "blog_id": "mosfnet",
+      "name": "기획재정부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mohw2016",
+      "type": "naver_blog",
+      "blog_id": "mohw2016",
+      "name": "보건복지부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:molab_suda",
+      "type": "naver_blog",
+      "blog_id": "molab_suda",
+      "name": "고용노동부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mogefkorea",
+      "type": "naver_blog",
+      "blog_id": "mogefkorea",
+      "name": "여성가족부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mofakr",
+      "type": "naver_blog",
+      "blog_id": "mofakr",
+      "name": "외교부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mojjustice",
+      "type": "naver_blog",
+      "blog_id": "mojjustice",
+      "name": "법무부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mnd9090",
+      "type": "naver_blog",
+      "blog_id": "mnd9090",
+      "name": "국방부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mifaffgov",
+      "type": "naver_blog",
+      "blog_id": "mifaffgov",
+      "name": "농림축산식품부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:koreamof",
+      "type": "naver_blog",
+      "blog_id": "koreamof",
+      "name": "해양수산부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:bizinfo1357",
+      "type": "naver_blog",
+      "blog_id": "bizinfo1357",
+      "name": "중소벤처기업부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mcstkorea",
+      "type": "naver_blog",
+      "blog_id": "mcstkorea",
+      "name": "문화체육관광부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:motirnews",
+      "type": "naver_blog",
+      "blog_id": "motirnews",
+      "name": "산업통상부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mopaspr",
+      "type": "naver_blog",
+      "blog_id": "mopaspr",
+      "name": "행정안전부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mceekorea",
+      "type": "naver_blog",
+      "blog_id": "mceekorea",
+      "name": "기후에너지환경부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:primeministerkr",
+      "type": "naver_blog",
+      "blog_id": "primeministerkr",
+      "name": "국무조정실",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:blogfsc",
+      "type": "naver_blog",
+      "blog_id": "blogfsc",
+      "name": "금융위원회",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:gounikorea",
+      "type": "naver_blog",
+      "blog_id": "gounikorea",
+      "name": "통일부",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:ntscafe",
+      "type": "naver_blog",
+      "blog_id": "ntscafe",
+      "name": "국세청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:k_customs",
+      "type": "naver_blog",
+      "blog_id": "k_customs",
+      "name": "관세청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:polinlove2",
+      "type": "naver_blog",
+      "blog_id": "polinlove2",
+      "name": "경찰청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:safeppy",
+      "type": "naver_blog",
+      "blog_id": "safeppy",
+      "name": "소방청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:forest_news",
+      "type": "naver_blog",
+      "blog_id": "forest_news",
+      "name": "산림청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:ppspr",
+      "type": "naver_blog",
+      "blog_id": "ppspr",
+      "name": "조달청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:mirae_saram",
+      "type": "naver_blog",
+      "blog_id": "mirae_saram",
+      "name": "인사혁신처",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:hi_nso",
+      "type": "naver_blog",
+      "blog_id": "hi_nso",
+      "name": "국가데이터처(통계)",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:chagov",
+      "type": "naver_blog",
+      "blog_id": "chagov",
+      "name": "국가유산청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:kma_131",
+      "type": "naver_blog",
+      "blog_id": "kma_131",
+      "name": "기상청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:loveacrc",
+      "type": "naver_blog",
+      "blog_id": "loveacrc",
+      "name": "국민권익위원회",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:smgcstory",
+      "type": "naver_blog",
+      "blog_id": "smgcstory",
+      "name": "새만금개발청",
+      "category": "정부",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:moeblog",
+      "type": "naver_blog",
+      "blog_id": "moeblog",
+      "name": "교육부",
+      "category": "교육",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:seouledu2012",
+      "type": "naver_blog",
+      "blog_id": "seouledu2012",
+      "name": "서울시교육청",
+      "category": "교육",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:gne_education",
+      "type": "naver_blog",
+      "blog_id": "gne_education",
+      "name": "경남교육청",
+      "category": "교육",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:ebsstory",
+      "type": "naver_blog",
+      "blog_id": "ebsstory",
+      "name": "EBS",
+      "category": "교육",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:haechiseoul",
+      "type": "naver_blog",
+      "blog_id": "haechiseoul",
+      "name": "서울특별시",
+      "category": "지자체",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:gyeonggi_gov",
+      "type": "naver_blog",
+      "blog_id": "gyeonggi_gov",
+      "name": "경기도",
+      "category": "지자체",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:cooolbusan",
+      "type": "naver_blog",
+      "blog_id": "cooolbusan",
+      "name": "부산광역시",
+      "category": "지자체",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:storydaejeon",
+      "type": "naver_blog",
+      "blog_id": "storydaejeon",
+      "name": "대전광역시",
+      "category": "지자체",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:jejudo_official",
+      "type": "naver_blog",
+      "blog_id": "jejudo_official",
+      "name": "제주특별자치도",
+      "category": "지자체",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:nhicblog",
+      "type": "naver_blog",
+      "blog_id": "nhicblog",
+      "name": "국민건강보험공단",
+      "category": "공공기관",
+      "enabled": true
+    },
+    {
+      "id": "naver_blog:habitatkorea",
+      "type": "naver_blog",
+      "blog_id": "habitatkorea",
+      "name": "한국해비타트",
+      "category": "비영리",
+      "enabled": true
+    },
+    {
+      "id": "rss:https://beautifulfund.org/feed",
+      "type": "rss",
+      "url": "https://beautifulfund.org/feed",
+      "name": "아름다운재단",
+      "category": "비영리",
+      "enabled": true
+    }
   ]
 }
