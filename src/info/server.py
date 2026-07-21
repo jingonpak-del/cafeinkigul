@@ -82,6 +82,10 @@ def _fmt(ms):
     return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M") if ms else ""
 
 
+def _fmtd(ms):
+    return datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d") if ms else ""
+
+
 def _load_config() -> dict:
     try:
         return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -120,9 +124,10 @@ def stats():
 
 
 @app.get("/api/posts")
-def posts(q: str = "", category: str = "", source: str = "",
+def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
           limit: int = 100, offset: int = 0):
-    """수집한 글 목록. 최신 발행순(발행일 없으면 수집일). category/source/q 필터."""
+    """수집한 글 목록. 최신 발행순(발행일 없으면 수집일).
+    category(출처유형)/source/kind(general|event)/q 필터."""
     conn = _ro_conn()
     try:
         where, params = [], []
@@ -130,6 +135,8 @@ def posts(q: str = "", category: str = "", source: str = "",
             where.append("category = ?"); params.append(category)
         if source:
             where.append("source_id = ?"); params.append(source)
+        if kind:
+            where.append("kind = ?"); params.append(kind)
         if q:
             where.append("(title LIKE ? OR content_text LIKE ?)")
             params.extend([f"%{q}%", f"%{q}%"])
@@ -141,6 +148,10 @@ def posts(q: str = "", category: str = "", source: str = "",
         for r in rows:
             r["published_str"] = _fmt(r["published_at"])
             r["collected_str"] = _fmt(r["collected_at"])
+            r["apply_start_str"] = _fmtd(r.get("apply_start_at"))
+            r["apply_end_str"] = _fmtd(r.get("apply_end_at"))
+            r["event_start_str"] = _fmtd(r.get("event_start_at"))
+            r["event_end_str"] = _fmtd(r.get("event_end_at"))
         return {"rows": rows, "has_more": len(rows) == limit}
     finally:
         conn.close()

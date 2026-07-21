@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 from . import collectors
+from . import classify
+from . import date_parser as dp
 from .db import Database
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +25,42 @@ DB_PATH = ROOT / "data" / "info.db"
 
 def load_config() -> dict:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+_APPLY_LABELS = ["신청기간", "접수기간", "모집기간", "공모기간", "운영기간", "신청", "접수", "모집"]
+_EVENT_LABELS = ["행사기간", "교육기간", "운영기간", "활동기간", "일시", "일정", "기간"]
+_LOC_LABELS = ["장소", "교육장소", "행사장소", "운영장소", "위치"]
+
+
+def enrich(post: dict) -> dict:
+    """수집한 글에 자동분류(topic/kind/대상)와 행사·신청 기간·장소를 채운다.
+    본문이 없으면 제목만으로 topic/kind 판별(부분 채움)."""
+    title = post.get("title") or ""
+    body = post.get("content_text") or ""
+    text = f"{title} {body}"
+    post["topic"] = classify.classify_category(text, "기타")
+    post["kind"] = "event" if classify.is_event_like(title) else "general"
+    if post["kind"] == "event":
+        post["target_audience"] = classify.classify_audience(text) or None
+    if body:
+        app = dp.extract_labeled_range(body, _APPLY_LABELS)
+        ev = dp.extract_labeled_range(body, _EVENT_LABELS)
+        post["apply_start_at"] = dp.to_ms(app.start)
+        post["apply_end_at"] = dp.to_ms(app.end)
+        post["event_start_at"] = dp.to_ms(ev.start)
+        post["event_end_at"] = dp.to_ms(ev.end)
+        for label in _LOC_LABELS:
+            m = _re_label(body, label)
+            if m:
+                post["location"] = m
+                break
+    return post
+
+
+def _re_label(text: str, label: str) -> str:
+    import re
+    m = re.search(r"(?:^|[\n\r\s▶□○·-])" + re.escape(label) + r"\s*[:：]\s*([^\n\r]{2,60})", text)
+    return re.sub(r"\s+", " ", m.group(1)).strip() if m else ""
 
 
 def ingest_source(db: Database, source: dict, window_days: int) -> dict:
@@ -39,7 +77,7 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
         posts = collectors.within_window(posts, window_days)
     else:
         posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
-    inserted = sum(1 for p in posts if db.upsert_post(p))
+    inserted = sum(1 for p in posts if db.upsert_post(enrich(p)))
     return {
         "id": source["id"],
         "name": source.get("name", source["id"]),

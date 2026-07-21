@@ -66,6 +66,12 @@
  .mini:hover{color:var(--text);border-color:var(--accent)}
  .mini.del:hover{color:#ff9a9a;border-color:#ff9a9a}
  .off{opacity:.45}
+ .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:5px;margin-right:5px;vertical-align:middle}
+ .tag.ev{background:#3a2a12;color:#ffcf8f;border:1px solid #6b4a1e}
+ .tag.tp{background:#1a2c3f;color:#9fd0ff;border:1px solid #2b4a6c}
+ .deadline{display:inline-block;font-size:11.5px;color:#ff9a9a;margin-left:7px;white-space:nowrap}
+ .evbox{background:#12203a;border:1px solid #2b4a6c;border-radius:8px;padding:9px 12px;margin-bottom:11px;
+   font-size:12.8px;color:#cfe0f5;line-height:1.7}
  @media(max-width:640px){
    .c-author,.c-view,thead .h-author,thead .h-view{display:none}
    .c-date{width:auto}
@@ -83,6 +89,11 @@
     <button class="act" id="ingest">지금 수집</button>
   </div>
   <div class="tabs" id="cats"></div>
+  <div class="tabs" id="kinds">
+    <span class="chip kind on" data-kind="">전체 글</span>
+    <span class="chip kind" data-kind="event">행사·모집만</span>
+    <span class="chip kind" data-kind="general">일반글만</span>
+  </div>
   <div class="tabs" id="srcs"></div>
 
   <div id="admin" style="display:none">
@@ -114,7 +125,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let state = {category:"", source:"", q:"", offset:0, limit:100, done:false};
+let state = {category:"", source:"", kind:"", q:"", offset:0, limit:100, done:false};
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -149,7 +160,7 @@ function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; loa
 async function load(){
   $('#loading').style.display='block'; $('#more').style.display='none';
   const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
-    limit:state.limit, offset:state.offset});
+    kind:state.kind, limit:state.limit, offset:state.offset});
   const data = await fetch('/api/posts?'+p).then(r=>r.json());
   $('#loading').style.display='none';
   const tb = $('#rows');
@@ -160,18 +171,29 @@ async function load(){
   for(const r of data.rows){
     const tr = document.createElement('tr');
     tr.className='row';
+    const evTag = r.kind==='event' ? `<span class="tag ev">행사·모집</span>` : '';
+    const topicTag = r.topic && r.topic!=='기타' ? `<span class="tag tp">${esc(r.topic)}</span>` : '';
+    const applyInfo = (r.kind==='event' && r.apply_end_str) ? `<span class="deadline">~${esc(r.apply_end_str)} 마감</span>` : '';
     tr.innerHTML = `
       <td class="c-date">${esc(r.collected_str)}</td>
-      <td class="c-title">${esc(r.title)||'<span class=empty>(제목없음)</span>'}</td>
+      <td class="c-title">${evTag}${topicTag}${esc(r.title)||'<span class=empty>(제목없음)</span>'}${applyInfo}</td>
       <td class="c-src"><span class="badge">${esc(r.category)||'-'}</span>${esc(r.source_name)}</td>
       <td class="c-author">${esc(r.author)||'<span class=empty>—</span>'}</td>
       <td class="c-view">${r.view_count!=null?r.view_count.toLocaleString():'<span class=empty>—</span>'}</td>`;
     const detail = document.createElement('tr');
     detail.className='detail'; detail.style.display='none';
+    const evLines = [];
+    if(r.apply_start_str||r.apply_end_str) evLines.push(`📝 신청 ${esc(r.apply_start_str||'')}${r.apply_end_str?' ~ '+esc(r.apply_end_str):''}`);
+    if(r.event_start_str||r.event_end_str) evLines.push(`📅 행사 ${esc(r.event_start_str||'')}${r.event_end_str?' ~ '+esc(r.event_end_str):''}`);
+    if(r.target_audience) evLines.push(`👥 대상 ${esc(r.target_audience)}`);
+    if(r.location) evLines.push(`📍 ${esc(r.location)}`);
+    const evBox = evLines.length ? `<div class="evbox">${evLines.join(' &nbsp;·&nbsp; ')}</div>` : '';
     detail.innerHTML = `<td colspan="5"><div class="body">
       <div class="meta">🗓 발행 ${esc(r.published_str)||'-'} · 수집 ${esc(r.collected_str)}
+        ${r.topic&&r.topic!=='기타'?'· 주제 '+esc(r.topic):''}
         · <a href="${esc(r.url)}" target="_blank" rel="noopener">원문 보기 ↗</a></div>
-      ${esc(r.content_text)||'<span class=empty>(본문 없음)</span>'}
+      ${evBox}
+      ${esc(r.content_text)||'<span class=empty>(본문 없음 — 원문 링크 참고)</span>'}
     </div></td>`;
     tr.onclick=()=>{detail.style.display = detail.style.display==='none'?'':'none';};
     tb.appendChild(tr); tb.appendChild(detail);
@@ -182,6 +204,11 @@ async function load(){
 }
 
 $('#more').onclick = load;
+document.querySelectorAll('[data-kind]').forEach(el=>el.onclick=()=>{
+  state.kind = el.dataset.kind;
+  document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('on', x===el));
+  reset();
+});
 $('#refresh').onclick = ()=>{reset();fetch('/api/stats').then(r=>r.json()).then(refreshStat);};
 $('#q').addEventListener('input', ()=>{clearTimeout(window._t);
   window._t=setTimeout(()=>{state.q=$('#q').value.trim();reset();},350);});

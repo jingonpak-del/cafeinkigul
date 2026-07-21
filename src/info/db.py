@@ -24,6 +24,15 @@ CREATE TABLE IF NOT EXISTS posts (
     collected_at  INTEGER,                -- 우리가 가져온 시각(ms)
     view_count    INTEGER,                -- 조회수(없으면 NULL)
     content_text  TEXT,                   -- 본문 txt(요약/발췌)
+    -- 글 유형별 확장(온동네 스키마 이식): 일반글은 비고, 행사·모집글은 채워짐
+    kind          TEXT DEFAULT 'general', -- 'general' | 'event'(행사·모집)
+    topic         TEXT,                   -- 자동분류 주제(교육/문화/복지/모집 등)
+    target_audience TEXT,                 -- 대상(유아/청소년/어르신 등)
+    location      TEXT,                   -- 장소
+    event_start_at  INTEGER,              -- 행사 시작(ms)
+    event_end_at    INTEGER,              -- 행사 종료(ms)
+    apply_start_at  INTEGER,              -- 신청 시작(ms)
+    apply_end_at    INTEGER,              -- 신청 마감(ms)
     PRIMARY KEY (source_id, post_key)
 );
 
@@ -50,7 +59,18 @@ class Database:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self):
+        """기존 posts 테이블에 없는 확장 컬럼 추가(글 유형별 행사/모집 필드)."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(posts)")}
+        for col, decl in (("kind", "TEXT DEFAULT 'general'"), ("topic", "TEXT"),
+                          ("target_audience", "TEXT"), ("location", "TEXT"),
+                          ("event_start_at", "INTEGER"), ("event_end_at", "INTEGER"),
+                          ("apply_start_at", "INTEGER"), ("apply_end_at", "INTEGER")):
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
 
     def close(self):
         self.conn.close()
@@ -59,14 +79,24 @@ class Database:
         """새 글이면 INSERT하고 True, 이미 있으면 무시하고 False.
         p keys: source_id, post_key, source_name, source_type, category,
                 title, author, url, published_at, view_count, content_text"""
+        row = {
+            "kind": "general", "topic": None, "target_audience": None, "location": None,
+            "event_start_at": None, "event_end_at": None,
+            "apply_start_at": None, "apply_end_at": None,
+            **p, "collected_at": now_ms(),
+        }
         cur = self.conn.execute(
             """INSERT OR IGNORE INTO posts
                (source_id, post_key, source_name, source_type, category, title,
-                author, url, published_at, collected_at, view_count, content_text)
+                author, url, published_at, collected_at, view_count, content_text,
+                kind, topic, target_audience, location,
+                event_start_at, event_end_at, apply_start_at, apply_end_at)
                VALUES (:source_id, :post_key, :source_name, :source_type, :category,
                        :title, :author, :url, :published_at, :collected_at,
-                       :view_count, :content_text)""",
-            {**p, "collected_at": now_ms()},
+                       :view_count, :content_text,
+                       :kind, :topic, :target_audience, :location,
+                       :event_start_at, :event_end_at, :apply_start_at, :apply_end_at)""",
+            row,
         )
         self.conn.commit()
         return cur.rowcount > 0
