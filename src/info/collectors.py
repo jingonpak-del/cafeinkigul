@@ -155,25 +155,22 @@ def _to_int(text: str) -> int | None:
     return int(d) if d else None
 
 
-def collect_html(source: dict) -> list[dict]:
-    """범용 HTML 목록 크롤러 (RSS 없는 서버렌더링 게시판용).
+def _extract_items(html: str, base_url: str, source: dict) -> list[dict]:
+    """렌더된 HTML에서 목록 항목 추출 (html·browser 수집기 공용).
 
-    config 예:
-      {"type":"html", "list_url":"...", "item_selector":"table tbody tr",
-       "title_selector":"td.l a", "link_selector":"td.l a",
-       "date_selector":"td:nth-of-type(5)", "author_selector":"td:nth-of-type(4)",
-       "view_selector":"td:nth-of-type(6)", "summary_selector":"td.summary"}
-    title/link_selector 미지정 시 행 안의 첫 <a>를 사용.
+    선택자: item_selector(행), title_selector, link_selector,
+            date_selector, author_selector, view_selector, summary_selector.
+    링크가 javascript:/# 이면 onclick에서 id_regex로 글ID를 뽑아
+    url_template(있으면)로 상세URL 구성, post_key는 그 ID 사용.
     """
     from urllib.parse import urljoin
     from bs4 import BeautifulSoup
 
-    url = source["list_url"]
-    r = httpx.get(url, timeout=20, headers={"User-Agent": UA}, follow_redirects=True)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     rows = soup.select(source["item_selector"])
-    name = source.get("name") or url
+    name = source.get("name") or base_url
+    id_re = re.compile(source["id_regex"]) if source.get("id_regex") else None
+    url_tmpl = source.get("url_template")
 
     def cell(row, sel):
         n = row.select_one(sel) if sel else None
@@ -185,9 +182,19 @@ def collect_html(source: dict) -> list[dict]:
         if a is None:
             continue
         href = a.get("href") or ""
-        if not href or href.startswith("javascript") or href.startswith("#"):
+        link, post_key = None, None
+        if href and not href.startswith("javascript") and not href.startswith("#"):
+            link = _normalize_article_url(urljoin(base_url, href))
+            post_key = _html_post_key(link)
+        elif id_re:                                  # onclick 기반 상세 링크
+            m = id_re.search(a.get("onclick") or "") or id_re.search(str(row))
+            if not m:
+                continue
+            pid = m.group(1)
+            post_key = f"id={pid}"
+            link = url_tmpl.format(id=pid) if url_tmpl else urljoin(base_url, f"#{pid}")
+        else:
             continue
-        link = _normalize_article_url(urljoin(url, href))
         title = cell(row, source["title_selector"]) if source.get("title_selector") \
             else (a.get_text(strip=True) or (a.get("title") or "").strip())
         if not title:
@@ -198,7 +205,7 @@ def collect_html(source: dict) -> list[dict]:
         summary = cell(row, source.get("summary_selector"))
         out.append({
             "source_id": source["id"],
-            "post_key": _html_post_key(link),
+            "post_key": post_key,
             "source_name": name,
             "source_type": source.get("type", "html"),
             "category": source.get("category", ""),
@@ -212,10 +219,86 @@ def collect_html(source: dict) -> list[dict]:
     return out
 
 
+def collect_html(source: dict) -> list[dict]:
+    """범용 HTML 목록 크롤러 (RSS 없는 서버렌더링 게시판용).
+
+    config 예:
+      {"type":"html", "list_url":"...", "item_selector":"table tbody tr",
+       "title_selector":"td.l a", "link_selector":"td.l a",
+       "date_selector":"td:nth-of-type(5)", "author_selector":"td:nth-of-type(4)",
+       "view_selector":"td:nth-of-type(6)"}
+    title/link_selector 미지정 시 행 안의 첫 <a>를 사용.
+    """
+    url = source["list_url"]
+    r = httpx.get(url, timeout=20, headers={"User-Agent": UA}, follow_redirects=True)
+    r.raise_for_status()
+    return _extract_items(r.text, url, source)
+
+
+def _chrome_major() -> int | None:
+    """설치된 Chrome 주버전 감지 (undetected-chromedriver 버전 매칭용)."""
+    try:
+        import winreg
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                k = winreg.OpenKey(hive, r"Software\Google\Chrome\BLBeacon")
+                ver, _ = winreg.QueryValueEx(k, "version")
+                return int(ver.split(".")[0])
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return None
+
+
+def collect_browser(source: dict) -> list[dict]:
+    """헤드리스 브라우저(undetected-chromedriver)로 SPA 렌더 후 수집.
+    RSS·API 없는 자바스크립트 사이트용. 창은 표시하지 않음(headless).
+
+    config 예:
+      {"type":"browser", "url":"...", "wait_selector":"table tbody tr td.tit a",
+       "item_selector":"table tbody tr", "title_selector":"td.tit a",
+       "date_selector":"td.date", "link_selector":"td.tit a",
+       "id_regex":"viewSubmit\\((\\d+)\\)",
+       "url_template":"https://.../{id}/view.gn", "wait_seconds":8}
+    """
+    import undetected_chromedriver as uc
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.common.by import By
+
+    url = source["url"]
+    opts = uc.ChromeOptions()
+    for arg in ("--headless=new", "--no-sandbox", "--disable-gpu",
+                "--window-size=1400,1000", "--disable-dev-shm-usage",
+                "--lang=ko-KR"):
+        opts.add_argument(arg)
+    driver = uc.Chrome(options=opts, version_main=_chrome_major())
+    try:
+        driver.set_page_load_timeout(40)
+        driver.get(url)
+        wait_sel = source.get("wait_selector") or source.get("item_selector")
+        try:
+            WebDriverWait(driver, int(source.get("wait_seconds", 8))).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, wait_sel)))
+        except Exception:
+            pass
+        import time as _t
+        _t.sleep(1.5)   # 렌더 안정화
+        html = driver.page_source
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+    return _extract_items(html, url, source)
+
+
 COLLECTORS = {
     "naver_blog": collect_naver_blog,
     "rss": collect_generic_rss,
     "html": collect_html,
+    "browser": collect_browser,
 }
 
 

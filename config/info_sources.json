@@ -358,6 +358,21 @@
       "author_selector": "td:nth-of-type(4)",
       "date_selector": "td:nth-of-type(5)",
       "view_selector": "td:nth-of-type(6)"
+    },
+    {
+      "id": "browser:goodneighbors",
+      "type": "browser",
+      "name": "굿네이버스",
+      "category": "비영리",
+      "enabled": true,
+      "url": "https://www.goodneighbors.kr/story/notice/1/index.gn",
+      "wait_selector": "table tbody tr td.tit a",
+      "item_selector": "table tbody tr",
+      "title_selector": "td.tit a",
+      "date_selector": "td.date",
+      "link_selector": "td.tit a",
+      "id_regex": "viewSubmit\\((\\d+)\\)",
+      "url_template": "https://www.goodneighbors.kr/story/notice/{id}/view.gn?tabName=notice"
     }
   ]
 }
