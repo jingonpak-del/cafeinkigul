@@ -178,7 +178,10 @@ def _extract_items(html: str, base_url: str, source: dict) -> list[dict]:
 
     out = []
     for row in rows:
-        a = row.select_one(source["link_selector"]) if source.get("link_selector") else row.find("a")
+        if source.get("link_selector"):
+            a = row.select_one(source["link_selector"])
+        else:
+            a = row if row.name == "a" else row.find("a")   # 항목 자체가 <a>인 경우 지원
         if a is None:
             continue
         href = a.get("href") or ""

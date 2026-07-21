@@ -373,6 +373,22 @@
       "link_selector": "td.tit a",
       "id_regex": "viewSubmit\\((\\d+)\\)",
       "url_template": "https://www.goodneighbors.kr/story/notice/{id}/view.gn?tabName=notice"
+    },
+    {
+      "id": "browser:chest",
+      "type": "browser",
+      "name": "사랑의열매",
+      "category": "비영리",
+      "enabled": true,
+      "url": "https://www.chest.or.kr/bbs/1003/initPostList.do",
+      "wait_selector": "a[data-list_sn] .gallery-tit",
+      "item_selector": "a[data-list_sn]",
+      "title_selector": ".gallery-tit",
+      "date_selector": ".gallery-day",
+      "author_selector": ".gallery-write",
+      "view_selector": ".gallery-count",
+      "id_regex": "data-list_sn=\"(\\d+)\"",
+      "url_template": "https://www.chest.or.kr/bbs/1003/initPostDetail.do?listSn={id}"
     }
   ]
 }
