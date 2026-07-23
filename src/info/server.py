@@ -172,6 +172,69 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
         conn.close()
 
 
+# ── 지역별 일일 정보글 생성 ────────────────────────────────────────────────
+_TOPIC_EMOJI = {"행사": "🎪", "이벤트": "🎁", "교육": "📚", "모집·채용": "📢",
+                "복지·건강": "💚", "문화·관광": "🎨", "정책·경제": "📈", "기타": "📌"}
+_TOPIC_ORDER = ["행사", "이벤트", "교육", "모집·채용", "복지·건강", "문화·관광", "정책·경제", "기타"]
+
+
+@app.get("/api/digest")
+def digest(region: str = "", date: str = ""):
+    """지역·날짜별 그날 신규 수집글을 주제별로 묶은 마크다운 생성.
+    date 미지정 시 오늘. region 미지정 시 전체 지역."""
+    if date:
+        try:
+            day = datetime.strptime(date[:10], "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse({"error": "날짜 형식은 YYYY-MM-DD"}, status_code=400)
+    else:
+        now = datetime.now()
+        day = datetime(now.year, now.month, now.day)
+    start = int(day.timestamp() * 1000)
+    end = start + 86400 * 1000
+    date_str = day.strftime("%Y-%m-%d")
+
+    conn = _ro_conn()
+    try:
+        where = ["collected_at >= ? AND collected_at < ?"]
+        params = [start, end]
+        if region:
+            where.append("region = ?"); params.append(region)
+        sql = ("SELECT title, url, source_name, region, region2, topic, kind, "
+               "apply_end_at, event_start_at, event_end_at FROM posts WHERE "
+               + " AND ".join(where) + " ORDER BY topic, source_name")
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    finally:
+        conn.close()
+
+    by_topic: dict[str, list] = {}
+    for r in rows:
+        by_topic.setdefault(r.get("topic") or "기타", []).append(r)
+
+    label = region or "전국"
+    lines = [f"# [{label}온동네] {date_str} 공공정보 소식", ""]
+    lines.append(f"> {label} 지역 공공기관·기관 신규 소식 {len(rows)}건" if rows
+                 else f"> {date_str} 신규 소식이 없습니다.")
+    lines.append("")
+    for topic in _TOPIC_ORDER:
+        items = by_topic.get(topic)
+        if not items:
+            continue
+        lines.append(f"## {_TOPIC_EMOJI.get(topic, '📌')} {topic} ({len(items)})")
+        for r in items:
+            loc = r.get("region2") or r.get("region") or ""
+            src = r.get("source_name") or ""
+            tail = ""
+            if r.get("apply_end_at"):
+                tail = f" · ~{_fmtd(r['apply_end_at'])} 마감"
+            elif r.get("event_start_at"):
+                tail = f" · {_fmtd(r['event_start_at'])}"
+            lines.append(f"- {r['title']}  \n  {src}{(' · '+loc) if loc and loc!='전국' else ''}{tail}  \n  {r['url']}")
+        lines.append("")
+    return {"date": date_str, "region": label, "count": len(rows),
+            "markdown": "\n".join(lines)}
+
+
 @app.post("/api/ingest")
 def ingest_now(source: str = ""):
     """수동 수집 트리거. source에 소스 id 일부 전달 시 해당 소스만."""

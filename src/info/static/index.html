@@ -31,6 +31,13 @@
  .chip.rg{border-color:#3a5a8c}
  .rgtag{display:inline-block;background:#123020;color:#8fe3b0;border:1px solid #1e5c3a;border-radius:5px;
    padding:1px 6px;font-size:11px;margin-right:5px}
+ .digest{margin-top:11px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px}
+ .drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+ .dlabel{color:var(--muted);font-size:12.5px}
+ .dval{color:var(--accent);font-weight:600;font-size:13px}
+ .dcount{color:var(--muted);font-size:12.5px}
+ .dout{width:100%;box-sizing:border-box;height:300px;background:var(--bg);border:1px solid var(--border);
+   border-radius:8px;color:#d3dbeb;font-family:Consolas,monospace;font-size:12.5px;padding:11px;resize:vertical}
  .wrap{padding:14px 18px 60px}
  table{width:100%;border-collapse:collapse}
  thead th{position:sticky;top:0;text-align:left;color:var(--muted);font-weight:600;
@@ -88,8 +95,19 @@
     <span class="stat" id="stat">불러오는 중…</span>
     <span class="spacer"></span>
     <input class="search" id="q" placeholder="제목·본문 검색"/>
+    <button class="act" id="digestBtn">📰 일일글</button>
     <button class="act" id="refresh">새로고침</button>
     <button class="act" id="ingest">지금 수집</button>
+  </div>
+  <div class="digest" id="digestPanel" style="display:none">
+    <div class="drow">
+      <span class="dlabel">지역</span><span id="dRegion" class="dval">전체</span>
+      <span class="dlabel">날짜</span><input type="date" id="dDate" class="search"/>
+      <button class="act" id="dGen">생성</button>
+      <button class="act ghost" id="dCopy">복사</button>
+      <span class="dcount" id="dCount"></span>
+    </div>
+    <textarea id="dOut" class="dout" placeholder="지역·날짜를 정하고 '생성'을 누르세요. 그날 신규 수집글을 주제별로 묶은 카페용 마크다운이 나옵니다." readonly></textarea>
   </div>
   <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
@@ -218,6 +236,30 @@ async function load(){
 }
 
 $('#more').onclick = load;
+// ── 일일 정보글 생성 ──
+$('#digestBtn').onclick = ()=>{
+  const p=$('#digestPanel');
+  if(p.style.display==='none'){
+    p.style.display='block';
+    $('#dRegion').textContent = state.region || '전체';
+    if(!$('#dDate').value){ $('#dDate').value = new Date().toISOString().slice(0,10); }
+  } else { p.style.display='none'; }
+};
+$('#dGen').onclick = async ()=>{
+  const b=$('#dGen'); b.disabled=true; b.textContent='생성 중…';
+  $('#dRegion').textContent = state.region || '전체';
+  const qp = new URLSearchParams({region:state.region, date:$('#dDate').value});
+  try{
+    const d = await fetch('/api/digest?'+qp).then(r=>r.json());
+    $('#dOut').value = d.markdown || '';
+    $('#dCount').textContent = `${d.region} · ${d.date} · ${d.count}건`;
+  }catch(e){ $('#dOut').value = '생성 실패: '+e.message; }
+  b.disabled=false; b.textContent='생성';
+};
+$('#dCopy').onclick = ()=>{
+  const t=$('#dOut'); t.select(); document.execCommand('copy');
+  const b=$('#dCopy'); b.textContent='복사됨!'; setTimeout(()=>b.textContent='복사',1200);
+};
 $('#refresh').onclick = ()=>{reset();fetch('/api/stats').then(r=>r.json()).then(refreshStat);};
 $('#q').addEventListener('input', ()=>{clearTimeout(window._t);
   window._t=setTimeout(()=>{state.q=$('#q').value.trim();reset();},350);});
