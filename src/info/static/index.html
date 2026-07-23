@@ -25,6 +25,10 @@
    padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
  button.act:disabled{opacity:.5;cursor:default}
  .tabs{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+ .srcbar{display:flex;gap:10px;align-items:center;margin-top:11px}
+ .srctgl{color:var(--accent);font-size:13px;cursor:pointer;user-select:none;white-space:nowrap}
+ .srcsearch{padding:6px 10px;font-size:12.5px;min-width:160px}
+ #srcs{max-height:180px;overflow:auto}
  .chip{background:var(--panel);border:1px solid var(--border);border-radius:20px;
    padding:6px 14px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
@@ -32,8 +36,13 @@
  .rgtag{display:inline-block;background:#123020;color:#8fe3b0;border:1px solid #1e5c3a;border-radius:5px;
    padding:1px 6px;font-size:11px;margin-right:5px}
  .digest{margin-top:11px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px}
+ .dsect{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}
+ .dchips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+ .dchip{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:4px 12px;
+   font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none}
+ .dchip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
  .drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
- .dlabel{color:var(--muted);font-size:12.5px}
+ .dlabel{color:var(--muted);font-size:12.5px;padding-top:5px}
  .dval{color:var(--accent);font-weight:600;font-size:13px}
  .dcount{color:var(--muted);font-size:12.5px}
  .dout{width:100%;box-sizing:border-box;height:300px;background:var(--bg);border:1px solid var(--border);
@@ -100,19 +109,26 @@
     <button class="act" id="ingest">지금 수집</button>
   </div>
   <div class="digest" id="digestPanel" style="display:none">
+    <div class="dsect"><span class="dlabel">지역</span><span id="dRegions" class="dchips"></span></div>
+    <div class="dsect"><span class="dlabel">주제</span><span id="dTopics" class="dchips"></span></div>
     <div class="drow">
-      <span class="dlabel">지역</span><span id="dRegion" class="dval">전체</span>
-      <span class="dlabel">날짜</span><input type="date" id="dDate" class="search"/>
+      <span class="dlabel">기간</span>
+      <input type="date" id="dFrom" class="search"/><span class="dlabel">~</span><input type="date" id="dTo" class="search"/>
       <button class="act" id="dGen">생성</button>
+      <button class="act ghost" id="dClear">삭제</button>
       <button class="act ghost" id="dCopy">복사</button>
       <span class="dcount" id="dCount"></span>
     </div>
-    <textarea id="dOut" class="dout" placeholder="지역·날짜를 정하고 '생성'을 누르세요. 그날 신규 수집글을 주제별로 묶은 카페용 마크다운이 나옵니다." readonly></textarea>
+    <textarea id="dOut" class="dout" placeholder="지역·주제(다중 선택 가능, 안 고르면 전체)와 기간을 정하고 '생성'을 누르세요. 여러 조합으로 다양한 게시글을 만들 수 있습니다. '삭제'는 선택을 초기화합니다." readonly></textarea>
   </div>
   <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
   <div class="tabs" id="topics"></div>
-  <div class="tabs" id="srcs"></div>
+  <div class="srcbar">
+    <span class="srctgl" id="srcToggle">▸ 출처 선택</span>
+    <input class="search srcsearch" id="srcSearch" placeholder="출처 검색" style="display:none"/>
+  </div>
+  <div class="tabs" id="srcs" style="display:none"></div>
 
   <div id="admin" style="display:none">
     <div class="adminbar">
@@ -144,6 +160,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let state = {category:"", source:"", topic:"", region:"", q:"", offset:0, limit:100, done:false};
+let REGIONS = [], TOPICS = [];
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -159,6 +176,7 @@ async function loadMeta(){
     const val = c==='전체'?'':c;
     return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
   }).join('');
+  REGIONS = srcRes.regions||[]; TOPICS = srcRes.topics||[];
   // 지역 칩
   const regions = ['전체 지역', ...(srcRes.regions||[])];
   $('#regions').innerHTML = regions.map(rg=>{
@@ -173,14 +191,35 @@ async function loadMeta(){
     return `<span class="chip tpc ${state.topic===val?'on':''}" data-topic="${esc(val)}">${esc(t)}</span>`;
   }).join('');
   document.querySelectorAll('[data-topic]').forEach(el=>el.onclick=()=>{state.topic=el.dataset.topic;reset();loadMeta();});
-  // 소스 칩
+  // 소스 칩(접이식)
   const srcs = srcRes.sources||[];
   $('#srcs').innerHTML = '<span class="chip '+(state.source===''?'on':'')+'" data-src="">전체 출처</span>' +
     srcs.map(s=>`<span class="chip ${state.source===s.id?'on':''}" data-src="${esc(s.id)}">${esc(s.name)}</span>`).join('');
   document.querySelectorAll('[data-cat]').forEach(el=>el.onclick=()=>{state.category=el.dataset.cat;reset();loadMeta();});
   document.querySelectorAll('[data-src]').forEach(el=>el.onclick=()=>{state.source=el.dataset.src;reset();loadMeta();});
+  // 접이식 토글 라벨: 선택된 출처가 있으면 표시
+  const selName = state.source ? (srcs.find(s=>s.id===state.source)||{}).name : '';
+  $('#srcToggle').textContent = (srcsOpen?'▾':'▸') + ` 출처 선택 (${srcs.length})` + (selName?` · ${selName}`:'');
+  $('#srcs').style.display = srcsOpen ? 'flex' : 'none';
+  $('#srcSearch').style.display = srcsOpen ? 'inline-block' : 'none';
+  applySrcFilter();
   refreshStat(stat);
 }
+
+let srcsOpen = false;
+function applySrcFilter(){
+  const q = ($('#srcSearch').value||'').trim().toLowerCase();
+  document.querySelectorAll('#srcs [data-src]').forEach(el=>{
+    if(!el.dataset.src){ el.style.display=''; return; }  // '전체 출처'는 항상
+    el.style.display = (!q || el.textContent.toLowerCase().includes(q)) ? '' : 'none';
+  });
+}
+$('#srcToggle').onclick = ()=>{ srcsOpen=!srcsOpen;
+  $('#srcs').style.display = srcsOpen?'flex':'none';
+  $('#srcSearch').style.display = srcsOpen?'inline-block':'none';
+  $('#srcToggle').textContent = ($('#srcToggle').textContent||'').replace(/^[▸▾]/, srcsOpen?'▾':'▸');
+};
+$('#srcSearch').addEventListener('input', applySrcFilter);
 
 function refreshStat(s){
   $('#stat').textContent = `글 ${s.posts}건 · 출처 ${s.sources}곳` +
@@ -236,25 +275,41 @@ async function load(){
 }
 
 $('#more').onclick = load;
-// ── 일일 정보글 생성 ──
+// ── 일일 정보글 생성 (지역·주제 다중선택 + 기간) ──
+let digestReady = false;
+function buildDigestChips(){
+  $('#dRegions').innerHTML = REGIONS.map(r=>`<span class="dchip" data-dreg="${esc(r)}">${esc(r)}</span>`).join('');
+  $('#dTopics').innerHTML = TOPICS.map(t=>`<span class="dchip" data-dtop="${esc(t)}">${esc(t)}</span>`).join('');
+  document.querySelectorAll('[data-dreg],[data-dtop]').forEach(el=>el.onclick=()=>el.classList.toggle('on'));
+  // 메인에서 지역을 고른 상태면 그 지역을 기본 선택
+  if(state.region){ const m=$(`[data-dreg="${CSS.escape(state.region)}"]`); if(m) m.classList.add('on'); }
+  digestReady = true;
+}
 $('#digestBtn').onclick = ()=>{
   const p=$('#digestPanel');
   if(p.style.display==='none'){
     p.style.display='block';
-    $('#dRegion').textContent = state.region || '전체';
-    if(!$('#dDate').value){ $('#dDate').value = new Date().toISOString().slice(0,10); }
+    if(!digestReady) buildDigestChips();
+    const today = new Date().toISOString().slice(0,10);
+    if(!$('#dFrom').value) $('#dFrom').value = today;
+    if(!$('#dTo').value) $('#dTo').value = today;
   } else { p.style.display='none'; }
 };
 $('#dGen').onclick = async ()=>{
   const b=$('#dGen'); b.disabled=true; b.textContent='생성 중…';
-  $('#dRegion').textContent = state.region || '전체';
-  const qp = new URLSearchParams({region:state.region, date:$('#dDate').value});
+  const regs=[...document.querySelectorAll('[data-dreg].on')].map(e=>e.dataset.dreg).join(',');
+  const tops=[...document.querySelectorAll('[data-dtop].on')].map(e=>e.dataset.dtop).join(',');
+  const qp = new URLSearchParams({regions:regs, topics:tops, date_from:$('#dFrom').value, date_to:$('#dTo').value});
   try{
     const d = await fetch('/api/digest?'+qp).then(r=>r.json());
     $('#dOut').value = d.markdown || '';
     $('#dCount').textContent = `${d.region} · ${d.date} · ${d.count}건`;
   }catch(e){ $('#dOut').value = '생성 실패: '+e.message; }
   b.disabled=false; b.textContent='생성';
+};
+$('#dClear').onclick = ()=>{
+  document.querySelectorAll('[data-dreg].on,[data-dtop].on').forEach(e=>e.classList.remove('on'));
+  $('#dOut').value=''; $('#dCount').textContent='';
 };
 $('#dCopy').onclick = ()=>{
   const t=$('#dOut'); t.select(); document.execCommand('copy');

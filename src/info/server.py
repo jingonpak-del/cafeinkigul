@@ -178,30 +178,47 @@ _TOPIC_EMOJI = {"행사": "🎪", "이벤트": "🎁", "교육": "📚", "모집
 _TOPIC_ORDER = ["행사", "이벤트", "교육", "모집·채용", "복지·건강", "문화·관광", "정책·경제", "기타"]
 
 
+def _day_start_ms(date_str: str) -> int:
+    d = datetime.strptime(date_str[:10], "%Y-%m-%d")
+    return int(datetime(d.year, d.month, d.day).timestamp() * 1000)
+
+
 @app.get("/api/digest")
-def digest(region: str = "", date: str = ""):
-    """지역·날짜별 그날 신규 수집글을 주제별로 묶은 마크다운 생성.
-    date 미지정 시 오늘. region 미지정 시 전체 지역."""
-    if date:
-        try:
-            day = datetime.strptime(date[:10], "%Y-%m-%d")
-        except ValueError:
-            return JSONResponse({"error": "날짜 형식은 YYYY-MM-DD"}, status_code=400)
-    else:
-        now = datetime.now()
-        day = datetime(now.year, now.month, now.day)
-    start = int(day.timestamp() * 1000)
-    end = start + 86400 * 1000
-    date_str = day.strftime("%Y-%m-%d")
+def digest(region: str = "", regions: str = "", topics: str = "",
+           date: str = "", date_from: str = "", date_to: str = ""):
+    """지역·주제 다중선택 + 날짜 기간으로 신규 수집글을 주제별 마크다운 생성.
+    - regions/topics: 콤마구분 다중값(비우면 전체). region/date는 하위호환.
+    - date_from~date_to: 기간(둘 다 없으면 date, 그것도 없으면 오늘)."""
+    reg_list = [r for r in (regions or region).split(",") if r.strip()]
+    topic_list = [t for t in topics.split(",") if t.strip()]
+    try:
+        if date_from or date_to:
+            df = date_from or date_to
+            dt = date_to or date_from
+            start = _day_start_ms(df)
+            end = _day_start_ms(dt) + 86400 * 1000
+            date_label = df if df == dt else f"{df} ~ {dt}"
+        elif date:
+            start = _day_start_ms(date); end = start + 86400 * 1000
+            date_label = date[:10]
+        else:
+            now = datetime.now()
+            start = int(datetime(now.year, now.month, now.day).timestamp() * 1000)
+            end = start + 86400 * 1000
+            date_label = now.strftime("%Y-%m-%d")
+    except ValueError:
+        return JSONResponse({"error": "날짜 형식은 YYYY-MM-DD"}, status_code=400)
 
     conn = _ro_conn()
     try:
         where = ["collected_at >= ? AND collected_at < ?"]
         params = [start, end]
-        if region:
-            where.append("region = ?"); params.append(region)
+        if reg_list:
+            where.append("region IN (" + ",".join("?" * len(reg_list)) + ")"); params += reg_list
+        if topic_list:
+            where.append("topic IN (" + ",".join("?" * len(topic_list)) + ")"); params += topic_list
         sql = ("SELECT title, url, source_name, region, region2, topic, kind, "
-               "apply_end_at, event_start_at, event_end_at FROM posts WHERE "
+               "apply_end_at, event_start_at FROM posts WHERE "
                + " AND ".join(where) + " ORDER BY topic, source_name")
         rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     finally:
@@ -211,12 +228,13 @@ def digest(region: str = "", date: str = ""):
     for r in rows:
         by_topic.setdefault(r.get("topic") or "기타", []).append(r)
 
-    label = region or "전국"
-    lines = [f"# [{label}온동네] {date_str} 공공정보 소식", ""]
-    lines.append(f"> {label} 지역 공공기관·기관 신규 소식 {len(rows)}건" if rows
-                 else f"> {date_str} 신규 소식이 없습니다.")
+    reg_label = "·".join(reg_list) if reg_list else "전국"
+    order = [t for t in _TOPIC_ORDER if not topic_list or t in topic_list]
+    lines = [f"# [{reg_label}온동네] {date_label} 공공정보 소식", ""]
+    lines.append(f"> {reg_label} 신규 소식 {len(rows)}건" if rows
+                 else f"> {date_label} 신규 소식이 없습니다.")
     lines.append("")
-    for topic in _TOPIC_ORDER:
+    for topic in order:
         items = by_topic.get(topic)
         if not items:
             continue
@@ -229,9 +247,9 @@ def digest(region: str = "", date: str = ""):
                 tail = f" · ~{_fmtd(r['apply_end_at'])} 마감"
             elif r.get("event_start_at"):
                 tail = f" · {_fmtd(r['event_start_at'])}"
-            lines.append(f"- {r['title']}  \n  {src}{(' · '+loc) if loc and loc!='전국' else ''}{tail}  \n  {r['url']}")
+            lines.append(f"- {r['title']}  \n  {src}{(' · '+loc) if loc and loc != '전국' else ''}{tail}  \n  {r['url']}")
         lines.append("")
-    return {"date": date_str, "region": label, "count": len(rows),
+    return {"date": date_label, "region": reg_label, "count": len(rows),
             "markdown": "\n".join(lines)}
 
 
