@@ -270,8 +270,8 @@ async def admin_delete_source(request: Request):
     return {"ok": True, "id": sid, "purged": purged}
 
 
-# ── 백그라운드 자동 수집 (기본 30분 간격) ──────────────────────────────────
-INGEST_INTERVAL_S = 30 * 60
+# ── 백그라운드 자동 수집 (12시간 간격 = 하루 2회) ──────────────────────────
+INGEST_INTERVAL_S = 12 * 60 * 60
 
 
 def _ingest_loop():

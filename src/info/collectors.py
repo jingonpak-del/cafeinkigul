@@ -354,8 +354,10 @@ def collect_gnuboard(source: dict) -> list[dict]:
     from . import date_parser as dp
 
     board_url = source["board_url"]
-    include = source.get("include_keywords", _GNU_INCLUDE)
-    exclude = source.get("exclude_keywords", _GNU_EXCLUDE)
+    # 기본은 전체 수집(필터 없음) — 주제 유무와 무관하게 다 가져온 뒤 분류한다.
+    # 특정 소스만 좁히고 싶으면 config에 include_keywords/exclude_keywords 지정.
+    include = source.get("include_keywords", [])
+    exclude = source.get("exclude_keywords", [])
     since_days = int(source.get("since_days", 30))
     max_pages = int(source.get("max_pages", 3))
     limit = int(source.get("limit", 100))
