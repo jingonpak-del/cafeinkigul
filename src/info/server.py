@@ -100,9 +100,11 @@ def index():
 
 @app.get("/api/sources")
 def sources():
+    from .classify import TOPIC_RULES
     cfg = _load_config()
     return {
         "categories": cfg.get("categories", []),
+        "topics": [t for t, _ in TOPIC_RULES] + ["기타"],
         "sources": [{"id": s["id"], "name": s.get("name", s["id"]),
                      "category": s.get("category", ""), "type": s.get("type", "")}
                     for s in cfg.get("sources", [])],
@@ -125,9 +127,9 @@ def stats():
 
 @app.get("/api/posts")
 def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
-          limit: int = 100, offset: int = 0):
+          topic: str = "", limit: int = 100, offset: int = 0):
     """수집한 글 목록. 최신 발행순(발행일 없으면 수집일).
-    category(출처유형)/source/kind(general|event)/q 필터."""
+    category(출처유형)/source/kind(general|event)/topic(주제)/q 필터."""
     conn = _ro_conn()
     try:
         where, params = [], []
@@ -137,6 +139,8 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
             where.append("source_id = ?"); params.append(source)
         if kind:
             where.append("kind = ?"); params.append(kind)
+        if topic:
+            where.append("topic = ?"); params.append(topic)
         if q:
             where.append("(title LIKE ? OR content_text LIKE ?)")
             params.extend([f"%{q}%", f"%{q}%"])

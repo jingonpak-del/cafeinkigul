@@ -89,11 +89,7 @@
     <button class="act" id="ingest">지금 수집</button>
   </div>
   <div class="tabs" id="cats"></div>
-  <div class="tabs" id="kinds">
-    <span class="chip kind on" data-kind="">전체 글</span>
-    <span class="chip kind" data-kind="event">행사·모집만</span>
-    <span class="chip kind" data-kind="general">일반글만</span>
-  </div>
+  <div class="tabs" id="topics"></div>
   <div class="tabs" id="srcs"></div>
 
   <div id="admin" style="display:none">
@@ -125,7 +121,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let state = {category:"", source:"", kind:"", q:"", offset:0, limit:100, done:false};
+let state = {category:"", source:"", topic:"", q:"", offset:0, limit:100, done:false};
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -141,6 +137,13 @@ async function loadMeta(){
     const val = c==='전체'?'':c;
     return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
   }).join('');
+  // 주제 칩
+  const topics = ['전체 주제', ...(srcRes.topics||[])];
+  $('#topics').innerHTML = topics.map(t=>{
+    const val = t==='전체 주제'?'':t;
+    return `<span class="chip tpc ${state.topic===val?'on':''}" data-topic="${esc(val)}">${esc(t)}</span>`;
+  }).join('');
+  document.querySelectorAll('[data-topic]').forEach(el=>el.onclick=()=>{state.topic=el.dataset.topic;reset();loadMeta();});
   // 소스 칩
   const srcs = srcRes.sources||[];
   $('#srcs').innerHTML = '<span class="chip '+(state.source===''?'on':'')+'" data-src="">전체 출처</span>' +
@@ -160,7 +163,7 @@ function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; loa
 async function load(){
   $('#loading').style.display='block'; $('#more').style.display='none';
   const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
-    kind:state.kind, limit:state.limit, offset:state.offset});
+    topic:state.topic, limit:state.limit, offset:state.offset});
   const data = await fetch('/api/posts?'+p).then(r=>r.json());
   $('#loading').style.display='none';
   const tb = $('#rows');
@@ -171,12 +174,12 @@ async function load(){
   for(const r of data.rows){
     const tr = document.createElement('tr');
     tr.className='row';
-    const evTag = r.kind==='event' ? `<span class="tag ev">행사·모집</span>` : '';
-    const topicTag = r.topic && r.topic!=='기타' ? `<span class="tag tp">${esc(r.topic)}</span>` : '';
-    const applyInfo = (r.kind==='event' && r.apply_end_str) ? `<span class="deadline">~${esc(r.apply_end_str)} 마감</span>` : '';
+    const isEv = r.kind==='event';
+    const topicTag = r.topic && r.topic!=='기타' ? `<span class="tag ${isEv?'ev':'tp'}">${esc(r.topic)}</span>` : '';
+    const applyInfo = (isEv && r.apply_end_str) ? `<span class="deadline">~${esc(r.apply_end_str)} 마감</span>` : '';
     tr.innerHTML = `
       <td class="c-date">${esc(r.collected_str)}</td>
-      <td class="c-title">${evTag}${topicTag}${esc(r.title)||'<span class=empty>(제목없음)</span>'}${applyInfo}</td>
+      <td class="c-title">${topicTag}${esc(r.title)||'<span class=empty>(제목없음)</span>'}${applyInfo}</td>
       <td class="c-src"><span class="badge">${esc(r.category)||'-'}</span>${esc(r.source_name)}</td>
       <td class="c-author">${esc(r.author)||'<span class=empty>—</span>'}</td>
       <td class="c-view">${r.view_count!=null?r.view_count.toLocaleString():'<span class=empty>—</span>'}</td>`;
@@ -204,11 +207,6 @@ async function load(){
 }
 
 $('#more').onclick = load;
-document.querySelectorAll('[data-kind]').forEach(el=>el.onclick=()=>{
-  state.kind = el.dataset.kind;
-  document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('on', x===el));
-  reset();
-});
 $('#refresh').onclick = ()=>{reset();fetch('/api/stats').then(r=>r.json()).then(refreshStat);};
 $('#q').addEventListener('input', ()=>{clearTimeout(window._t);
   window._t=setTimeout(()=>{state.q=$('#q').value.trim();reset();},350);});

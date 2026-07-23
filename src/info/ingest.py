@@ -38,8 +38,9 @@ def enrich(post: dict) -> dict:
     title = post.get("title") or ""
     body = post.get("content_text") or ""
     text = f"{title} {body}"
-    post["topic"] = classify.classify_category(text, "기타")
-    post["kind"] = "event" if classify.is_event_like(title) else "general"
+    topic = classify.classify_topic(text)
+    post["topic"] = topic
+    post["kind"] = "event" if classify.is_event_topic(topic) else "general"
     if post["kind"] == "event":
         post["target_audience"] = classify.classify_audience(text) or None
     if body:
