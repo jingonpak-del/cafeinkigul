@@ -68,7 +68,8 @@ class Database:
         for col, decl in (("kind", "TEXT DEFAULT 'general'"), ("topic", "TEXT"),
                           ("target_audience", "TEXT"), ("location", "TEXT"),
                           ("event_start_at", "INTEGER"), ("event_end_at", "INTEGER"),
-                          ("apply_start_at", "INTEGER"), ("apply_end_at", "INTEGER")):
+                          ("apply_start_at", "INTEGER"), ("apply_end_at", "INTEGER"),
+                          ("region", "TEXT"), ("region2", "TEXT")):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
 
@@ -82,7 +83,7 @@ class Database:
         row = {
             "kind": "general", "topic": None, "target_audience": None, "location": None,
             "event_start_at": None, "event_end_at": None,
-            "apply_start_at": None, "apply_end_at": None,
+            "apply_start_at": None, "apply_end_at": None, "region": None, "region2": None,
             **p, "collected_at": now_ms(),
         }
         cur = self.conn.execute(
@@ -90,12 +91,13 @@ class Database:
                (source_id, post_key, source_name, source_type, category, title,
                 author, url, published_at, collected_at, view_count, content_text,
                 kind, topic, target_audience, location,
-                event_start_at, event_end_at, apply_start_at, apply_end_at)
+                event_start_at, event_end_at, apply_start_at, apply_end_at, region, region2)
                VALUES (:source_id, :post_key, :source_name, :source_type, :category,
                        :title, :author, :url, :published_at, :collected_at,
                        :view_count, :content_text,
                        :kind, :topic, :target_audience, :location,
-                       :event_start_at, :event_end_at, :apply_start_at, :apply_end_at)""",
+                       :event_start_at, :event_end_at, :apply_start_at, :apply_end_at,
+                       :region, :region2)""",
             row,
         )
         self.conn.commit()

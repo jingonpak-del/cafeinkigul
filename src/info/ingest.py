@@ -78,6 +78,10 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
         posts = collectors.within_window(posts, window_days)
     else:
         posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
+    region = source.get("region") or "전국"
+    region2 = source.get("region2") or ""
+    for p in posts:
+        p["region"], p["region2"] = region, region2
     inserted = sum(1 for p in posts if db.upsert_post(enrich(p)))
     return {
         "id": source["id"],

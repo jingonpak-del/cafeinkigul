@@ -28,6 +28,9 @@
  .chip{background:var(--panel);border:1px solid var(--border);border-radius:20px;
    padding:6px 14px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+ .chip.rg{border-color:#3a5a8c}
+ .rgtag{display:inline-block;background:#123020;color:#8fe3b0;border:1px solid #1e5c3a;border-radius:5px;
+   padding:1px 6px;font-size:11px;margin-right:5px}
  .wrap{padding:14px 18px 60px}
  table{width:100%;border-collapse:collapse}
  thead th{position:sticky;top:0;text-align:left;color:var(--muted);font-weight:600;
@@ -88,6 +91,7 @@
     <button class="act" id="refresh">새로고침</button>
     <button class="act" id="ingest">지금 수집</button>
   </div>
+  <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
   <div class="tabs" id="topics"></div>
   <div class="tabs" id="srcs"></div>
@@ -121,7 +125,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let state = {category:"", source:"", topic:"", q:"", offset:0, limit:100, done:false};
+let state = {category:"", source:"", topic:"", region:"", q:"", offset:0, limit:100, done:false};
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -137,6 +141,13 @@ async function loadMeta(){
     const val = c==='전체'?'':c;
     return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
   }).join('');
+  // 지역 칩
+  const regions = ['전체 지역', ...(srcRes.regions||[])];
+  $('#regions').innerHTML = regions.map(rg=>{
+    const val = rg==='전체 지역'?'':rg;
+    return `<span class="chip rg ${state.region===val?'on':''}" data-region="${esc(val)}">${esc(rg)}</span>`;
+  }).join('');
+  document.querySelectorAll('[data-region]').forEach(el=>el.onclick=()=>{state.region=el.dataset.region;reset();loadMeta();});
   // 주제 칩
   const topics = ['전체 주제', ...(srcRes.topics||[])];
   $('#topics').innerHTML = topics.map(t=>{
@@ -163,7 +174,7 @@ function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; loa
 async function load(){
   $('#loading').style.display='block'; $('#more').style.display='none';
   const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
-    topic:state.topic, limit:state.limit, offset:state.offset});
+    topic:state.topic, region:state.region, limit:state.limit, offset:state.offset});
   const data = await fetch('/api/posts?'+p).then(r=>r.json());
   $('#loading').style.display='none';
   const tb = $('#rows');
@@ -180,7 +191,7 @@ async function load(){
     tr.innerHTML = `
       <td class="c-date">${esc(r.collected_str)}</td>
       <td class="c-title">${topicTag}${esc(r.title)||'<span class=empty>(제목없음)</span>'}${applyInfo}</td>
-      <td class="c-src"><span class="badge">${esc(r.category)||'-'}</span>${esc(r.source_name)}</td>
+      <td class="c-src"><span class="rgtag">${esc(r.region2||r.region||'전국')}</span><span class="badge">${esc(r.category)||'-'}</span>${esc(r.source_name)}</td>
       <td class="c-author">${esc(r.author)||'<span class=empty>—</span>'}</td>
       <td class="c-view">${r.view_count!=null?r.view_count.toLocaleString():'<span class=empty>—</span>'}</td>`;
     const detail = document.createElement('tr');

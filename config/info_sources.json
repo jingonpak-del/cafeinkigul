@@ -15,7 +15,8 @@
       "blog_id": "mltmkr",
       "name": "국토교통부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mosfnet",
@@ -23,7 +24,8 @@
       "blog_id": "mosfnet",
       "name": "기획재정부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mohw2016",
@@ -31,7 +33,8 @@
       "blog_id": "mohw2016",
       "name": "보건복지부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:molab_suda",
@@ -39,7 +42,8 @@
       "blog_id": "molab_suda",
       "name": "고용노동부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mogefkorea",
@@ -47,7 +51,8 @@
       "blog_id": "mogefkorea",
       "name": "여성가족부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mofakr",
@@ -55,7 +60,8 @@
       "blog_id": "mofakr",
       "name": "외교부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mojjustice",
@@ -63,7 +69,8 @@
       "blog_id": "mojjustice",
       "name": "법무부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mnd9090",
@@ -71,7 +78,8 @@
       "blog_id": "mnd9090",
       "name": "국방부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mifaffgov",
@@ -79,7 +87,8 @@
       "blog_id": "mifaffgov",
       "name": "농림축산식품부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:koreamof",
@@ -87,7 +96,8 @@
       "blog_id": "koreamof",
       "name": "해양수산부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:bizinfo1357",
@@ -95,7 +105,8 @@
       "blog_id": "bizinfo1357",
       "name": "중소벤처기업부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mcstkorea",
@@ -103,7 +114,8 @@
       "blog_id": "mcstkorea",
       "name": "문화체육관광부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:motirnews",
@@ -111,7 +123,8 @@
       "blog_id": "motirnews",
       "name": "산업통상부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mopaspr",
@@ -119,7 +132,8 @@
       "blog_id": "mopaspr",
       "name": "행정안전부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mceekorea",
@@ -127,7 +141,8 @@
       "blog_id": "mceekorea",
       "name": "기후에너지환경부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:primeministerkr",
@@ -135,7 +150,8 @@
       "blog_id": "primeministerkr",
       "name": "국무조정실",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:blogfsc",
@@ -143,7 +159,8 @@
       "blog_id": "blogfsc",
       "name": "금융위원회",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:gounikorea",
@@ -151,7 +168,8 @@
       "blog_id": "gounikorea",
       "name": "통일부",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:ntscafe",
@@ -159,7 +177,8 @@
       "blog_id": "ntscafe",
       "name": "국세청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:k_customs",
@@ -167,7 +186,8 @@
       "blog_id": "k_customs",
       "name": "관세청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:polinlove2",
@@ -175,7 +195,8 @@
       "blog_id": "polinlove2",
       "name": "경찰청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:safeppy",
@@ -183,7 +204,8 @@
       "blog_id": "safeppy",
       "name": "소방청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:forest_news",
@@ -191,7 +213,8 @@
       "blog_id": "forest_news",
       "name": "산림청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:ppspr",
@@ -199,7 +222,8 @@
       "blog_id": "ppspr",
       "name": "조달청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:mirae_saram",
@@ -207,7 +231,8 @@
       "blog_id": "mirae_saram",
       "name": "인사혁신처",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:hi_nso",
@@ -215,7 +240,8 @@
       "blog_id": "hi_nso",
       "name": "국가데이터처(통계)",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:chagov",
@@ -223,7 +249,8 @@
       "blog_id": "chagov",
       "name": "국가유산청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:kma_131",
@@ -231,7 +258,8 @@
       "blog_id": "kma_131",
       "name": "기상청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:loveacrc",
@@ -239,7 +267,8 @@
       "blog_id": "loveacrc",
       "name": "국민권익위원회",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:smgcstory",
@@ -247,7 +276,8 @@
       "blog_id": "smgcstory",
       "name": "새만금개발청",
       "category": "정부",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:moeblog",
@@ -255,7 +285,8 @@
       "blog_id": "moeblog",
       "name": "교육부",
       "category": "교육",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:seouledu2012",
@@ -263,7 +294,8 @@
       "blog_id": "seouledu2012",
       "name": "서울시교육청",
       "category": "교육",
-      "enabled": true
+      "enabled": true,
+      "region": "서울"
     },
     {
       "id": "naver_blog:gne_education",
@@ -271,7 +303,8 @@
       "blog_id": "gne_education",
       "name": "경남교육청",
       "category": "교육",
-      "enabled": true
+      "enabled": true,
+      "region": "경남"
     },
     {
       "id": "naver_blog:ebsstory",
@@ -279,7 +312,8 @@
       "blog_id": "ebsstory",
       "name": "EBS",
       "category": "교육",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:haechiseoul",
@@ -287,7 +321,8 @@
       "blog_id": "haechiseoul",
       "name": "서울특별시",
       "category": "지자체",
-      "enabled": true
+      "enabled": true,
+      "region": "서울"
     },
     {
       "id": "naver_blog:gyeonggi_gov",
@@ -295,7 +330,8 @@
       "blog_id": "gyeonggi_gov",
       "name": "경기도",
       "category": "지자체",
-      "enabled": true
+      "enabled": true,
+      "region": "경기"
     },
     {
       "id": "naver_blog:cooolbusan",
@@ -303,7 +339,8 @@
       "blog_id": "cooolbusan",
       "name": "부산광역시",
       "category": "지자체",
-      "enabled": true
+      "enabled": true,
+      "region": "부산"
     },
     {
       "id": "naver_blog:storydaejeon",
@@ -311,7 +348,8 @@
       "blog_id": "storydaejeon",
       "name": "대전광역시",
       "category": "지자체",
-      "enabled": true
+      "enabled": true,
+      "region": "대전"
     },
     {
       "id": "naver_blog:jejudo_official",
@@ -319,7 +357,8 @@
       "blog_id": "jejudo_official",
       "name": "제주특별자치도",
       "category": "지자체",
-      "enabled": true
+      "enabled": true,
+      "region": "제주"
     },
     {
       "id": "naver_blog:nhicblog",
@@ -327,7 +366,8 @@
       "blog_id": "nhicblog",
       "name": "국민건강보험공단",
       "category": "공공기관",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "naver_blog:habitatkorea",
@@ -335,7 +375,8 @@
       "blog_id": "habitatkorea",
       "name": "한국해비타트",
       "category": "비영리",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "rss:https://beautifulfund.org/feed",
@@ -343,7 +384,8 @@
       "url": "https://beautifulfund.org/feed",
       "name": "아름다운재단",
       "category": "비영리",
-      "enabled": true
+      "enabled": true,
+      "region": "전국"
     },
     {
       "id": "html:mois_press",
@@ -357,7 +399,8 @@
       "title_selector": "td.l a",
       "author_selector": "td:nth-of-type(4)",
       "date_selector": "td:nth-of-type(5)",
-      "view_selector": "td:nth-of-type(6)"
+      "view_selector": "td:nth-of-type(6)",
+      "region": "전국"
     },
     {
       "id": "browser:goodneighbors",
@@ -372,7 +415,8 @@
       "date_selector": "td.date",
       "link_selector": "td.tit a",
       "id_regex": "viewSubmit\\((\\d+)\\)",
-      "url_template": "https://www.goodneighbors.kr/story/notice/{id}/view.gn?tabName=notice"
+      "url_template": "https://www.goodneighbors.kr/story/notice/{id}/view.gn?tabName=notice",
+      "region": "전국"
     },
     {
       "id": "browser:chest",
@@ -388,7 +432,8 @@
       "author_selector": ".gallery-write",
       "view_selector": ".gallery-count",
       "id_regex": "data-list_sn=\"(\\d+)\"",
-      "url_template": "https://www.chest.or.kr/bbs/1003/initPostDetail.do?listSn={id}"
+      "url_template": "https://www.chest.or.kr/bbs/1003/initPostDetail.do?listSn={id}",
+      "region": "전국"
     },
     {
       "id": "gnuboard:masan_senior_welfare",
@@ -397,7 +442,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.mhswc.or.kr/bbs/board.php?bo_table=05_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_youth_sexuality_center",
@@ -406,7 +453,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://www.cwsay.net/bbs/board.php?bo_table=say51&sca=&sfl=mb_id,1&stx=admin",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:gyeongnam_social_welfare",
@@ -415,7 +464,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.knsw.or.kr/bbs/board.php?bo_table=04_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:urinuri_youth_center",
@@ -424,7 +475,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%9A%B0%EB%A6%AC%EB%88%84%EB%A6%AC%EC%B2%AD%EC%86%8C%EB%85%84%EB%AC%B8%ED%99%94%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:greenhall_youth_center",
@@ -433,7 +486,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%8A%98%ED%91%B8%EB%A5%B8%EC%A0%84%EB%8B%B9",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jindong_welfare_center",
@@ -442,7 +497,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%A7%84%EB%8F%99%EC%A2%85%ED%95%A9%EB%B3%B5%EC%A7%80%EA%B4%80",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:gamgye_welfare_center",
@@ -451,7 +508,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EA%B0%90%EA%B3%84%EB%B3%B5%EC%A7%80%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:citizen_sports_center",
@@ -460,7 +519,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%8B%9C%EB%AF%BC%EC%83%9D%ED%99%9C%EC%B2%B4%EC%9C%A1%EA%B4%80",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:naeseo_sports_center",
@@ -469,7 +530,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%82%B4%EC%84%9C%EC%8A%A4%ED%8F%AC%EC%B8%A0%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masanhappo_sports_center",
@@ -478,7 +541,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%A7%88%EC%82%B0%ED%95%A9%ED%8F%AC%EC%8A%A4%ED%8F%AC%EC%B8%A0%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:seongsan_sports_center",
@@ -487,7 +552,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%84%B1%EC%82%B0%EC%8A%A4%ED%8F%AC%EC%B8%A0%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:yongwon_sports_center",
@@ -496,7 +563,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%9A%A9%EC%9B%90%EA%B5%AD%EB%AF%BC%EC%B2%B4%EC%9C%A1%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_sports_center",
@@ -505,7 +574,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%A7%84%ED%95%B4%EA%B5%AD%EB%AF%BC%EC%B2%B4%EC%9C%A1%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_jinro_center",
@@ -514,7 +585,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwjinro.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:moducoop",
@@ -523,7 +596,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://www.moducoop.com/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_disability_welfare_center",
@@ -532,7 +607,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://jcrc.or.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masan_ywca_women_center",
@@ -541,7 +618,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://www.masanywca.or.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_disabled_parents_association",
@@ -550,7 +629,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwbumo.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_science_gifted_education_center",
@@ -559,7 +640,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://www.ctysc.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_west_senior_welfare_center",
@@ -568,7 +651,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.jhsbsw.or.kr/bbs/board.php?bo_table=04_01&sca=%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8+%EC%86%8C%EC%8B%9D",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masan_member_sports_center",
@@ -577,7 +662,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%A7%88%EC%82%B0%ED%9A%8C%EC%9B%90%EC%B2%B4%EC%9C%A1%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_yeojwa_sports_center",
@@ -586,7 +673,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%A7%84%ED%95%B4%EC%97%AC%EC%A2%8C%EA%B5%AD%EB%AF%BC%EC%B2%B4%EC%9C%A1%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_football_center",
@@ -595,7 +684,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%B0%BD%EC%9B%90%EC%B6%95%EA%B5%AC%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:uichang_sports_center",
@@ -604,7 +695,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%9D%98%EC%B0%BD%EC%8A%A4%ED%8F%AC%EC%B8%A0%EC%84%BC%ED%84%B0",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_national_university_sw",
@@ -613,7 +706,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://sw.changwon.ac.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masan_disabled_welfare_center",
@@ -622,7 +717,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.mscrc.or.kr/bbs/board.php?bo_table=03_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masan_social_welfare_center",
@@ -631,7 +728,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://www.youngsin.or.kr/bbs/board.php?bo_table=news",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_addiction_center",
@@ -640,7 +739,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwacc.or.kr/bbs/board.php?bo_table=K060100",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_development_disability_center",
@@ -649,7 +750,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.gahwal.or.kr/bbs/board.php?bo_table=sub03_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:gyeongnam_global_game_center",
@@ -658,7 +761,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.gngc.or.kr/bbs/board.php?bo_table=04_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_tennis_center",
@@ -667,7 +772,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%B0%BD%EC%9B%90%EC%8B%9C%EB%A6%BD%ED%85%8C%EB%8B%88%EC%8A%A4%EC%9E%A5",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:gyeongnam_culture_arts_notice",
@@ -676,7 +783,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.gcaf.or.kr/bbs/board.php?bo_table=sub3_1",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:daesan_parkgolf",
@@ -685,7 +794,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%8C%80%EC%82%B0%ED%8C%8C%ED%81%AC%EA%B3%A8%ED%94%84%EC%9E%A5",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_international_shooting_range",
@@ -694,7 +805,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EC%B0%BD%EC%9B%90%EA%B5%AD%EC%A0%9C%EC%82%AC%EA%B2%A9%EC%9E%A5",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:bukmyeon_golf_range",
@@ -703,7 +816,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%B6%81%EB%A9%B4%EA%B3%A8%ED%94%84%EC%97%B0%EC%8A%B5%EC%9E%A5",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_women_association_notice",
@@ -712,7 +827,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://cwwoman.org/bbs/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:changwon_disabled_family_support_notice",
@@ -721,7 +838,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://ns2.barom.net/~cwbumo/bbs/board.php?bo_table=06_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:gyeongnam_regional_child_center_notice",
@@ -730,7 +849,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.gnicare.kr/bbs/board.php?bo_table=03_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:masan_culture_center_notice",
@@ -739,7 +860,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "http://masanculture.or.kr/m/g5/bbs/board.php?bo_table=notice_a",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_youth_center_hall_notice",
@@ -748,7 +871,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://www.jinhaeyouth.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:robot_land_experience",
@@ -757,7 +882,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://robot-land.co.kr/bbs/board.php?bo_table=event",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     },
     {
       "id": "gnuboard:jinhae_dreampark_notice",
@@ -766,7 +893,9 @@
       "category": "지자체",
       "enabled": true,
       "board_url": "https://jhdreampark.com/bri/board.php?bo_table=notice",
-      "max_pages": 1
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원"
     }
   ]
 }

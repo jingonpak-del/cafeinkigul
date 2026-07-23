@@ -102,11 +102,20 @@ def index():
 def sources():
     from .classify import TOPIC_RULES
     cfg = _load_config()
+    # 지역 목록(전국을 맨 앞으로, 나머지는 소스 등장순 유지)
+    regions, seen = [], set()
+    for s in cfg.get("sources", []):
+        rg = s.get("region") or "전국"
+        if rg not in seen:
+            seen.add(rg); regions.append(rg)
+    regions = (["전국"] if "전국" in seen else []) + [r for r in regions if r != "전국"]
     return {
         "categories": cfg.get("categories", []),
         "topics": [t for t, _ in TOPIC_RULES] + ["기타"],
+        "regions": regions,
         "sources": [{"id": s["id"], "name": s.get("name", s["id"]),
-                     "category": s.get("category", ""), "type": s.get("type", "")}
+                     "category": s.get("category", ""), "type": s.get("type", ""),
+                     "region": s.get("region", "전국")}
                     for s in cfg.get("sources", [])],
     }
 
@@ -127,9 +136,9 @@ def stats():
 
 @app.get("/api/posts")
 def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
-          topic: str = "", limit: int = 100, offset: int = 0):
+          topic: str = "", region: str = "", limit: int = 100, offset: int = 0):
     """수집한 글 목록. 최신 발행순(발행일 없으면 수집일).
-    category(출처유형)/source/kind(general|event)/topic(주제)/q 필터."""
+    category/source/kind/topic/region/q 필터."""
     conn = _ro_conn()
     try:
         where, params = [], []
@@ -141,6 +150,8 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
             where.append("kind = ?"); params.append(kind)
         if topic:
             where.append("topic = ?"); params.append(topic)
+        if region:
+            where.append("region = ?"); params.append(region)
         if q:
             where.append("(title LIKE ? OR content_text LIKE ?)")
             params.extend([f"%{q}%", f"%{q}%"])
