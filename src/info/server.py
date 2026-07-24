@@ -261,6 +261,7 @@ def digest(region: str = "", regions: str = "", topics: str = "",
             elif r.get("event_start_at"):
                 tail = f" · {_fmtd(r['event_start_at'])}"
             lines.append(f"- {r['title']}  \n  {src}{(' · '+loc) if loc and loc != '전국' else ''}{tail}  \n  {r['url']}")
+            lines.append("")   # 항목 사이 빈 줄(가시성)
         lines.append("")
     return {"date": date_label, "region": reg_label, "count": len(rows),
             "markdown": "\n".join(lines)}
