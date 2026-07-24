@@ -1073,6 +1073,66 @@
       "enabled": true,
       "region": "전국",
       "org_type": "행정"
+    },
+    {
+      "id": "gnuboard:bonglim_youth_center",
+      "type": "gnuboard",
+      "name": "봉림청소년문화의집 공지/행사",
+      "category": "지자체",
+      "enabled": true,
+      "board_url": "https://www.youthup.net/bbs/board.php?bo_table=02_01",
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "청소년"
+    },
+    {
+      "id": "gnuboard:changwon_senior_club",
+      "type": "gnuboard",
+      "name": "창원시니어클럽 공지사항",
+      "category": "지자체",
+      "enabled": true,
+      "board_url": "http://www.cwsenior.or.kr/bbs/board.php?bo_table=notice",
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "복지"
+    },
+    {
+      "id": "gnuboard:changwon_independent_living_center",
+      "type": "gnuboard",
+      "name": "창원장애인자립생활센터 공지사항",
+      "category": "지자체",
+      "enabled": true,
+      "board_url": "http://www.cwil.or.kr/bbs/board.php?bo_table=sub05_01",
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "복지"
+    },
+    {
+      "id": "gnuboard:bukmyeon_disabled_parkgolf",
+      "type": "gnuboard",
+      "name": "북면장애인파크골프장 공지사항",
+      "category": "지자체",
+      "enabled": true,
+      "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EB%B6%81%EB%A9%B4%EC%9E%A5%EC%95%A0%EC%9D%B8%ED%8C%8C%ED%81%AC%EA%B3%A8%ED%94%84%EC%9E%A5",
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "복지"
+    },
+    {
+      "id": "gnuboard:special_transport_service",
+      "type": "gnuboard",
+      "name": "교통약자특별교통수단 공지사항",
+      "category": "지자체",
+      "enabled": true,
+      "board_url": "https://www.cwsisul.or.kr/bbs/board.php?bo_table=sub06_04_01&sca=%EA%B5%90%ED%86%B5%EC%95%BD%EC%9E%90%ED%8A%B9%EB%B3%84%EA%B5%90%ED%86%B5%EC%88%98%EB%8B%A8",
+      "max_pages": 1,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "기타"
     }
   ]
 }
