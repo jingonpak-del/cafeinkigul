@@ -439,12 +439,75 @@ def collect_gnuboard(source: dict) -> list[dict]:
     return items
 
 
+# ── 온동네 어댑터 브릿지 (창원 기관별 맞춤 크롤러 재사용) ────────────────────
+_ONDONGNE_REG = None
+
+
+def _ondongne_registry() -> dict:
+    """온동네 sources.json → {source_id: 레지스트리 entry} (캐시)."""
+    global _ONDONGNE_REG
+    if _ONDONGNE_REG is None:
+        import json
+        from pathlib import Path
+        p = Path(__file__).resolve().parent / "ondongne" / "sources.json"
+        data = json.loads(p.read_text(encoding="utf-8"))
+        srcs = data if isinstance(data, list) else data.get("sources", [])
+        _ONDONGNE_REG = {s["id"]: s for s in srcs}
+    return _ONDONGNE_REG
+
+
+def collect_adapter(source: dict) -> list[dict]:
+    """온동네 기관별 어댑터를 실행해 Event를 posts로 변환.
+    config 예: {"type":"adapter", "adapter_id":"changwon_library", "name":..., "category":"지자체", ...}
+    """
+    from .ondongne.cli import ADAPTER_BY_SOURCE_ID
+    from . import date_parser as dp
+
+    aid = source["adapter_id"]
+    cls = ADAPTER_BY_SOURCE_ID.get(aid)
+    if not cls:
+        raise ValueError(f"어댑터 없음: {aid}")
+    reg = _ondongne_registry().get(aid)
+    if not reg:
+        raise ValueError(f"온동네 레지스트리에 없음: {aid}")
+    adapter = cls(reg)
+    events = adapter.crawl(since_days=int(source.get("since_days", 30)),
+                           limit=int(source.get("limit", 50)))
+    out = []
+    for e in events:
+        d = e.to_dict() if hasattr(e, "to_dict") else dict(getattr(e, "__dict__", {}))
+        if not d.get("title") or not d.get("source_url"):
+            continue
+        out.append({
+            "source_id": source["id"],
+            "post_key": d.get("id") or _normalize_article_url(d["source_url"]),
+            "source_name": source.get("name") or d.get("source_name") or "",
+            "source_type": "adapter",
+            "category": source.get("category", ""),
+            "title": d.get("title"),
+            "author": None,
+            "url": d.get("source_url"),
+            "published_at": (dp.to_ms(d.get("published_at")) or dp.to_ms(d.get("event_start_date"))
+                             or dp.to_ms(d.get("application_start_date"))),
+            "view_count": None,
+            "content_text": (d.get("body_text") or d.get("summary") or "")[:2000],
+            "event_start_at": dp.to_ms(d.get("event_start_date")),
+            "event_end_at": dp.to_ms(d.get("event_end_date")),
+            "apply_start_at": dp.to_ms(d.get("application_start_date")),
+            "apply_end_at": dp.to_ms(d.get("application_end_date")),
+            "target_audience": d.get("target_audience") or None,
+            "location": d.get("location_name") or None,
+        })
+    return out
+
+
 COLLECTORS = {
     "naver_blog": collect_naver_blog,
     "rss": collect_generic_rss,
     "html": collect_html,
     "browser": collect_browser,
     "gnuboard": collect_gnuboard,
+    "adapter": collect_adapter,
 }
 
 

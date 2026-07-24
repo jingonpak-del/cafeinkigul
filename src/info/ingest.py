@@ -44,17 +44,21 @@ def enrich(post: dict) -> dict:
     if post["kind"] == "event":
         post["target_audience"] = classify.classify_audience(text) or None
     if body:
-        app = dp.extract_labeled_range(body, _APPLY_LABELS)
-        ev = dp.extract_labeled_range(body, _EVENT_LABELS)
-        post["apply_start_at"] = dp.to_ms(app.start)
-        post["apply_end_at"] = dp.to_ms(app.end)
-        post["event_start_at"] = dp.to_ms(ev.start)
-        post["event_end_at"] = dp.to_ms(ev.end)
-        for label in _LOC_LABELS:
-            m = _re_label(body, label)
-            if m:
-                post["location"] = m
-                break
+        # 어댑터 등이 이미 채운 값은 보존, 비어있을 때만 본문에서 파싱
+        if not post.get("apply_start_at") and not post.get("apply_end_at"):
+            app = dp.extract_labeled_range(body, _APPLY_LABELS)
+            post["apply_start_at"] = dp.to_ms(app.start)
+            post["apply_end_at"] = dp.to_ms(app.end)
+        if not post.get("event_start_at") and not post.get("event_end_at"):
+            ev = dp.extract_labeled_range(body, _EVENT_LABELS)
+            post["event_start_at"] = dp.to_ms(ev.start)
+            post["event_end_at"] = dp.to_ms(ev.end)
+        if not post.get("location"):
+            for label in _LOC_LABELS:
+                m = _re_label(body, label)
+                if m:
+                    post["location"] = m
+                    break
     return post
 
 
