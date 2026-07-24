@@ -102,13 +102,19 @@ def index():
 def sources():
     from .classify import TOPIC_RULES
     cfg = _load_config()
-    # 지역 목록(전국을 맨 앞으로, 나머지는 소스 등장순 유지)
+    # 지역 목록: 광역(region) + 세부지역(region2, 창원/김해/함안 등)을 함께 노출
     regions, seen = [], set()
     for s in cfg.get("sources", []):
         rg = s.get("region") or "전국"
         if rg not in seen:
             seen.add(rg); regions.append(rg)
     regions = (["전국"] if "전국" in seen else []) + [r for r in regions if r != "전국"]
+    subs = []
+    for s in cfg.get("sources", []):
+        r2 = s.get("region2")
+        if r2 and r2 not in seen:
+            seen.add(r2); subs.append(r2)
+    regions = regions + sorted(subs)
     from .classify import ORG_TYPE_RULES
     return {
         "categories": cfg.get("categories", []),
@@ -154,7 +160,7 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
         if topic:
             where.append("topic = ?"); params.append(topic)
         if region:
-            where.append("region = ?"); params.append(region)
+            where.append("(region = ? OR region2 = ?)"); params.extend([region, region])
         if org_type:
             where.append("org_type = ?"); params.append(org_type)
         if q:
@@ -219,7 +225,9 @@ def digest(region: str = "", regions: str = "", topics: str = "",
         where = ["collected_at >= ? AND collected_at < ?"]
         params = [start, end]
         if reg_list:
-            where.append("region IN (" + ",".join("?" * len(reg_list)) + ")"); params += reg_list
+            ph = ",".join("?" * len(reg_list))
+            where.append(f"(region IN ({ph}) OR region2 IN ({ph}))")
+            params += reg_list + reg_list
         if topic_list:
             where.append("topic IN (" + ",".join("?" * len(topic_list)) + ")"); params += topic_list
         sql = ("SELECT title, url, source_name, region, region2, topic, kind, "

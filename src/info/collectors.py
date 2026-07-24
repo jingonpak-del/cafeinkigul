@@ -144,7 +144,8 @@ def _parse_date_ms(text: str) -> int | None:
         return None
 
 
-_ID_KEYS = ("wr_id", "nttId", "articleNo", "boardSeq", "bbsSeq", "idx", "seq", "no", "id", "num")
+_ID_KEYS = ("wr_id", "nttId", "not_ancmt_mgt_no", "articleNo", "boardSeq", "bbsSeq",
+            "idx", "seq", "no", "id", "num")
 
 
 def _normalize_article_url(link: str) -> str:
@@ -216,7 +217,9 @@ def _extract_items(html: str, base_url: str, source: dict) -> list[dict]:
             else (a.get_text(strip=True) or (a.get("title") or "").strip())
         if not title:
             continue
-        published = _parse_date_ms(cell(row, source.get("date_selector")))
+        # 날짜: date_selector 지정 시 그 셀, 없거나 못찾으면 행 전체 텍스트에서 첫 날짜
+        date_txt = cell(row, source["date_selector"]) if source.get("date_selector") else ""
+        published = _parse_date_ms(date_txt) or _parse_date_ms(row.get_text(" ", strip=True))
         views = _to_int(cell(row, source["view_selector"])) if source.get("view_selector") else None
         author = cell(row, source["author_selector"]) if source.get("author_selector") else source.get("author")
         summary = cell(row, source.get("summary_selector"))
