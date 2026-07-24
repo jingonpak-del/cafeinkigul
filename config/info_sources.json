@@ -481,40 +481,40 @@
       "org_type": "기타"
     },
     {
-      "id": "gnuboard:masan_senior_welfare",
-      "type": "gnuboard",
+      "id": "adapter:masan_senior_welfare",
+      "type": "adapter",
+      "adapter_id": "masan_senior_welfare",
       "name": "마산회원노인종합복지관 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.mhswc.or.kr/bbs/board.php?bo_table=05_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_youth_sexuality_center",
-      "type": "gnuboard",
+      "id": "adapter:changwon_youth_sexuality_center",
+      "type": "adapter",
+      "adapter_id": "changwon_youth_sexuality_center",
       "name": "창원시청소년성문화센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://www.cwsay.net/bbs/board.php?bo_table=say51&sca=&sfl=mb_id,1&stx=admin",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "청소년"
+      "org_type": "청소년",
+      "limit": 20
     },
     {
-      "id": "gnuboard:gyeongnam_social_welfare",
-      "type": "gnuboard",
+      "id": "adapter:gyeongnam_social_welfare",
+      "type": "adapter",
+      "adapter_id": "gyeongnam_social_welfare",
       "name": "경남종합사회복지관 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.knsw.or.kr/bbs/board.php?bo_table=04_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
       "id": "gnuboard:urinuri_youth_center",
@@ -637,88 +637,88 @@
       "org_type": "문화체육"
     },
     {
-      "id": "gnuboard:changwon_jinro_center",
-      "type": "gnuboard",
+      "id": "adapter:changwon_jinro_center",
+      "type": "adapter",
+      "adapter_id": "changwon_jinro_center",
       "name": "창원진로교육지원센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.cwjinro.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "단체"
+      "org_type": "단체",
+      "limit": 20
     },
     {
-      "id": "gnuboard:moducoop",
-      "type": "gnuboard",
+      "id": "adapter:moducoop",
+      "type": "adapter",
+      "adapter_id": "moducoop",
       "name": "모두의경제 사회적협동조합 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://www.moducoop.com/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "단체"
+      "org_type": "단체",
+      "limit": 20
     },
     {
-      "id": "gnuboard:jinhae_disability_welfare_center",
-      "type": "gnuboard",
+      "id": "adapter:jinhae_disability_welfare_center",
+      "type": "adapter",
+      "adapter_id": "jinhae_disability_welfare_center",
       "name": "진해장애인복지관 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://jcrc.or.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:masan_ywca_women_center",
-      "type": "gnuboard",
+      "id": "adapter:masan_ywca_women_center",
+      "type": "adapter",
+      "adapter_id": "masan_ywca_women_center",
       "name": "마산여성인력개발센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://www.masanywca.or.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "여성가족"
+      "org_type": "여성가족",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_disabled_parents_association",
-      "type": "gnuboard",
+      "id": "adapter:changwon_disabled_parents_association",
+      "type": "adapter",
+      "adapter_id": "changwon_disabled_parents_association",
       "name": "창원시장애인부모회 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.cwbumo.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_science_gifted_education_center",
-      "type": "gnuboard",
+      "id": "adapter:changwon_science_gifted_education_center",
+      "type": "adapter",
+      "adapter_id": "changwon_science_gifted_education_center",
       "name": "국립창원대학교 과학영재교육원 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://www.ctysc.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "행정"
+      "org_type": "행정",
+      "limit": 20
     },
     {
-      "id": "gnuboard:jinhae_west_senior_welfare_center",
-      "type": "gnuboard",
+      "id": "adapter:jinhae_west_senior_welfare_center",
+      "type": "adapter",
+      "adapter_id": "jinhae_west_senior_welfare_center",
       "name": "진해서부노인종합복지관 프로그램 소식",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.jhsbsw.or.kr/bbs/board.php?bo_table=04_01&sca=%ED%94%84%EB%A1%9C%EA%B7%B8%EB%9E%A8+%EC%86%8C%EC%8B%9D",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
       "id": "gnuboard:masan_member_sports_center",
@@ -769,76 +769,76 @@
       "org_type": "문화체육"
     },
     {
-      "id": "gnuboard:changwon_national_university_sw",
-      "type": "gnuboard",
+      "id": "adapter:changwon_national_university_sw",
+      "type": "adapter",
+      "adapter_id": "changwon_national_university_sw",
       "name": "국립창원대학교 SW중심대학사업단 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://sw.changwon.ac.kr/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "행정"
+      "org_type": "행정",
+      "limit": 20
     },
     {
-      "id": "gnuboard:masan_disabled_welfare_center",
-      "type": "gnuboard",
+      "id": "adapter:masan_disabled_welfare_center",
+      "type": "adapter",
+      "adapter_id": "masan_disabled_welfare_center",
       "name": "마산장애인복지관 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.mscrc.or.kr/bbs/board.php?bo_table=03_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:masan_social_welfare_center",
-      "type": "gnuboard",
+      "id": "adapter:masan_social_welfare_center",
+      "type": "adapter",
+      "adapter_id": "masan_social_welfare_center",
       "name": "마산종합사회복지관 새소식",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://www.youngsin.or.kr/bbs/board.php?bo_table=news",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_addiction_center",
-      "type": "gnuboard",
+      "id": "adapter:changwon_addiction_center",
+      "type": "adapter",
+      "adapter_id": "changwon_addiction_center",
       "name": "창원중독관리통합지원센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.cwacc.or.kr/bbs/board.php?bo_table=K060100",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "단체"
+      "org_type": "단체",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_development_disability_center",
-      "type": "gnuboard",
+      "id": "adapter:changwon_development_disability_center",
+      "type": "adapter",
+      "adapter_id": "changwon_development_disability_center",
       "name": "창원발달장애인가활센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.gahwal.or.kr/bbs/board.php?bo_table=sub03_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "복지"
+      "org_type": "복지",
+      "limit": 20
     },
     {
-      "id": "gnuboard:gyeongnam_global_game_center",
-      "type": "gnuboard",
+      "id": "adapter:gyeongnam_global_game_center",
+      "type": "adapter",
+      "adapter_id": "gyeongnam_global_game_center",
       "name": "경남글로벌게임센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.gngc.or.kr/bbs/board.php?bo_table=04_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "단체"
+      "org_type": "단체",
+      "limit": 20
     },
     {
       "id": "gnuboard:changwon_tennis_center",
@@ -853,16 +853,16 @@
       "org_type": "문화체육"
     },
     {
-      "id": "gnuboard:gyeongnam_culture_arts_notice",
-      "type": "gnuboard",
+      "id": "adapter:gyeongnam_culture_arts_notice",
+      "type": "adapter",
+      "adapter_id": "gyeongnam_culture_arts_notice",
       "name": "경남문화예술진흥원 공고/공지",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.gcaf.or.kr/bbs/board.php?bo_table=sub3_1",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "문화체육"
+      "org_type": "문화체육",
+      "limit": 20
     },
     {
       "id": "gnuboard:daesan_parkgolf",
@@ -901,88 +901,88 @@
       "org_type": "문화체육"
     },
     {
-      "id": "gnuboard:changwon_women_association_notice",
-      "type": "gnuboard",
+      "id": "adapter:changwon_women_association_notice",
+      "type": "adapter",
+      "adapter_id": "changwon_women_association_notice",
       "name": "창원여성회 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://cwwoman.org/bbs/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "여성가족"
+      "org_type": "여성가족",
+      "limit": 20
     },
     {
-      "id": "gnuboard:changwon_disabled_family_support_notice",
-      "type": "gnuboard",
+      "id": "adapter:changwon_disabled_family_support_notice",
+      "type": "adapter",
+      "adapter_id": "changwon_disabled_family_support_notice",
       "name": "창원장애인가족지원센터 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://ns2.barom.net/~cwbumo/bbs/board.php?bo_table=06_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "여성가족"
+      "org_type": "여성가족",
+      "limit": 20
     },
     {
-      "id": "gnuboard:gyeongnam_regional_child_center_notice",
-      "type": "gnuboard",
+      "id": "adapter:gyeongnam_regional_child_center_notice",
+      "type": "adapter",
+      "adapter_id": "gyeongnam_regional_child_center_notice",
       "name": "지역아동센터 경남지원단 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.gnicare.kr/bbs/board.php?bo_table=03_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "단체"
+      "org_type": "단체",
+      "limit": 20
     },
     {
-      "id": "gnuboard:masan_culture_center_notice",
-      "type": "gnuboard",
+      "id": "adapter:masan_culture_center_notice",
+      "type": "adapter",
+      "adapter_id": "masan_culture_center_notice",
       "name": "마산문화원 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "http://masanculture.or.kr/m/g5/bbs/board.php?bo_table=notice_a",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "문화체육"
+      "org_type": "문화체육",
+      "limit": 20
     },
     {
-      "id": "gnuboard:jinhae_youth_center_hall_notice",
-      "type": "gnuboard",
+      "id": "adapter:jinhae_youth_center_hall_notice",
+      "type": "adapter",
+      "adapter_id": "jinhae_youth_center_hall_notice",
       "name": "진해청소년전당 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.jinhaeyouth.or.kr/bbs/board.php?bo_table=06_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "청소년"
+      "org_type": "청소년",
+      "limit": 20
     },
     {
-      "id": "gnuboard:robot_land_experience",
-      "type": "gnuboard",
+      "id": "adapter:robot_land_experience",
+      "type": "adapter",
+      "adapter_id": "robot_land_experience",
       "name": "마산로봇랜드 이벤트/체험행사",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://robot-land.co.kr/bbs/board.php?bo_table=event",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "행정"
+      "org_type": "행정",
+      "limit": 20
     },
     {
-      "id": "gnuboard:jinhae_dreampark_notice",
-      "type": "gnuboard",
+      "id": "adapter:jinhae_dreampark_notice",
+      "type": "adapter",
+      "adapter_id": "jinhae_dreampark_notice",
       "name": "진해드림파크 공지사항",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://jhdreampark.com/bri/board.php?bo_table=notice",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "행정"
+      "org_type": "행정",
+      "limit": 20
     },
     {
       "id": "naver_blog:sinmunman",
@@ -1075,16 +1075,16 @@
       "org_type": "행정"
     },
     {
-      "id": "gnuboard:bonglim_youth_center",
-      "type": "gnuboard",
+      "id": "adapter:bonglim_youth_center",
+      "type": "adapter",
+      "adapter_id": "bonglim_youth_center",
       "name": "봉림청소년문화의집 공지/행사",
       "category": "지자체",
       "enabled": true,
-      "board_url": "https://www.youthup.net/bbs/board.php?bo_table=02_01",
-      "max_pages": 1,
       "region": "경남",
       "region2": "창원",
-      "org_type": "청소년"
+      "org_type": "청소년",
+      "limit": 20
     },
     {
       "id": "gnuboard:changwon_senior_club",
