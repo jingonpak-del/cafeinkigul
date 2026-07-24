@@ -144,8 +144,8 @@ def _parse_date_ms(text: str) -> int | None:
         return None
 
 
-_ID_KEYS = ("wr_id", "nttId", "not_ancmt_mgt_no", "articleNo", "boardSeq", "bbsSeq",
-            "idx", "seq", "no", "id", "num")
+_ID_KEYS = ("wr_id", "nttId", "not_ancmt_mgt_no", "mng_no", "articleNo", "boardSeq",
+            "bbsSeq", "idx", "seq", "no", "id", "num")
 
 
 def _normalize_article_url(link: str) -> str:

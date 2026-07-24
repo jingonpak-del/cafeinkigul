@@ -2107,6 +2107,20 @@
       "link_selector": "a.a1",
       "title_selector": ".t1",
       "enabled": true
+    },
+    {
+      "id": "browser:gimhae_museum_edu",
+      "type": "browser",
+      "name": "국립김해박물관 교육",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "문화체육",
+      "url": "https://gimhae.museum.go.kr/kr/html/sub03/0303.html",
+      "wait_selector": "a[href*=\"mode=V\"]",
+      "item_selector": "a[href*=\"mode=V\"]",
+      "title_selector": ".ui-list__title"
     }
   ]
 }
