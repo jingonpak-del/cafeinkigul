@@ -2035,9 +2035,10 @@
       "region2": "김해",
       "org_type": "행정",
       "list_url": "https://www.gimhae.go.kr/03360/00023/00029.web",
-      "item_selector": "li:has(a[href*='amode=view'])",
-      "link_selector": "a[href*='amode=view']",
-      "enabled": true
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "enabled": true,
+      "title_selector": ".t1"
     },
     {
       "id": "html:gimhae_youth",
@@ -2121,6 +2122,90 @@
       "wait_selector": "a[href*=\"mode=V\"]",
       "item_selector": "a[href*=\"mode=V\"]",
       "title_selector": ".ui-list__title"
+    },
+    {
+      "id": "html:gimhae_web_00024",
+      "type": "html",
+      "name": "김해시 공지사항",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00024.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:gimhae_web_00025",
+      "type": "html",
+      "name": "김해시 보도자료",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00025.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:gimhae_web_00026",
+      "type": "html",
+      "name": "김해시 사실은 이렇습니다.",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00026.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:gimhae_web_00027",
+      "type": "html",
+      "name": "김해시 단수안내",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00027.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:gimhae_web_00028",
+      "type": "html",
+      "name": "김해시 타기관소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00028.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:gimhae_web_00031",
+      "type": "html",
+      "name": "김해시 채용공고",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "기타",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00031.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
     }
   ]
 }
