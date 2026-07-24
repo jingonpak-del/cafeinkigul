@@ -109,13 +109,15 @@ def sources():
         if rg not in seen:
             seen.add(rg); regions.append(rg)
     regions = (["전국"] if "전국" in seen else []) + [r for r in regions if r != "전국"]
+    from .classify import ORG_TYPE_RULES
     return {
         "categories": cfg.get("categories", []),
         "topics": [t for t, _ in TOPIC_RULES] + ["기타"],
         "regions": regions,
+        "org_types": [t for t, _ in ORG_TYPE_RULES] + ["기타"],
         "sources": [{"id": s["id"], "name": s.get("name", s["id"]),
                      "category": s.get("category", ""), "type": s.get("type", ""),
-                     "region": s.get("region", "전국")}
+                     "region": s.get("region", "전국"), "org_type": s.get("org_type", "기타")}
                     for s in cfg.get("sources", [])],
     }
 
@@ -136,9 +138,10 @@ def stats():
 
 @app.get("/api/posts")
 def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
-          topic: str = "", region: str = "", limit: int = 100, offset: int = 0):
+          topic: str = "", region: str = "", org_type: str = "",
+          limit: int = 100, offset: int = 0):
     """수집한 글 목록. 최신 발행순(발행일 없으면 수집일).
-    category/source/kind/topic/region/q 필터."""
+    category/source/kind/topic/region/org_type/q 필터."""
     conn = _ro_conn()
     try:
         where, params = [], []
@@ -152,6 +155,8 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
             where.append("topic = ?"); params.append(topic)
         if region:
             where.append("region = ?"); params.append(region)
+        if org_type:
+            where.append("org_type = ?"); params.append(org_type)
         if q:
             where.append("(title LIKE ? OR content_text LIKE ?)")
             params.extend([f"%{q}%", f"%{q}%"])
@@ -281,16 +286,35 @@ def admin_sources(request: Request):
     cfg = _load_config()
     conn = _ro_conn()
     try:
-        counts = {r["source_id"]: r["n"] for r in conn.execute(
-            "SELECT source_id, COUNT(*) n FROM posts GROUP BY source_id")}
+        stats = {r["source_id"]: (r["n"], r["last"]) for r in conn.execute(
+            "SELECT source_id, COUNT(*) n, MAX(collected_at) last FROM posts GROUP BY source_id")}
     finally:
         conn.close()
     out = []
     for s in cfg.get("sources", []):
+        n, last = stats.get(s["id"], (0, None))
         out.append({"id": s["id"], "name": s.get("name", s["id"]),
                     "category": s.get("category", ""), "type": s.get("type", ""),
-                    "enabled": s.get("enabled", True), "posts": counts.get(s["id"], 0)})
+                    "region": s.get("region", "전국"), "org_type": s.get("org_type", "기타"),
+                    "enabled": s.get("enabled", True), "posts": n, "last_str": _fmt(last)})
     return {"sources": out, "categories": cfg.get("categories", [])}
+
+
+@app.post("/api/admin/bulk-toggle")
+async def admin_bulk_toggle(request: Request):
+    """여러 소스 일괄 켜기/끄기. body: {ids:[...], enabled:bool}"""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    ids = set(body.get("ids") or [])
+    enabled = bool(body.get("enabled"))
+    cfg = _load_config()
+    n = 0
+    for s in cfg.get("sources", []):
+        if s["id"] in ids:
+            s["enabled"] = enabled; n += 1
+    _save_config(cfg)
+    return {"ok": True, "count": n, "enabled": enabled}
 
 
 @app.post("/api/admin/add-source")

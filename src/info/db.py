@@ -69,7 +69,7 @@ class Database:
                           ("target_audience", "TEXT"), ("location", "TEXT"),
                           ("event_start_at", "INTEGER"), ("event_end_at", "INTEGER"),
                           ("apply_start_at", "INTEGER"), ("apply_end_at", "INTEGER"),
-                          ("region", "TEXT"), ("region2", "TEXT")):
+                          ("region", "TEXT"), ("region2", "TEXT"), ("org_type", "TEXT")):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
 
@@ -84,6 +84,7 @@ class Database:
             "kind": "general", "topic": None, "target_audience": None, "location": None,
             "event_start_at": None, "event_end_at": None,
             "apply_start_at": None, "apply_end_at": None, "region": None, "region2": None,
+            "org_type": None,
             **p, "collected_at": now_ms(),
         }
         cur = self.conn.execute(
@@ -91,13 +92,14 @@ class Database:
                (source_id, post_key, source_name, source_type, category, title,
                 author, url, published_at, collected_at, view_count, content_text,
                 kind, topic, target_audience, location,
-                event_start_at, event_end_at, apply_start_at, apply_end_at, region, region2)
+                event_start_at, event_end_at, apply_start_at, apply_end_at, region, region2,
+                org_type)
                VALUES (:source_id, :post_key, :source_name, :source_type, :category,
                        :title, :author, :url, :published_at, :collected_at,
                        :view_count, :content_text,
                        :kind, :topic, :target_audience, :location,
                        :event_start_at, :event_end_at, :apply_start_at, :apply_end_at,
-                       :region, :region2)""",
+                       :region, :region2, :org_type)""",
             row,
         )
         self.conn.commit()

@@ -80,8 +80,9 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
         posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
     region = source.get("region") or "전국"
     region2 = source.get("region2") or ""
+    org_type = source.get("org_type") or classify.classify_org_type(source.get("name", ""))
     for p in posts:
-        p["region"], p["region2"] = region, region2
+        p["region"], p["region2"], p["org_type"] = region, region2, org_type
     inserted = sum(1 for p in posts if db.upsert_post(enrich(p)))
     return {
         "id": source["id"],

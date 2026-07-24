@@ -76,7 +76,10 @@
  .addmsg{font-size:12.5px;margin-top:7px;min-height:16px}
  .addmsg.ok{color:#8fe3b0} .addmsg.err{color:#ff9a9a}
  .manage{margin-top:10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;
-   max-height:320px;overflow:auto}
+   max-height:420px;overflow:auto}
+ .mctrl{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:9px 10px;position:sticky;top:0;
+   background:var(--panel2);border-bottom:1px solid var(--border);z-index:1}
+ .mctrl select.search{padding:6px 8px;font-size:12.5px}
  .manage table{width:100%} .manage td,.manage th{padding:7px 10px;font-size:12.5px}
  .manage th{color:var(--muted);text-align:left;border-bottom:1px solid var(--border)}
  .manage tr+tr td{border-top:1px solid #1d2536}
@@ -123,6 +126,7 @@
   </div>
   <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
+  <div class="tabs" id="orgtypes"></div>
   <div class="tabs" id="topics"></div>
   <div class="srcbar">
     <span class="srctgl" id="srcToggle">▸ 출처 선택</span>
@@ -159,7 +163,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let state = {category:"", source:"", topic:"", region:"", q:"", offset:0, limit:100, done:false};
+let state = {category:"", source:"", topic:"", region:"", org_type:"", q:"", offset:0, limit:100, done:false};
 let REGIONS = [], TOPICS = [];
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -177,6 +181,13 @@ async function loadMeta(){
     return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
   }).join('');
   REGIONS = srcRes.regions||[]; TOPICS = srcRes.topics||[];
+  // 기관유형 칩
+  const orgts = ['전체 유형', ...(srcRes.org_types||[])];
+  $('#orgtypes').innerHTML = orgts.map(o=>{
+    const val = o==='전체 유형'?'':o;
+    return `<span class="chip ot ${state.org_type===val?'on':''}" data-org="${esc(val)}">${esc(o)}</span>`;
+  }).join('');
+  document.querySelectorAll('[data-org]').forEach(el=>el.onclick=()=>{state.org_type=el.dataset.org;reset();loadMeta();});
   // 지역 칩
   const regions = ['전체 지역', ...(srcRes.regions||[])];
   $('#regions').innerHTML = regions.map(rg=>{
@@ -231,7 +242,7 @@ function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; loa
 async function load(){
   $('#loading').style.display='block'; $('#more').style.display='none';
   const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
-    topic:state.topic, region:state.region, limit:state.limit, offset:state.offset});
+    topic:state.topic, region:state.region, org_type:state.org_type, limit:state.limit, offset:state.offset});
   const data = await fetch('/api/posts?'+p).then(r=>r.json());
   $('#loading').style.display='none';
   const tb = $('#rows');
@@ -354,31 +365,69 @@ async function addSource(){
   }catch(e){ setMsg('❌ 오류: '+e.message, false); }
   b.disabled=false; b.textContent='+ 추가';
 }
+let manageSources=[];
 async function loadManage(){
   const p=$('#managePanel'); p.style.display='block'; p.innerHTML='<div class="loading">불러오는 중…</div>';
+  await reloadManageData(true);
+}
+async function reloadManageData(buildControls){
   const d = await fetch('/api/admin/sources').then(r=>r.json());
-  const rows = (d.sources||[]).map(s=>`
-    <tr class="${s.enabled?'':'off'}">
-      <td>${esc(s.name)}</td>
-      <td><span class="badge">${esc(s.category)||'-'}</span></td>
-      <td style="color:var(--muted)">${esc(s.type)}</td>
-      <td style="text-align:right">${s.posts.toLocaleString()}건</td>
-      <td><button class="mini" data-tgl="${esc(s.id)}" data-en="${s.enabled?0:1}">${s.enabled?'끄기':'켜기'}</button></td>
-      <td><button class="mini del" data-del="${esc(s.id)}" data-nm="${esc(s.name)}">삭제</button></td>
-    </tr>`).join('');
-  p.innerHTML = `<table><tr><th>출처</th><th>분류</th><th>유형</th><th style="text-align:right">글</th><th></th><th></th></tr>${rows}</table>`;
-  p.querySelectorAll('[data-tgl]').forEach(el=>el.onclick=async()=>{
+  manageSources = d.sources||[];
+  if(buildControls){
+    const regions=[...new Set(manageSources.map(s=>s.region))];
+    const orgs=[...new Set(manageSources.map(s=>s.org_type))];
+    $('#managePanel').innerHTML = `
+      <div class="mctrl">
+        <input id="mSearch" class="search" placeholder="출처 검색" style="min-width:130px"/>
+        <select id="mRegion" class="search"><option value="">지역 전체</option>${regions.map(r=>`<option>${esc(r)}</option>`).join('')}</select>
+        <select id="mOrg" class="search"><option value="">유형 전체</option>${orgs.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+        <button class="mini" id="mOn">✓ 켜기</button>
+        <button class="mini" id="mOff">✕ 끄기</button>
+        <span class="dcount" id="mCount"></span>
+      </div>
+      <div id="mTableWrap"></div>`;
+    $('#mSearch').addEventListener('input', renderManage);
+    $('#mRegion').onchange=renderManage; $('#mOrg').onchange=renderManage;
+    $('#mOn').onclick=()=>bulkToggle(true); $('#mOff').onclick=()=>bulkToggle(false);
+  }
+  renderManage();
+}
+function renderManage(){
+  const q=($('#mSearch').value||'').toLowerCase(), rg=$('#mRegion').value, og=$('#mOrg').value;
+  const list=manageSources.filter(s=>(!q||s.name.toLowerCase().includes(q))&&(!rg||s.region===rg)&&(!og||s.org_type===og));
+  const rows=list.map(s=>`<tr class="${s.enabled?'':'off'}">
+    <td><input type="checkbox" class="mchk" value="${esc(s.id)}"></td>
+    <td>${esc(s.name)}</td>
+    <td><span class="rgtag">${esc(s.region)}</span></td>
+    <td><span class="badge">${esc(s.org_type)}</span></td>
+    <td style="color:var(--muted);font-size:11.5px">${esc(s.category)}·${esc(s.type)}</td>
+    <td style="text-align:right">${s.posts.toLocaleString()}</td>
+    <td style="color:var(--muted);font-size:11px;white-space:nowrap">${esc(s.last_str||'-')}</td>
+    <td><button class="mini" data-tgl="${esc(s.id)}" data-en="${s.enabled?0:1}">${s.enabled?'끄기':'켜기'}</button></td>
+    <td><button class="mini del" data-del="${esc(s.id)}" data-nm="${esc(s.name)}">삭제</button></td>
+  </tr>`).join('');
+  $('#mTableWrap').innerHTML=`<table><tr><th><input type="checkbox" id="mAll"/></th><th>출처</th><th>지역</th><th>유형</th><th>분류·방식</th><th style="text-align:right">글</th><th>최근수집</th><th></th><th></th></tr>${rows}</table>`;
+  const onCnt=list.filter(s=>s.enabled).length;
+  $('#mCount').textContent=`${list.length}곳(켜짐 ${onCnt}) · 전체 ${manageSources.length}곳`;
+  $('#mAll').onclick=e=>document.querySelectorAll('.mchk').forEach(c=>c.checked=e.target.checked);
+  document.querySelectorAll('#mTableWrap [data-tgl]').forEach(el=>el.onclick=async()=>{
     await fetch('/api/admin/toggle-source',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id:el.dataset.tgl, enabled:el.dataset.en==='1'})});
-    loadManage();
+    reloadManageData(false);
   });
-  p.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{
-    const purge = confirm(`"${el.dataset.nm}" 소스를 삭제합니다.\n\n확인=수집된 글까지 함께 삭제\n취소=삭제 안 함`);
-    if(!purge) return;
+  document.querySelectorAll('#mTableWrap [data-del]').forEach(el=>el.onclick=async()=>{
+    if(!confirm(`"${el.dataset.nm}" 소스를 삭제합니다. 수집된 글도 함께 삭제됩니다.`)) return;
     await fetch('/api/admin/delete-source',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id:el.dataset.del, purge:true})});
-    await loadMeta(); reset(); loadManage();
+    await loadMeta(); reset(); reloadManageData(false);
   });
+}
+async function bulkToggle(enabled){
+  const ids=[...document.querySelectorAll('.mchk:checked')].map(c=>c.value);
+  if(!ids.length){ alert('먼저 소스를 체크하세요.'); return; }
+  await fetch('/api/admin/bulk-toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids, enabled})});
+  reloadManageData(false);
 }
 $('#addBtn').onclick = addSource;
 $('#addInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addSource(); });
