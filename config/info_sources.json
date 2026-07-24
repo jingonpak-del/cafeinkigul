@@ -1985,6 +1985,59 @@
       "region2": "창원",
       "org_type": "기타",
       "limit": 20
+    },
+    {
+      "id": "gnuboard:gbia_business",
+      "type": "gnuboard",
+      "name": "김해의생명산업진흥원",
+      "category": "지자체",
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "단체",
+      "board_url": "https://gbia.or.kr/bbs/board.php?bo_table=business",
+      "max_pages": 1,
+      "enabled": true
+    },
+    {
+      "id": "html:haman_notice",
+      "type": "html",
+      "name": "함안군 고시공고",
+      "category": "지자체",
+      "region": "경남",
+      "region2": "함안",
+      "org_type": "행정",
+      "list_url": "https://www.haman.go.kr/00059/06642/06644.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1",
+      "enabled": true
+    },
+    {
+      "id": "html:haman_museum",
+      "type": "html",
+      "name": "함안박물관 공지",
+      "category": "지자체",
+      "region": "경남",
+      "region2": "함안",
+      "org_type": "문화체육",
+      "list_url": "https://www.haman.go.kr/02649/02687.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1",
+      "enabled": true
+    },
+    {
+      "id": "html:gimhae_notice",
+      "type": "html",
+      "name": "김해시 고시공고",
+      "category": "지자체",
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "행정",
+      "list_url": "https://www.gimhae.go.kr/03360/00023/00029.web",
+      "item_selector": "li:has(a[href*='amode=view'])",
+      "link_selector": "a[href*='amode=view']",
+      "enabled": true
     }
   ]
 }
