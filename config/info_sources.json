@@ -896,6 +896,87 @@
       "max_pages": 1,
       "region": "경남",
       "region2": "창원"
+    },
+    {
+      "id": "naver_blog:sinmunman",
+      "type": "naver_blog",
+      "blog_id": "sinmunman",
+      "name": "충청남도",
+      "category": "지자체",
+      "enabled": true,
+      "region": "충남"
+    },
+    {
+      "id": "naver_blog:greenjeonnam",
+      "type": "naver_blog",
+      "blog_id": "greenjeonnam",
+      "name": "전라남도",
+      "category": "지자체",
+      "enabled": true,
+      "region": "전남"
+    },
+    {
+      "id": "naver_blog:gnfeel",
+      "type": "naver_blog",
+      "blog_id": "gnfeel",
+      "name": "경상남도",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남"
+    },
+    {
+      "id": "naver_blog:us_edu",
+      "type": "naver_blog",
+      "blog_id": "us_edu",
+      "name": "울산광역시교육청",
+      "category": "교육",
+      "enabled": true,
+      "region": "울산"
+    },
+    {
+      "id": "naver_blog:cbe_news",
+      "type": "naver_blog",
+      "blog_id": "cbe_news",
+      "name": "충청북도교육청",
+      "category": "교육",
+      "enabled": true,
+      "region": "충북"
+    },
+    {
+      "id": "naver_blog:with_msip",
+      "type": "naver_blog",
+      "blog_id": "with_msip",
+      "name": "과학기술정보통신부",
+      "category": "정부",
+      "enabled": true,
+      "region": "전국"
+    },
+    {
+      "id": "naver_blog:rda2448",
+      "type": "naver_blog",
+      "blog_id": "rda2448",
+      "name": "농촌진흥청",
+      "category": "정부",
+      "enabled": true,
+      "region": "전국"
+    },
+    {
+      "id": "naver_blog:ftc_news",
+      "type": "naver_blog",
+      "blog_id": "ftc_news",
+      "name": "공정거래위원회",
+      "category": "정부",
+      "enabled": true,
+      "region": "전국"
+    },
+    {
+      "id": "naver_blog:mma9090",
+      "type": "naver_blog",
+      "blog_id": "mma9090",
+      "name": "병무청",
+      "category": "정부",
+      "enabled": true,
+      "region": "전국"
     }
   ]
 }
