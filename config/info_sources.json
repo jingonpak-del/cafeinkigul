@@ -2206,6 +2206,46 @@
       "item_selector": "li.li1",
       "link_selector": "a.a1",
       "title_selector": ".t1"
+    },
+    {
+      "id": "gnuboard:new_gusansw",
+      "name": "구산사회복지관",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "복지",
+      "type": "gnuboard",
+      "board_url": "https://www.gusansw.or.kr/core_board/board/coreboard.php?i_board=kuboard&wr_id=569",
+      "max_pages": 1
+    },
+    {
+      "id": "html:new_gimhaesc",
+      "name": "김해시사회적경제지원센터",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "단체",
+      "type": "html",
+      "list_url": "https://gimhaesc.or.kr/html/sub/04_01.jsp",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:new_ghwomencenter",
+      "name": "김해시여성센터",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "여성가족",
+      "type": "html",
+      "list_url": "https://www.ghwomencenter.or.kr/02911.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
     }
   ]
 }
