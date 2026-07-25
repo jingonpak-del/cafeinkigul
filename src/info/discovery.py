@@ -162,6 +162,94 @@ def _ro():
     return c
 
 
+# ── 홈페이지 → 게시판 자동탐색 → 검증된 config ──────────────────────────────
+def find_board_urls(home: str) -> list[str]:
+    """홈페이지에서 공지/게시판 링크 후보(동일 도메인)를 추출."""
+    from bs4 import BeautifulSoup
+    try:
+        html = fetch_text(home)
+    except Exception:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    base = urlparse(home).netloc
+    seen, out = set(), []
+    for a in soup.find_all("a"):
+        href = a.get("href") or ""
+        txt = a.get_text() or ""
+        full = urljoin(home, href)
+        hit = ("board.php" in href or "bo_table=" in href
+               or re.search(r"(공지|알림|소식|notice|news|board|bbs)", txt + href, re.I))
+        if hit and full.startswith("http") and urlparse(full).netloc == base and full not in seen:
+            seen.add(full); out.append(full)
+    # 게시판성(board.php/bo_table) 우선 정렬
+    out.sort(key=lambda u: 0 if ("board.php" in u or "bo_table=" in u) else 1)
+    return out[:8]
+
+
+def resolve_source_from_home(home: str) -> dict | None:
+    """홈페이지에서 실제 수집 가능한 게시판을 찾아 검증된 config(dict) 반환(없으면 None)."""
+    from .collectors import collect
+    for board in find_board_urls(home):
+        det = detect_crawl_type(board)
+        sug = det.get("suggest")
+        if not sug or det["crawl_type"] not in ("gnuboard", "html", "rss"):
+            continue
+        try:
+            if len(collect({**sug, "id": "probe", "name": "probe", "category": ""})) >= 2:
+                return sug
+        except Exception:
+            continue
+    return None
+
+
+def register_candidate(cand_key: str, overrides: dict | None = None) -> dict:
+    """후보를 게시판 자동탐색·검증 후 config에 등록하고 즉시 수집. 요약 반환."""
+    from . import ingest
+    overrides = overrides or {}
+    db = Database(DB_PATH)
+    try:
+        row = db.conn.execute("SELECT * FROM candidates WHERE cand_key=?", (cand_key,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "후보 없음"}
+        cols = [d[0] for d in db.conn.execute("SELECT * FROM candidates WHERE cand_key=?", (cand_key,)).description]
+        cand = dict(zip(cols, row))
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        # 이미 board형 suggest가 있으면 그대로, 아니면 홈에서 게시판 탐색
+        sug = None
+        try:
+            sug = json.loads(cand["suggest"]) if cand.get("suggest") else None
+        except Exception:
+            sug = None
+        if not (sug and (sug.get("board_url") or sug.get("list_url") or sug.get("url"))
+                and _looks_like_board(sug)):
+            sug = resolve_source_from_home(cand["url"])
+        if not sug:
+            return {"ok": False, "error": "수집 가능한 게시판을 찾지 못함(AJAX 등)"}
+        name = overrides.get("name") or cand["name"]
+        base_dom = urlparse(cand["url"]).netloc.replace("www.", "").split(".")[0]
+        sid = "%s:disc_%s" % (sug["type"], base_dom)
+        if any(s["id"] == sid for s in cfg["sources"]):
+            db.set_candidate_status(cand_key, "added")
+            return {"ok": False, "error": "이미 등록됨"}
+        entry = {"id": sid, "name": name, "category": overrides.get("category", "지자체"),
+                 "enabled": True, "region": overrides.get("region") or cand.get("region") or "경남",
+                 "region2": overrides.get("region2") or cand.get("region2") or "",
+                 "org_type": overrides.get("org_type") or cand.get("org_type") or "기타", **sug}
+        cfg["sources"].append(entry)
+        CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        res = ingest.run(sid)
+        inserted = sum(r.get("inserted", 0) for r in res)
+        db.set_candidate_status(cand_key, "added")
+        return {"ok": True, "id": sid, "name": name, "type": sug["type"], "inserted": inserted}
+    finally:
+        db.close()
+
+
+def _looks_like_board(sug: dict) -> bool:
+    u = sug.get("board_url") or sug.get("list_url") or sug.get("url") or ""
+    return "board.php" in u or "bo_table=" in u or ".web" in u or "list" in u.lower()
+
+
 # ── 파이프라인 ────────────────────────────────────────────────────────────
 def run(regions: list[str], probe: bool = True) -> dict:
     """루트 실행 → 정규화·dedup → 판별 → candidates 저장. 요약 반환."""

@@ -140,9 +140,11 @@
       <select class="search" id="addCat" style="min-width:96px"></select>
       <button class="act" id="addBtn">+ 추가</button>
       <button class="act ghost" id="manageBtn">소스 관리</button>
+      <button class="act ghost" id="discoverBtn">🔍 기관 발굴</button>
     </div>
     <div class="addmsg" id="addMsg"></div>
     <div class="manage" id="managePanel" style="display:none"></div>
+    <div class="manage" id="discoverPanel" style="display:none"></div>
   </div>
 </header>
 
@@ -432,6 +434,54 @@ async function bulkToggle(enabled){
 $('#addBtn').onclick = addSource;
 $('#addInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addSource(); });
 $('#manageBtn').onclick = ()=>{ const p=$('#managePanel'); if(p.style.display==='none'){ loadManage(); } else { p.style.display='none'; } };
+
+// ── 기관 발굴 패널 ──
+const CRAWLABLE = ['gnuboard','html','rss','naver_blog'];
+async function loadDiscover(){
+  const p=$('#discoverPanel'); p.style.display='block'; p.innerHTML='<div class="loading">불러오는 중…</div>';
+  const d = await fetch('/api/admin/candidates?status=new').then(r=>r.json());
+  const cands = d.candidates||[];
+  const rows = cands.map(s=>{
+    const ok = CRAWLABLE.includes(s.crawl_type);
+    const badge = ok?`<span class="tag ev">${esc(s.crawl_type)}</span>`
+                    : `<span class="tag tp">${esc(s.crawl_type||'unknown')}</span>`;
+    return `<tr>
+      <td>${esc(s.name)}</td>
+      <td><span class="rgtag">${esc(s.region||s.region2||'-')}</span><span class="badge">${esc(s.org_type||'-')}</span></td>
+      <td>${badge}</td>
+      <td style="color:var(--muted);font-size:11px">${esc(s.route)}</td>
+      <td><a href="${esc(s.url)}" target="_blank" rel="noopener" style="color:var(--accent)">↗</a></td>
+      <td><button class="mini" data-reg="${esc(s.cand_key)}" data-nm="${esc(s.name)}">등록</button></td>
+      <td><button class="mini del" data-rej="${esc(s.cand_key)}">제외</button></td>
+    </tr>`;}).join('');
+  p.innerHTML = `
+    <div class="mctrl">
+      <button class="act" id="runDiscover">🔍 지금 발굴(창원·김해)</button>
+      <span class="dcount">후보 ${cands.length}곳 · 크롤가능 ${d.crawlable}곳</span>
+      <span class="addmsg" id="discMsg"></span>
+    </div>
+    <div class="loading" id="discBusy" style="display:none">발굴 중… (사이트 확인에 1~2분 걸릴 수 있어요)</div>
+    <table><tr><th>기관</th><th>지역·유형</th><th>크롤</th><th>루트</th><th>원문</th><th></th><th></th></tr>${rows}</table>`;
+  $('#runDiscover').onclick = async ()=>{
+    $('#discBusy').style.display='block'; $('#runDiscover').disabled=true;
+    try{ const r=await fetch('/api/admin/discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({regions:['창원','김해']})}).then(x=>x.json());
+      $('#discMsg').textContent=`신규 ${r.added}곳 추가(총 후보 ${r.total_new})`; }
+    catch(e){ $('#discMsg').textContent='발굴 오류'; }
+    $('#discBusy').style.display='none'; $('#runDiscover').disabled=false; loadDiscover();
+  };
+  p.querySelectorAll('[data-reg]').forEach(el=>el.onclick=async()=>{
+    el.disabled=true; el.textContent='확인…';
+    const r=await fetch('/api/admin/candidate-register',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cand_key:el.dataset.reg})}).then(x=>x.json());
+    if(r.ok){ setMsg(`✅ "${r.name}" 등록 (${r.type}) · ${r.inserted}건`, true); await loadMeta(); reset(); loadDiscover(); }
+    else { setMsg('❌ '+(r.error||'등록 실패')+` (${el.dataset.nm})`, false); el.disabled=false; el.textContent='등록'; }
+  });
+  p.querySelectorAll('[data-rej]').forEach(el=>el.onclick=async()=>{
+    await fetch('/api/admin/candidate-reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cand_key:el.dataset.rej})});
+    loadDiscover();
+  });
+}
+$('#discoverBtn').onclick = ()=>{ const p=$('#discoverPanel'); if(p.style.display==='none'){ loadDiscover(); } else { p.style.display='none'; } };
 
 loadMeta().then(()=>{ load(); initAdmin(); });
 </script>

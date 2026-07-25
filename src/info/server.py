@@ -326,6 +326,64 @@ async def admin_bulk_toggle(request: Request):
     return {"ok": True, "count": n, "enabled": enabled}
 
 
+# ── 기관 발굴 패널 API ─────────────────────────────────────────────────────
+@app.get("/api/admin/candidates")
+def admin_candidates(request: Request, status: str = "new"):
+    """발굴된 기관 후보 목록. crawl_type로 크롤 가능성 표시."""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    conn = _ro_conn()
+    try:
+        q = "SELECT * FROM candidates"
+        params = []
+        if status and status != "all":
+            q += " WHERE status=?"; params.append(status)
+        q += " ORDER BY CASE crawl_type WHEN 'gnuboard' THEN 0 WHEN 'html' THEN 1 " \
+             "WHEN 'rss' THEN 2 WHEN 'html?' THEN 3 ELSE 9 END, name"
+        rows = [dict(r) for r in conn.execute(q, params).fetchall()]
+    finally:
+        conn.close()
+    crawlable = sum(1 for r in rows if r.get("crawl_type") in ("gnuboard", "html", "rss", "naver_blog"))
+    return {"candidates": rows, "crawlable": crawlable}
+
+
+@app.post("/api/admin/candidate-register")
+async def admin_candidate_register(request: Request):
+    """후보를 게시판 자동탐색·검증 후 등록·수집. body: {cand_key, name?, region?, region2?, org_type?, category?}"""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from .discovery import register_candidate
+    body = await request.json()
+    ck = body.get("cand_key")
+    ov = {k: body[k] for k in ("name", "region", "region2", "org_type", "category") if body.get(k)}
+    res = register_candidate(ck, ov)
+    return JSONResponse(res, status_code=200 if res.get("ok") else 400)
+
+
+@app.post("/api/admin/candidate-reject")
+async def admin_candidate_reject(request: Request):
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from .db import Database
+    body = await request.json()
+    db = Database(DB_PATH)
+    db.set_candidate_status(body.get("cand_key"), "rejected")
+    db.close()
+    return {"ok": True}
+
+
+@app.post("/api/admin/discover")
+async def admin_discover(request: Request):
+    """발굴 실행(느릴 수 있음). body: {regions:[...]}"""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from .discovery import run
+    body = await request.json()
+    regions = body.get("regions") or ["창원", "김해"]
+    res = run(regions)
+    return {"ok": True, **res}
+
+
 @app.post("/api/admin/add-source")
 async def admin_add_source(request: Request):
     """블로그 ID/주소 또는 RSS 주소를 받아 소스로 등록하고 즉시 수집.
