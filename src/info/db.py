@@ -41,8 +41,26 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 
+-- 기관 발굴 후보(자동발굴 파이프라인). 등록 전 검토 단계.
+CREATE TABLE IF NOT EXISTS candidates (
+    cand_key    TEXT PRIMARY KEY,   -- 정규화 도메인/식별자
+    name        TEXT,
+    url         TEXT,
+    region      TEXT,
+    region2     TEXT,
+    org_type    TEXT,
+    route       TEXT,               -- 발굴 루트(gov_links/cleaneye/self_expand 등)
+    crawl_type  TEXT,               -- 자동판별(gnuboard/html/naver_blog/rss/browser/unknown)
+    suggest     TEXT,               -- 제안 config(JSON)
+    status      TEXT DEFAULT 'new', -- new/added/rejected
+    evidence    TEXT,
+    found_at    INTEGER,
+    updated_at  INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_posts_published ON posts (published_at);
 CREATE INDEX IF NOT EXISTS idx_posts_source    ON posts (source_id);
+CREATE INDEX IF NOT EXISTS idx_cand_status     ON candidates (status);
 """
 
 
@@ -127,3 +145,36 @@ class Database:
             "posts": c("SELECT COUNT(*) FROM posts").fetchone()[0],
             "sources": c("SELECT COUNT(DISTINCT source_id) FROM posts").fetchone()[0],
         }
+
+    # --- 기관 발굴 후보 ---------------------------------------------------------
+    def upsert_candidate(self, cand: dict) -> bool:
+        """신규 후보 삽입(있으면 무시). cand: cand_key,name,url,region,region2,
+        org_type,route,crawl_type,suggest,evidence. 반환: 신규면 True."""
+        ts = now_ms()
+        row = {"region": "", "region2": "", "org_type": "", "route": "", "crawl_type": "",
+               "suggest": "", "evidence": "", **cand}
+        cur = self.conn.execute(
+            """INSERT OR IGNORE INTO candidates
+               (cand_key, name, url, region, region2, org_type, route, crawl_type,
+                suggest, status, evidence, found_at, updated_at)
+               VALUES (:cand_key, :name, :url, :region, :region2, :org_type, :route,
+                       :crawl_type, :suggest, 'new', :evidence, :found_at, :updated_at)""",
+            {**row, "found_at": ts, "updated_at": ts},
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def set_candidate_status(self, cand_key: str, status: str):
+        self.conn.execute(
+            "UPDATE candidates SET status=?, updated_at=? WHERE cand_key=?",
+            (status, now_ms(), cand_key))
+        self.conn.commit()
+
+    def list_candidates(self, status: str | None = None) -> list:
+        if status:
+            return self.conn.execute(
+                "SELECT * FROM candidates WHERE status=? ORDER BY found_at DESC", (status,)).fetchall()
+        return self.conn.execute("SELECT * FROM candidates ORDER BY found_at DESC").fetchall()
+
+    def candidate_keys(self) -> set:
+        return {r[0] for r in self.conn.execute("SELECT cand_key FROM candidates")}
