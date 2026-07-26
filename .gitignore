@@ -33,3 +33,7 @@ Thumbs.db
 .DS_Store
 .idea/
 .vscode/
+
+# Claude 로컬 설정 / 이식 원본(ondongne로 벤더링됨)
+.claude/
+크롤러샘플/
