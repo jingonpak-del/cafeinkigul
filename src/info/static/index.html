@@ -457,7 +457,7 @@ async function loadDiscover(){
   p.innerHTML = `
     <div class="mctrl">
       <button class="act" id="runDiscover">🔍 지금 발굴(창원·김해)</button>
-      <span class="dcount">후보 ${cands.length}곳 · 크롤가능 ${d.crawlable}곳</span>
+      <span class="dcount">후보 ${cands.length}곳 · 크롤가능 ${d.crawlable}곳${d.last_discovery?' · 마지막 발굴 '+esc(d.last_discovery)+' · 매주 자동':''}</span>
       <span class="addmsg" id="discMsg"></span>
     </div>
     <div class="loading" id="discBusy" style="display:none">발굴 중… (사이트 확인에 1~2분 걸릴 수 있어요)</div>

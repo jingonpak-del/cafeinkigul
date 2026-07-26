@@ -341,10 +341,12 @@ def admin_candidates(request: Request, status: str = "new"):
         q += " ORDER BY CASE crawl_type WHEN 'gnuboard' THEN 0 WHEN 'html' THEN 1 " \
              "WHEN 'rss' THEN 2 WHEN 'html?' THEN 3 ELSE 9 END, name"
         rows = [dict(r) for r in conn.execute(q, params).fetchall()]
+        lm = conn.execute("SELECT value FROM meta WHERE key='last_discovery'").fetchone()
     finally:
         conn.close()
     crawlable = sum(1 for r in rows if r.get("crawl_type") in ("gnuboard", "html", "rss", "naver_blog"))
-    return {"candidates": rows, "crawlable": crawlable}
+    last_disc = _fmt(int(lm[0])) if lm and lm[0] else None
+    return {"candidates": rows, "crawlable": crawlable, "last_discovery": last_disc}
 
 
 @app.post("/api/admin/candidate-register")
@@ -475,6 +477,33 @@ def _ingest_loop():
         time.sleep(INGEST_INTERVAL_S)
 
 
+# ── 주간 기관 자동 발굴 (매주 1회) ─────────────────────────────────────────
+DISCOVERY_INTERVAL_S = 7 * 24 * 60 * 60      # 주 1회
+_DISCOVERY_CHECK_S = 6 * 60 * 60             # 6시간마다 경과 확인
+
+
+def _discovery_loop():
+    from .discovery import run as discover_run
+    from .db import Database
+    while True:
+        try:
+            db = Database(DB_PATH)
+            last = db.get_meta("last_discovery")
+            db.close()
+            last_ms = int(last) if last else 0
+            if int(time.time() * 1000) - last_ms >= DISCOVERY_INTERVAL_S * 1000:
+                regions = _load_config().get("discovery_regions") or ["창원", "김해"]
+                res = discover_run(regions)
+                db = Database(DB_PATH)
+                db.set_meta("last_discovery", str(int(time.time() * 1000)))
+                db.close()
+                print(f"[info] 주간 발굴 완료 — 신규 후보 {res.get('added')}곳 "
+                      f"(총 대기 {res.get('total_new')})")
+        except Exception as e:
+            print("[info] 주간 발굴 오류:", e)
+        time.sleep(_DISCOVERY_CHECK_S)
+
+
 @app.on_event("startup")
 async def _startup():
     import sys
@@ -485,6 +514,7 @@ async def _startup():
             pass
     if getattr(app.state, "ingest", True):
         threading.Thread(target=_ingest_loop, daemon=True).start()
+        threading.Thread(target=_discovery_loop, daemon=True).start()
 
 
 def main():

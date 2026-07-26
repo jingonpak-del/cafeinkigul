@@ -2246,6 +2246,18 @@
       "item_selector": "li.li1",
       "link_selector": "a.a1",
       "title_selector": ".t1"
+    },
+    {
+      "id": "gnuboard:disc_ghsenior",
+      "name": "김해시노인종합복지관",
+      "category": "지자체",
+      "enabled": true,
+      "region": "김해",
+      "region2": "",
+      "org_type": "복지",
+      "type": "gnuboard",
+      "board_url": "https://www.ghsenior.or.kr/core_board2007/board/coreboard.php?i_board=notice",
+      "max_pages": 1
     }
   ]
 }
