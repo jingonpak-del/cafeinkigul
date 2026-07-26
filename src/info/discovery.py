@@ -162,6 +162,47 @@ def _ro():
     return c
 
 
+# 클린아이(지방공공기관 통합공시) 헤더/엔드포인트
+_CE = "https://www.cleaneye.go.kr"
+_CE_HEADERS = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest",
+               "Referer": _CE + "/user/itemGongsi.do"}
+# 순수 유틸(뉴스보드 없음) 제외
+_CE_SKIP = re.compile(r"(상수도|하수도|공영개발|자동차운송|지하철|도시철도)")
+
+
+def route_cleaneye(regions: list[str]) -> list[dict]:
+    """클린아이 지방공기업 목록에서 지역 기관 + 홈페이지 추출."""
+    import httpx
+    terms = list(dict.fromkeys(list(regions) + ["경상남도", "경남"]))  # 경남 광역기관 포함
+    tre = re.compile("|".join(re.escape(t) for t in terms))
+    out = []
+    try:
+        with httpx.Client(timeout=20, headers=_CE_HEADERS, follow_redirects=True) as cl:
+            data = cl.post(_CE + "/user/selectNewItemEntList.do", data={}).json().get("data", [])
+            orgs = [(o["itemNm"], o["itemId"]) for o in data
+                    if len(o.get("itemId", "")) >= 8 and tre.search(o.get("itemNm", ""))
+                    and not _CE_SKIP.search(o.get("itemNm", ""))]
+            for name, ent in orgs:
+                try:
+                    t = cl.post(_CE + "/user/empItemContent.do", data={"entId": ent}).text
+                    hp = [u for u in re.findall(r"https?://[a-zA-Z0-9.\-/]+", t)
+                          if "cleaneye" not in u and "/user/" not in u and "go.kr/gongsi" not in u]
+                except Exception:
+                    hp = []
+                if not hp:
+                    continue
+                home = hp[0].rstrip("/")
+                r2 = next((r for r in ("창원", "마산", "진해", "김해", "함안") if r in name), "")
+                if r2 in ("마산", "진해"):
+                    r2 = "창원"
+                out.append({"domain": urlparse(home).netloc.replace("www.", ""), "url": home,
+                            "name": name, "region": "경남", "region2": r2,
+                            "route": "cleaneye", "evidence": "클린아이 " + ent})
+    except Exception:
+        pass
+    return out
+
+
 # ── 홈페이지 → 게시판 자동탐색 → 검증된 config ──────────────────────────────
 def find_board_urls(home: str) -> list[str]:
     """홈페이지에서 공지/게시판 링크 후보(동일 도메인)를 추출."""
@@ -256,7 +297,7 @@ def run(regions: list[str], probe: bool = True) -> dict:
     db = Database(DB_PATH)
     known = known_domains()
     existing = db.candidate_keys()
-    raw = route_gov_links(regions) + route_self_expand()
+    raw = route_gov_links(regions) + route_self_expand() + route_cleaneye(regions)
 
     added = 0
     by_type: dict[str, int] = {}
@@ -265,10 +306,11 @@ def run(regions: list[str], probe: bool = True) -> dict:
         if dom in known or dom in existing:
             continue
         existing.add(dom)
-        crawl_type, suggest, name = "unknown", None, dom
+        crawl_type, suggest, name = "unknown", None, r.get("name") or dom
         if probe:
             det = detect_crawl_type(r["url"])
-            crawl_type, suggest, name = det["crawl_type"], det.get("suggest"), det["name"]
+            crawl_type, suggest = det["crawl_type"], det.get("suggest")
+            name = r.get("name") or det["name"]   # 클린아이 등 실제 기관명 우선
         by_type[crawl_type] = by_type.get(crawl_type, 0) + 1
         db.upsert_candidate({
             "cand_key": dom, "name": name, "url": r["url"],
