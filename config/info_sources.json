@@ -2359,6 +2359,54 @@
       "item_selector": "a.lec_list",
       "title_selector": "p.tit",
       "summary_selector": "div.info_con"
+    },
+    {
+      "id": "browser:gasc_gimhae",
+      "type": "browser",
+      "name": "김해문화의전당 공연",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "문화체육",
+      "url": "https://gasc.ghct.or.kr/board/show02",
+      "wait_selector": ".img_list li",
+      "wait_seconds": 10,
+      "item_selector": ".img_list li",
+      "title_selector": ".txt p",
+      "date_selector": ".txt i",
+      "id_regex": "data-idx=\"(\\d+)\"",
+      "url_template": "https://gasc.ghct.or.kr/board/detail/show02/{id}"
+    },
+    {
+      "id": "html:haman_art_show",
+      "type": "html",
+      "name": "함안문화예술회관 공연",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "함안",
+      "org_type": "문화체육",
+      "list_url": "https://www.haman.go.kr/02574/02585.web",
+      "item_selector": "li",
+      "link_selector": "a[href*=\"amode=view\"]",
+      "title_selector": "a[href*=\"amode=view\"]"
+    },
+    {
+      "id": "html:gimhae_lib_program",
+      "type": "html",
+      "name": "김해도서관 문화강좌·프로그램",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "김해",
+      "org_type": "도서관",
+      "list_url": "https://lib.gimhae.go.kr/00289/00294.web",
+      "item_selector": "table tbody tr",
+      "link_selector": "a",
+      "title_selector": "td.tal",
+      "date_selector": "td:nth-of-type(3)",
+      "summary_selector": "td:nth-of-type(5)"
     }
   ]
 }

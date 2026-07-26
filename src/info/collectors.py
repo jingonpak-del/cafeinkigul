@@ -197,24 +197,33 @@ def _extract_items(html: str, base_url: str, source: dict) -> list[dict]:
             a = row.select_one(source["link_selector"])
         else:
             a = row if row.name == "a" else row.find("a")   # 항목 자체가 <a>인 경우 지원
-        if a is None:
-            continue
-        href = a.get("href") or ""
         link, post_key = None, None
-        if href and not href.startswith("javascript") and not href.startswith("#"):
-            link = _normalize_article_url(urljoin(base_url, href))
-            post_key = _html_post_key(link)
-        elif id_re:                                  # onclick 기반 상세 링크
-            m = id_re.search(a.get("onclick") or "") or id_re.search(str(row))
+        if a is None:
+            # 앵커 없는 카드(예: <li data-idx="..."> 클릭형): id_regex로 글ID 추출
+            if not id_re:
+                continue
+            m = id_re.search(str(row))
             if not m:
                 continue
             pid = m.group(1)
             post_key = f"id={pid}"
             link = url_tmpl.format(id=pid) if url_tmpl else urljoin(base_url, f"#{pid}")
         else:
-            continue
+            href = a.get("href") or ""
+            if href and not href.startswith("javascript") and not href.startswith("#"):
+                link = _normalize_article_url(urljoin(base_url, href))
+                post_key = _html_post_key(link)
+            elif id_re:                              # onclick 기반 상세 링크
+                m = id_re.search(a.get("onclick") or "") or id_re.search(str(row))
+                if not m:
+                    continue
+                pid = m.group(1)
+                post_key = f"id={pid}"
+                link = url_tmpl.format(id=pid) if url_tmpl else urljoin(base_url, f"#{pid}")
+            else:
+                continue
         title = cell(row, source["title_selector"]) if source.get("title_selector") \
-            else (a.get_text(strip=True) or (a.get("title") or "").strip())
+            else ((a.get_text(strip=True) or (a.get("title") or "").strip()) if a else "")
         if not title:
             continue
         # 날짜: date_selector 지정 시 그 셀, 없거나 못찾으면 행 전체 텍스트에서 첫 날짜
