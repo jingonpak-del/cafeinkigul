@@ -369,15 +369,26 @@ LOGIN_HTML = """<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"/>
  <form class="box" method="post" action="/login">
    <h1>📈 인기글 트래커</h1><div class="sub">팀 계정으로 로그인하세요</div>
    <div class="err">{{ERR}}</div>
+   <input type="hidden" name="next" value="{{NEXT}}"/>
    <input name="username" placeholder="아이디" autofocus autocapitalize="off" autocorrect="off" spellcheck="false"/>
    <input name="password" type="password" placeholder="비밀번호"/>
    <button type="submit">로그인</button>
  </form></body></html>"""
 
 
+def _safe_next(nxt: str) -> str:
+    """오픈 리다이렉트 방지: whitedr.com 도메인만 허용."""
+    if nxt.startswith("https://"):
+        hostpart = nxt[len("https://"):].split("/")[0]
+        if hostpart == "whitedr.com" or hostpart.endswith(".whitedr.com"):
+            return nxt
+    return "/"
+
+
 @app.get("/login", response_class=HTMLResponse)
-def login_page(err: str = ""):
-    return LOGIN_HTML.replace("{{ERR}}", "아이디 또는 비밀번호가 올바르지 않습니다." if err else "")
+def login_page(err: str = "", next: str = ""):
+    html = LOGIN_HTML.replace("{{ERR}}", "아이디 또는 비밀번호가 올바르지 않습니다." if err else "")
+    return html.replace("{{NEXT}}", _safe_next(next).replace('"', "") if next else "")
 
 
 @app.post("/login")
@@ -385,9 +396,10 @@ async def login_submit(request: Request):
     form = await request.form()
     user = (form.get("username") or "").strip()
     pw = form.get("password") or ""
+    nxt = _safe_next((form.get("next") or "").strip())
     for a in (ACCOUNTS or []):
         if secrets.compare_digest(user, a.get("user", "")) and secrets.compare_digest(pw, a.get("password", "")):
-            resp = RedirectResponse("/", status_code=303)
+            resp = RedirectResponse(nxt, status_code=303)   # 로그인 후 원래 가려던 곳(포털 등)으로
             resp.set_cookie("sess", _new_session(a), httponly=True, samesite="lax",
                             max_age=60 * 60 * 24 * 30, path="/")
             # 통합 SSO 쿠키 (.whitedr.com 공유 → checker 등 다른 앱에서 검증)
@@ -399,7 +411,8 @@ async def login_submit(request: Request):
                 resp.set_cookie("sso", tok, domain=".whitedr.com", httponly=True,
                                 samesite="lax", max_age=60 * 60 * 24 * 30, path="/")
             return resp
-    return RedirectResponse("/login?err=1", status_code=303)
+    from urllib.parse import quote
+    return RedirectResponse("/login?err=1" + (f"&next={quote(nxt, safe='')}" if nxt != "/" else ""), status_code=303)
 
 
 @app.get("/api/me")
