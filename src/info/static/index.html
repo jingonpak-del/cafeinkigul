@@ -117,12 +117,13 @@
     <div class="drow">
       <span class="dlabel">기간</span>
       <input type="date" id="dFrom" class="search"/><span class="dlabel">~</span><input type="date" id="dTo" class="search"/>
-      <button class="act" id="dGen">생성</button>
+      <button class="act" id="dGenLocal">📍 지역 일일글</button>
+      <button class="act" id="dGenNat">🇰🇷 전국 일일글</button>
       <button class="act ghost" id="dClear">삭제</button>
       <button class="act ghost" id="dCopy">복사</button>
       <span class="dcount" id="dCount"></span>
     </div>
-    <textarea id="dOut" class="dout" placeholder="지역·주제(다중 선택 가능, 안 고르면 전체)와 기간을 정하고 '생성'을 누르세요. 여러 조합으로 다양한 게시글을 만들 수 있습니다. '삭제'는 선택을 초기화합니다." readonly></textarea>
+    <textarea id="dOut" class="dout" placeholder="두 가지 일일글을 만들 수 있어요. ▸ '📍 지역 일일글' = 선택한 지역 사람들이 볼만한 지역 소식(전국글 제외). ▸ '🇰🇷 전국 일일글' = 전국 단위로 도움되는 글(정책·복지·건강·경제 등, 주제 미선택 시 자동). 중복 내용은 하나만 들어갑니다." readonly></textarea>
   </div>
   <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
@@ -308,18 +309,23 @@ $('#digestBtn').onclick = ()=>{
     if(!$('#dTo').value) $('#dTo').value = today;
   } else { p.style.display='none'; }
 };
-$('#dGen').onclick = async ()=>{
-  const b=$('#dGen'); b.disabled=true; b.textContent='생성 중…';
-  const regs=[...document.querySelectorAll('[data-dreg].on')].map(e=>e.dataset.dreg).join(',');
+async function genDigest(scope, btn){
+  const orig=btn.textContent; btn.disabled=true; btn.textContent='생성 중…';
   const tops=[...document.querySelectorAll('[data-dtop].on')].map(e=>e.dataset.dtop).join(',');
-  const qp = new URLSearchParams({regions:regs, topics:tops, date_from:$('#dFrom').value, date_to:$('#dTo').value});
+  // 지역 일일글만 지역 선택 사용. 전국은 지역 무시(전국 작성글 대상).
+  const regs = scope==='local'
+    ? [...document.querySelectorAll('[data-dreg].on')].map(e=>e.dataset.dreg).join(',') : '';
+  const qp = new URLSearchParams({scope, regions:regs, topics:tops,
+    date_from:$('#dFrom').value, date_to:$('#dTo').value});
   try{
     const d = await fetch('/api/digest?'+qp).then(r=>r.json());
     $('#dOut').value = d.markdown || '';
     $('#dCount').textContent = `${d.region} · ${d.date} · ${d.count}건`;
   }catch(e){ $('#dOut').value = '생성 실패: '+e.message; }
-  b.disabled=false; b.textContent='생성';
-};
+  btn.disabled=false; btn.textContent=orig;
+}
+$('#dGenLocal').onclick = (e)=>genDigest('local', e.currentTarget);
+$('#dGenNat').onclick = (e)=>genDigest('national', e.currentTarget);
 $('#dClear').onclick = ()=>{
   document.querySelectorAll('[data-dreg].on,[data-dtop].on').forEach(e=>e.classList.remove('on'));
   $('#dOut').value=''; $('#dCount').textContent='';

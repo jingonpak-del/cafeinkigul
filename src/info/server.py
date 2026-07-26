@@ -15,6 +15,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -187,6 +188,8 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
 _TOPIC_EMOJI = {"행사": "🎪", "이벤트": "🎁", "교육": "📚", "모집·채용": "📢",
                 "복지·건강": "💚", "문화·관광": "🎨", "정책·경제": "📈", "기타": "📌"}
 _TOPIC_ORDER = ["행사", "이벤트", "교육", "모집·채용", "복지·건강", "문화·관광", "정책·경제", "기타"]
+# 전국(national) 일일글 기본 주제: 전 국민에게 도움되는 정책·복지·건강·경제 중심
+_NATIONAL_TOPICS = ["정책·경제", "복지·건강", "교육", "모집·채용"]
 
 
 def _day_start_ms(date_str: str) -> int:
@@ -194,14 +197,42 @@ def _day_start_ms(date_str: str) -> int:
     return int(datetime(d.year, d.month, d.day).timestamp() * 1000)
 
 
+def _norm_title(t: str) -> str:
+    """중복 판정용 제목 정규화: 앞머리 대괄호 태그([공지][안내]) 제거 +
+    한글/영숫자만 남기고 소문자화. 같은 글이 여러 출처로 들어와도 하나로 본다."""
+    t = re.sub(r"^\s*(?:[\[\(【][^\]\)】]*[\]\)】]\s*)+", "", t or "")
+    return re.sub(r"[^0-9a-z가-힣]", "", t.lower())
+
+
+def _dedup_rows(rows: list[dict]) -> list[dict]:
+    """정규화 제목+지역이 같으면 첫 항목만 남긴다(중복 내용 1개만 노출).
+    지역을 키에 넣어 서로 다른 지역의 동명 글이 잘못 합쳐지는 것을 막는다."""
+    seen, out = set(), []
+    for r in rows:
+        nt = _norm_title(r.get("title") or "")
+        if not nt:
+            continue
+        key = (nt, r.get("region2") or r.get("region") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
 @app.get("/api/digest")
 def digest(region: str = "", regions: str = "", topics: str = "",
-           date: str = "", date_from: str = "", date_to: str = ""):
+           date: str = "", date_from: str = "", date_to: str = "", scope: str = ""):
     """지역·주제 다중선택 + 날짜 기간으로 신규 수집글을 주제별 마크다운 생성.
     - regions/topics: 콤마구분 다중값(비우면 전체). region/date는 하위호환.
-    - date_from~date_to: 기간(둘 다 없으면 date, 그것도 없으면 오늘)."""
+    - date_from~date_to: 기간(둘 다 없으면 date, 그것도 없으면 오늘).
+    - scope: ''(기존) | 'local'(지역: 전국글 제외, 해당 지역 소식만)
+             | 'national'(전국: 전국 작성글 중 도움되는 정책·복지·건강·경제 등).
+    중복(정규화 제목 동일)은 하나만 남긴다."""
     reg_list = [r for r in (regions or region).split(",") if r.strip()]
     topic_list = [t for t in topics.split(",") if t.strip()]
+    if scope == "national" and not topic_list:
+        topic_list = list(_NATIONAL_TOPICS)
     try:
         if date_from or date_to:
             df = date_from or date_to
@@ -224,6 +255,13 @@ def digest(region: str = "", regions: str = "", topics: str = "",
     try:
         where = ["collected_at >= ? AND collected_at < ?"]
         params = [start, end]
+        if scope == "national":
+            # 전국 단위로 작성된 글만(특정 지역 태그 없는 글)
+            where.append("(region = '전국' OR region IS NULL OR region = '') "
+                         "AND (region2 IS NULL OR region2 = '')")
+        elif scope == "local":
+            # 특정 지역 소식만(전국글 제외)
+            where.append("(region <> '전국' OR (region2 IS NOT NULL AND region2 <> ''))")
         if reg_list:
             ph = ",".join("?" * len(reg_list))
             where.append(f"(region IN ({ph}) OR region2 IN ({ph}))")
@@ -237,11 +275,17 @@ def digest(region: str = "", regions: str = "", topics: str = "",
     finally:
         conn.close()
 
+    rows = _dedup_rows(rows)      # 중복 내용은 하나만
     by_topic: dict[str, list] = {}
     for r in rows:
         by_topic.setdefault(r.get("topic") or "기타", []).append(r)
 
-    reg_label = "·".join(reg_list) if reg_list else "전국"
+    if scope == "national":
+        reg_label = "전국"
+    elif reg_list:
+        reg_label = "·".join(reg_list)
+    else:
+        reg_label = "지역" if scope == "local" else "전국"
     order = [t for t in _TOPIC_ORDER if not topic_list or t in topic_list]
     lines = [f"# [{reg_label}온동네] {date_label} 공공정보 소식", ""]
     lines.append(f"> {reg_label} 신규 소식 {len(rows)}건" if rows
