@@ -73,13 +73,14 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
 
     첫 등록: 최근 window_days 이내 글만. 이후(증분): 이미 저장된 최신 발행일보다
     새로운 글만 저장 → 과거 이력이 큰 피드(예: 1000건 RSS)를 백필하지 않음.
+    소스에 window_days가 있으면 그 값으로 창을 넓힌다(예: 전시는 수개월 진행).
     """
     latest = db.latest_published(source["id"])
     first_time = latest is None
     posts = collectors.collect(source)
     fetched = len(posts)
     if first_time:
-        posts = collectors.within_window(posts, window_days)
+        posts = collectors.within_window(posts, int(source.get("window_days", window_days)))
     else:
         posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
     region = source.get("region") or "전국"
