@@ -23,17 +23,40 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "config" / "info_sources.json"
 DB_PATH = ROOT / "data" / "info.db"
 
-# 지자체 홈(관련기관 링크 추출용). 마산·진해는 창원 구청 포함.
-GOV_SEEDS = {
-    "창원": ["https://www.changwon.go.kr/portal/main.do"],
-    "김해": ["https://www.gimhae.go.kr/gimhae.web"],
+# 지역 → 지자체 홈(관련기관 링크 추출용). 경남 18개 시·군.
+# 새 지역 확장 시 여기에 {지역명: 홈URL}만 추가하면 된다.
+REGION_GOV = {
+    "창원": "https://www.changwon.go.kr/portal/main.do",
+    "마산": "https://www.changwon.go.kr/portal/main.do",   # 창원 구
+    "진해": "https://www.changwon.go.kr/portal/main.do",   # 창원 구
+    "김해": "https://www.gimhae.go.kr/gimhae.web",
+    "함안": "https://www.haman.go.kr/",
+    "진주": "https://www.jinju.go.kr/", "양산": "https://www.yangsan.go.kr/",
+    "거제": "https://www.geoje.go.kr/", "통영": "https://www.tongyeong.go.kr/",
+    "사천": "https://www.sacheon.go.kr/", "밀양": "https://www.miryang.go.kr/",
+    "거창": "https://www.geochang.go.kr/", "창녕": "https://www.cng.go.kr/",
+    "고성": "https://www.goseong.go.kr/", "남해": "https://www.namhae.go.kr/",
+    "하동": "https://www.hadong.go.kr/", "산청": "https://www.sancheong.go.kr/",
+    "함양": "https://www.hamyang.go.kr/", "의령": "https://www.uiryeong.go.kr/",
+    "합천": "https://www.hapcheon.go.kr/",
 }
+GOV_SEEDS = REGION_GOV   # 하위호환
 
-# 기관이 아닌 유틸/포털 도메인(제외)
+# 홈에서 따라갈 기관/시설 인덱스 링크(1단계 심층) 판별
+_INDEX_KW = re.compile(
+    r"(산하기관|유관기관|출자|출연|직속기관|사업소|시설|기관|도서관|복지|청소년|문화|"
+    r"체육|보건|여성|가족|평생학습|박물관|미술관|재단)")
+
+# 기관이 아닌 유틸/포털/전국기관 도메인(제외)
 _UTIL = re.compile(
     r"(google|naver|kakao|youtube|facebook|instagram|twitter|wetax|hometax|"
     r"minwon|gov\.kr$|open\.go\.kr|epeople|1365|15774129|animal\.go\.kr|"
-    r"korean\.go\.kr|molit\.go\.kr|cleaneye|nps\.or\.kr|law\.go\.kr|data\.go\.kr)")
+    r"korean\.go\.kr|molit\.go\.kr|cleaneye|nps\.or\.kr|law\.go\.kr|data\.go\.kr|"
+    # 전국 단위 유틸/기관(지역 발굴에서 노이즈)
+    r"knto\.or\.kr|^129\.|/129\.|acrc\.go\.kr|lawmaking|cleanbudongsan|kotsa|"
+    r"0404\.go\.kr|webwatch|chari\.re\.kr|pharm114|safekorea|foodsafetykorea|"
+    r"g4c\.go\.kr|barunuse|clean\.nts|nhis\.or\.kr|kepco|korail|118\.or\.kr|"
+    r"privacy\.go\.kr|saferoad|utradehub|work\.go\.kr|alio\.go\.kr)")
 
 
 def _ondongne_reg() -> dict:
@@ -115,22 +138,49 @@ def detect_crawl_type(url: str) -> dict:
 
 
 # ── 발굴 루트 ─────────────────────────────────────────────────────────────
+def _extract_org_domains(html: str, base: str) -> set:
+    doms = set()
+    for dom in set(re.findall(r"https?://([a-zA-Z0-9.\-]+\.(?:or\.kr|go\.kr|re\.kr))", html)):
+        d = dom.replace("www.", "")
+        if _UTIL.search(dom) or base.replace("www.", "") in d:
+            continue
+        doms.add((d, "https://" + dom))
+    return doms
+
+
 def route_gov_links(regions: list[str]) -> list[dict]:
-    """지자체 홈페이지에서 관련기관(.or.kr/.go.kr) 도메인 추출."""
-    out = []
+    """지자체 홈 + 산하기관/시설 인덱스(1단계 심층)에서 관련기관 도메인 추출."""
+    from bs4 import BeautifulSoup
+    out, done_home = [], set()
     for region in regions:
-        for home in GOV_SEEDS.get(region, []):
+        home = REGION_GOV.get(region)
+        if not home or home in done_home:
+            continue
+        done_home.add(home)
+        try:
+            html = fetch_text(home)
+        except Exception:
+            continue
+        base = urlparse(home).netloc
+        # 홈에서 기관/시설 인덱스 페이지 링크(동일도메인) 수집 → 1단계 더 크롤
+        pages, soup = [home], BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a"):
+            txt, href = (a.get_text() or ""), (a.get("href") or "")
+            if href and _INDEX_KW.search(txt):
+                full = urljoin(home, href)
+                if urlparse(full).netloc == base and full not in pages:
+                    pages.append(full)
+        pages = pages[:10]
+        found = set()
+        for p in pages:
             try:
-                html = fetch_text(home)
+                h = html if p == home else fetch_text(p)
             except Exception:
                 continue
-            base = urlparse(home).netloc
-            for dom in set(re.findall(r"https?://([a-zA-Z0-9.\-]+\.(?:or\.kr|go\.kr|re\.kr))", html)):
-                d = dom.replace("www.", "")
-                if _UTIL.search(dom) or base.replace("www.", "") in d:
-                    continue
-                out.append({"domain": d, "url": "https://" + dom, "region": region,
-                            "route": "gov_links", "evidence": home})
+            found |= _extract_org_domains(h, base)
+        for d, u in found:
+            out.append({"domain": d, "url": u, "region": region,
+                        "route": "gov_links", "evidence": home})
     return out
 
 
@@ -171,33 +221,43 @@ _CE_SKIP = re.compile(r"(상수도|하수도|공영개발|자동차운송|지하
 
 
 def route_cleaneye(regions: list[str]) -> list[dict]:
-    """클린아이 지방공기업 목록에서 지역 기관 + 홈페이지 추출."""
+    """클린아이 지방공기업 + 출자·출연기관 목록에서 지역 기관 + 홈페이지 추출."""
     import httpx
     terms = list(dict.fromkeys(list(regions) + ["경상남도", "경남"]))  # 경남 광역기관 포함
     tre = re.compile("|".join(re.escape(t) for t in terms))
-    out = []
+    r2_terms = [r for r in regions if r not in ("경남", "경상남도")] or ["창원", "김해", "함안"]
+    out, seen = [], set()
     try:
         with httpx.Client(timeout=20, headers=_CE_HEADERS, follow_redirects=True) as cl:
-            data = cl.post(_CE + "/user/selectNewItemEntList.do", data={}).json().get("data", [])
-            orgs = [(o["itemNm"], o["itemId"]) for o in data
-                    if len(o.get("itemId", "")) >= 8 and tre.search(o.get("itemNm", ""))
-                    and not _CE_SKIP.search(o.get("itemNm", ""))]
-            for name, ent in orgs:
+            lists = [("공기업", "/user/selectNewItemEntList.do", "data"),
+                     ("출자출연", "/user/selectIptItemEntList.do", "data")]
+            for label, ep, key in lists:
                 try:
-                    t = cl.post(_CE + "/user/empItemContent.do", data={"entId": ent}).text
-                    hp = [u for u in re.findall(r"https?://[a-zA-Z0-9.\-/]+", t)
-                          if "cleaneye" not in u and "/user/" not in u and "go.kr/gongsi" not in u]
+                    arr = cl.post(_CE + ep, data={}).json().get(key, [])
                 except Exception:
-                    hp = []
-                if not hp:
                     continue
-                home = hp[0].rstrip("/")
-                r2 = next((r for r in ("창원", "마산", "진해", "김해", "함안") if r in name), "")
-                if r2 in ("마산", "진해"):
-                    r2 = "창원"
-                out.append({"domain": urlparse(home).netloc.replace("www.", ""), "url": home,
-                            "name": name, "region": "경남", "region2": r2,
-                            "route": "cleaneye", "evidence": "클린아이 " + ent})
+                orgs = [(o["itemNm"], o["itemId"]) for o in arr
+                        if len(str(o.get("itemId", ""))) >= 6 and tre.search(o.get("itemNm", ""))
+                        and not _CE_SKIP.search(o.get("itemNm", ""))]
+                for name, ent in orgs:
+                    try:
+                        t = cl.post(_CE + "/user/empItemContent.do", data={"entId": ent}).text
+                        hp = [u for u in re.findall(r"https?://[a-zA-Z0-9.\-/]+", t)
+                              if "cleaneye" not in u and "/user/" not in u and "go.kr/gongsi" not in u]
+                    except Exception:
+                        hp = []
+                    if not hp:
+                        continue
+                    home = hp[0].rstrip("/")
+                    dom = urlparse(home).netloc.replace("www.", "")
+                    if not dom or dom in seen:
+                        continue
+                    seen.add(dom)
+                    r2 = next((r for r in r2_terms if r in name), "")
+                    if r2 in ("마산", "진해"):
+                        r2 = "창원"
+                    out.append({"domain": dom, "url": home, "name": name, "region": "경남",
+                                "region2": r2, "route": "cleaneye", "evidence": "클린아이 " + ent})
     except Exception:
         pass
     return out
