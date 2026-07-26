@@ -253,6 +253,52 @@ def collect_html(source: dict) -> list[dict]:
     return _extract_items(fetch_text(url), url, source)
 
 
+def collect_post_html(source: dict) -> list[dict]:
+    """POST로 목록 HTML 조각을 받아 파싱 (AJAX 목록 엔드포인트용).
+
+    로그인 없이 접근 가능한 XHR 목록 API에 사용. 응답 HTML을 html 수집기와
+    동일한 선택자 규칙으로 파싱한다. 상대경로 링크 보정을 위해 base_url 지정.
+
+    config 예:
+      {"type":"post_html", "list_url":"https://.../search/list.ajax",
+       "post_data":{"type":"branch","brchCd":"0017","pageIndex":"1","pageUnit":"60"},
+       "referer":"https://.../search/list.do?...", "base_url":"https://...",
+       "item_selector":"a.lec_list", "title_selector":"p.tit",
+       "summary_selector":"div.info_con"}
+    """
+    url = source["list_url"]
+    headers = {"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"}
+    if source.get("referer"):
+        headers["Referer"] = source["referer"]
+    base = source.get("base_url") or url
+    max_pages = int(source.get("max_pages", 1))
+    page_param = source.get("page_param", "pageIndex")
+    out, seen = [], set()
+    for page in range(1, max_pages + 1):
+        data = dict(source.get("post_data", {}))
+        if max_pages > 1:
+            data[page_param] = str(page)
+        r = httpx.post(url, data=data, headers=headers, timeout=25, follow_redirects=True)
+        r.raise_for_status()
+        raw = r.content
+        text = None
+        for enc in ("utf-8", "cp949", "euc-kr"):
+            try:
+                text = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            text = raw.decode("utf-8", errors="ignore")
+        items = _extract_items(text, base, source)
+        fresh = [it for it in items if it["post_key"] not in seen]
+        if not fresh:                      # 더 이상 새 항목 없으면 종료
+            break
+        seen.update(it["post_key"] for it in fresh)
+        out.extend(fresh)
+    return out
+
+
 def _chrome_major() -> int | None:
     """설치된 Chrome 주버전 감지 (undetected-chromedriver 버전 매칭용)."""
     try:
@@ -508,6 +554,7 @@ COLLECTORS = {
     "naver_blog": collect_naver_blog,
     "rss": collect_generic_rss,
     "html": collect_html,
+    "post_html": collect_post_html,
     "browser": collect_browser,
     "gnuboard": collect_gnuboard,
     "adapter": collect_adapter,

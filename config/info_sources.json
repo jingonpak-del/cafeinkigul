@@ -2312,6 +2312,53 @@
       "view_selector": "td:nth-of-type(5)",
       "id_regex": "nttView\\('(\\d+)'\\)",
       "url_template": "https://gnse.gne.go.kr/upo/na/ntt/selectNttInfo.do?mi=5759&bbsId=1043&nttSn={id}"
+    },
+    {
+      "id": "naver_blog:changwonculture",
+      "type": "naver_blog",
+      "blog_id": "changwonculture",
+      "name": "창원문화재단(성산·3.15아트홀)",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "문화체육"
+    },
+    {
+      "id": "html:ceco_events",
+      "type": "html",
+      "name": "CECO 창원컨벤션센터 행사",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "문화체육",
+      "list_url": "https://www.ceco.co.kr/bbx/board.php?bx_table=01_01",
+      "item_selector": "div.gall_con",
+      "link_selector": "a",
+      "title_selector": "div.bo_tit",
+      "date_selector": "div.gall_ev_date",
+      "summary_selector": "div.gall_place"
+    },
+    {
+      "id": "post_html:lotte_culture_changwon",
+      "type": "post_html",
+      "name": "롯데문화센터 창원점",
+      "category": "문화센터",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "문화체육",
+      "list_url": "https://culture.lotteshopping.com/search/list.ajax",
+      "base_url": "https://culture.lotteshopping.com",
+      "referer": "https://culture.lotteshopping.com/application/search/list.do?type=branch&brchCd=0017",
+      "post_data": {
+        "type": "branch",
+        "brchCd": "0017"
+      },
+      "item_selector": "a.lec_list",
+      "title_selector": "p.tit",
+      "summary_selector": "div.info_con"
     }
   ]
 }
