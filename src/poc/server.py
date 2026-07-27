@@ -436,6 +436,12 @@ def index():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/studio", response_class=HTMLResponse)
+def studio_page(request: Request):
+    """핫딜 원고작성 스튜디오 — master 전용(페이지는 열리되 API가 막힘 → JS에서도 확인)."""
+    return (STATIC / "studio.html").read_text(encoding="utf-8")
+
+
 @app.get("/api/categories")
 def categories_list():
     """대시보드 카테고리 바용 — config의 동적 카테고리 목록."""
@@ -710,6 +716,97 @@ async def mark_used(cafe_id: int, article_id: int, request: Request):
                "used": bool(used), "used_by": group if used else None, "used_at": now if used else None}
     await hub._send_all(payload)   # 모든 접속 브라우저에 즉시 반영
     return {"ok": True, **payload}
+
+
+# ── 핫딜 원고작성 스튜디오 (master 전용, 실험용) ──────────────────────────────
+@app.get("/api/studio/candidates")
+def studio_candidates(request: Request, category: str = "", order: str = "hot", limit: int = 60):
+    """원고 후보 목록 — 기본은 반응 좋은 일반글. category로 핫딜 등 좁힘."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    return articles(type="general", order=order, category=category, limit=limit)
+
+
+@app.get("/api/studio/material/{cafe_id}/{article_id}")
+def studio_material(cafe_id: int, article_id: int, request: Request):
+    """한 글의 글감: 본문 텍스트 + 댓글 + 추출된 외부링크/이미지 URL(재크롤 없음)."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    conn = _row_conn()
+    try:
+        a = conn.execute("SELECT * FROM articles WHERE cafe_id=? AND article_id=?",
+                         (cafe_id, article_id)).fetchone()
+        if not a:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        a = dict(a)
+        comments = [dict(r) for r in conn.execute(
+            """SELECT writer_nickname, content, update_ts FROM comments
+               WHERE cafe_id=? AND article_id=? AND phase='first'
+               ORDER BY comment_id""", (cafe_id, article_id)).fetchall()]
+    finally:
+        conn.close()
+    mat = studio.extract_material(a.get("content_html"), a.get("content_text"))
+    return {
+        "cafe_id": cafe_id, "article_id": article_id,
+        "title": a.get("title"), "writer": a.get("writer_nickname"),
+        "cafe_name": _cafe_names().get(cafe_id, str(cafe_id)),
+        "board_name": a.get("menu_name") or _board_names().get((cafe_id, a.get("menu_id")), ""),
+        "write_str": _fmt(a.get("write_ts")),
+        "content_text": a.get("content_text") or "",
+        "comments": comments,
+        "links": mat["links"], "images": mat["images"],
+        "url": f"https://cafe.naver.com/ca-fe/cafes/{cafe_id}/articles/{article_id}",
+    }
+
+
+@app.post("/api/studio/unfurl")
+async def studio_unfurl(request: Request):
+    """링크 자동 해제: 리다이렉트 최종 URL·도메인·OG메타·가격·생사 판정."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    body = await request.json()
+    url = (body.get("url") or "").strip()
+    if not url.startswith("http"):
+        return JSONResponse({"error": "http(s) URL 필요"}, status_code=400)
+    return await asyncio.to_thread(studio.unfurl, url)
+
+
+@app.get("/api/studio/drafts")
+def studio_drafts(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    return {"drafts": studio.list_drafts(DB_PATH)}
+
+
+@app.get("/api/studio/drafts/{did}")
+def studio_draft_get(did: int, request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    d = studio.get_draft(DB_PATH, did)
+    return d or JSONResponse({"error": "not found"}, status_code=404)
+
+
+@app.post("/api/studio/drafts")
+async def studio_draft_save(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    body = await request.json()
+    did = studio.save_draft(DB_PATH, body)
+    return {"ok": True, "id": did}
+
+
+@app.post("/api/studio/drafts/{did}/delete")
+def studio_draft_delete(did: int, request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    studio.delete_draft(DB_PATH, did)
+    return {"ok": True}
 
 
 @app.websocket("/ws")

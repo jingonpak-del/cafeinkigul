@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>핫딜 원고작성 스튜디오</title>
+<style>
+ :root{--bg:#0f1420;--panel:#171d2b;--line:#26304a;--txt:#e6ebf5;--mut:#8a97b5;--accent:#4c8dff;--pop:#ffb020;--new:#2ec26a;--bad:#ff6b6b}
+ *{box-sizing:border-box}
+ body{margin:0;font-family:"Segoe UI","Malgun Gothic",sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+ header{display:flex;align-items:center;gap:14px;padding:11px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+ header h1{font-size:16px;margin:0} header .sp{flex:1}
+ a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+ select,input,button,textarea{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit}
+ button{cursor:pointer} button:hover{border-color:var(--accent)}
+ .btnp{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+ .btnp:hover{filter:brightness(1.08)}
+ .grid{display:grid;grid-template-columns:300px 1fr 380px;gap:12px;padding:12px;height:calc(100vh - 55px)}
+ .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+ .col .hd{padding:9px 13px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;font-weight:600;flex:0 0 auto}
+ .col .hd .sp{flex:1}
+ .col .bd{overflow:auto;padding:10px 12px;min-height:0}
+ .mut{color:var(--mut)}
+ .small{font-size:12px}
+
+ /* 후보 리스트 */
+ .cand{padding:9px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;cursor:pointer;background:#141a28}
+ .cand:hover{border-color:var(--accent)} .cand.on{border-color:var(--accent);background:#1b2740}
+ .cand .t{font-size:13px;line-height:1.35;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .cand .m{font-size:11.5px;color:var(--mut);display:flex;gap:8px;flex-wrap:wrap}
+ .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;background:#202a3f;border:1px solid var(--line)}
+ .badge.hot{color:var(--pop);border-color:var(--pop)} .badge.used{color:var(--new);border-color:var(--new)}
+
+ /* 글감(중앙) */
+ .sec{margin-bottom:14px}
+ .sec h3{font-size:12.5px;color:var(--mut);margin:0 0 7px;text-transform:uppercase;letter-spacing:.4px}
+ .body{white-space:pre-wrap;line-height:1.6;background:#141a28;border:1px solid var(--line);border-radius:8px;padding:11px 13px;max-height:230px;overflow:auto}
+ .lnk{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:7px;background:#141a28}
+ .lnk .u{font-size:12px;color:var(--accent);word-break:break-all}
+ .lnk .row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+ .lnk .res{margin-top:7px;font-size:12.5px;border-top:1px dashed var(--line);padding-top:7px;display:none}
+ .lnk .res.show{display:block}
+ .st{font-weight:700;padding:1px 8px;border-radius:10px;font-size:11.5px}
+ .st.alive{color:var(--new);border:1px solid var(--new)} .st.dead{color:var(--bad);border:1px solid var(--bad)}
+ .st.error{color:var(--mut);border:1px solid var(--line)}
+ .imgs{display:flex;gap:7px;flex-wrap:wrap}
+ .imgs img{width:76px;height:76px;object-fit:cover;border-radius:7px;border:1px solid var(--line);cursor:pointer;background:#000}
+ .cmt{padding:6px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+ .cmt .who{color:var(--accent);font-weight:600;margin-right:7px}
+ .minib{padding:3px 8px;font-size:11.5px;border-radius:6px}
+
+ /* 작업대(우) */
+ #dtitle{width:100%;margin-bottom:8px;font-size:14px}
+ #dbody{width:100%;flex:1;min-height:260px;resize:vertical;line-height:1.55;white-space:pre-wrap}
+ .toolrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+ .msg{font-size:12px;color:var(--new);min-height:16px;margin-top:6px}
+ .draftitem{display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:#141a28;font-size:12.5px}
+ .draftitem .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+ .empty{color:var(--mut);text-align:center;padding:30px 10px;font-size:13px}
+ .gate{max-width:420px;margin:80px auto;text-align:center;color:var(--mut)}
+ @media(max-width:1100px){.grid{grid-template-columns:1fr;height:auto}.col{height:auto;max-height:70vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>📝 핫딜 원고작성 스튜디오</h1>
+  <span class="badge">실험용 · master 전용</span>
+  <span class="sp"></span>
+  <a href="/">← 대시보드</a>
+</header>
+
+<div id="app" style="display:none">
+<div class="grid">
+
+  <!-- 좌: 후보 -->
+  <div class="col">
+    <div class="hd">
+      <span>후보</span><span class="sp"></span>
+      <select id="fcat" onchange="loadCands()" title="분류"></select>
+      <select id="forder" onchange="loadCands()" title="정렬">
+        <option value="hot">호응순</option>
+        <option value="surge">급상승</option>
+        <option value="latest">최신순</option>
+      </select>
+    </div>
+    <div class="bd" id="cands"><div class="empty">불러오는 중…</div></div>
+  </div>
+
+  <!-- 중앙: 글감 -->
+  <div class="col">
+    <div class="hd"><span id="mtitle">글감</span><span class="sp"></span>
+      <a id="morig" href="#" target="_blank" class="small" style="display:none">원문 열기 ↗</a></div>
+    <div class="bd" id="material"><div class="empty">왼쪽에서 후보 글을 선택하세요.</div></div>
+  </div>
+
+  <!-- 우: 작업대 -->
+  <div class="col">
+    <div class="hd"><span>원고 작업대</span><span class="sp"></span>
+      <button class="minib" onclick="newDraft()">＋새 초안</button></div>
+    <div class="bd" style="display:flex;flex-direction:column">
+      <input id="dtitle" placeholder="제목"/>
+      <div class="toolrow">
+        <button class="minib" onclick="tplHotdeal()">🧩 핫딜 템플릿</button>
+        <button class="minib" onclick="insertVerified()">✅ 확인된 링크 넣기</button>
+      </div>
+      <textarea id="dbody" placeholder="여기서 글감을 조립해 원고를 만듭니다.&#10;중앙 글감의 [넣기] 버튼으로 본문·댓글·링크를 가져올 수 있어요."></textarea>
+      <div class="toolrow" style="margin-top:8px">
+        <button class="btnp" onclick="saveDraft()">💾 저장</button>
+        <button class="minib" onclick="copyBody()">📋 복사</button>
+        <span class="msg" id="dmsg"></span>
+      </div>
+      <h3 style="font-size:12.5px;color:var(--mut);margin:14px 0 7px">저장된 초안</h3>
+      <div id="drafts"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div id="gate" class="gate" style="display:none">
+  <h2>master 전용 페이지</h2>
+  <p>이 스튜디오는 master 계정으로 로그인해야 사용할 수 있습니다.</p>
+  <p><a href="/">← 대시보드로</a></p>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+let curCafe=null, curArticle=null, curDraftId=null, curMaterial=null;
+const verified=[];   // 이번 세션에서 alive로 확인된 링크 모음
+
+function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function api(url,opt){const r=await fetch(url,opt);if(r.status===403)throw new Error("403");return r.json();}
+
+async function boot(){
+  let me;
+  try{ me=await api("/api/me"); }catch(e){ me={}; }
+  if(!me.admin){ $("#gate").style.display="block"; return; }
+  $("#app").style.display="block";
+  // 분류 셀렉트
+  const cats=await api("/api/categories");
+  const sel=$("#fcat");
+  sel.innerHTML='<option value="">전체 일반글</option>'+
+    (cats.categories||[]).map(c=>`<option>${esc(c)}</option>`).join("");
+  // 핫딜류가 있으면 기본 선택
+  const hot=(cats.categories||[]).find(c=>c.includes("핫딜"));
+  if(hot) sel.value=hot;
+  loadCands(); loadDrafts();
+}
+
+async function loadCands(){
+  const cat=encodeURIComponent($("#fcat").value), ord=$("#forder").value;
+  $("#cands").innerHTML='<div class="empty">불러오는 중…</div>';
+  let d;
+  try{ d=await api(`/api/studio/candidates?category=${cat}&order=${ord}&limit=60`); }
+  catch(e){ $("#cands").innerHTML='<div class="empty">불러오기 실패</div>'; return; }
+  const rows=d.rows||[];
+  if(!rows.length){ $("#cands").innerHTML='<div class="empty">후보 글이 없습니다.<br>정렬/분류를 바꿔보세요.</div>'; return; }
+  $("#cands").innerHTML=rows.map(r=>`
+    <div class="cand" onclick='openMaterial(${r.cafe_id},${r.article_id},this)'>
+      <div class="t">${esc(r.title)}</div>
+      <div class="m">
+        <span>${esc(r.cafe_name||"")}</span>
+        <span>·</span><span>${esc(r.board_name||"")}</span>
+        ${r.tier?`<span class="badge hot">🔥${r.tier}</span>`:""}
+        ${r.used?`<span class="badge used">사용됨</span>`:""}
+        <span>조회 ${r.read_cnt??0} · 댓글 ${r.comment_cnt??0}</span>
+      </div>
+    </div>`).join("");
+}
+
+async function openMaterial(cafe,article,el){
+  document.querySelectorAll(".cand").forEach(c=>c.classList.remove("on"));
+  if(el)el.classList.add("on");
+  curCafe=cafe; curArticle=article;
+  $("#material").innerHTML='<div class="empty">불러오는 중…</div>';
+  let m;
+  try{ m=await api(`/api/studio/material/${cafe}/${article}`); }
+  catch(e){ $("#material").innerHTML='<div class="empty">불러오기 실패</div>'; return; }
+  curMaterial=m;
+  $("#mtitle").textContent=m.title||"글감";
+  const orig=$("#morig"); orig.style.display="inline"; orig.href=m.url;
+  const linksHtml=(m.links||[]).map((l,i)=>`
+    <div class="lnk" id="lnk${i}">
+      <div class="u">${esc(l.text||l.url)}</div>
+      ${l.text?`<div class="small mut" style="word-break:break-all">${esc(l.url)}</div>`:""}
+      <div class="row">
+        <button class="minib" onclick="unfurl(${i},'${encodeURIComponent(l.url)}')">🔎 링크 해제</button>
+        <button class="minib" onclick="addText('\\n${esc(l.url)}\\n')">넣기</button>
+      </div>
+      <div class="res" id="res${i}"></div>
+    </div>`).join("") || '<div class="mut small">본문에 외부 링크 없음</div>';
+  const imgsHtml=(m.images||[]).length
+    ? `<div class="imgs">${m.images.map(u=>`<img src="${esc(u)}" title="클릭=원본" onclick="window.open('${esc(u)}')" onerror="this.style.opacity=.25">`).join("")}</div>
+       <div class="small mut" style="margin-top:5px">${m.images.length}장 (URL만 표시 · 다운로드 안 함)</div>`
+    : '<div class="mut small">이미지 없음</div>';
+  const cmtsHtml=(m.comments||[]).length
+    ? m.comments.slice(0,30).map(c=>`<div class="cmt"><span class="who">${esc(c.writer_nickname||"")}</span>${esc(c.content||"")}</div>`).join("")
+    : '<div class="mut small">댓글 없음</div>';
+  $("#material").innerHTML=`
+    <div class="small mut" style="margin-bottom:10px">${esc(m.cafe_name)} · ${esc(m.board_name)} · ${esc(m.write_str||"")}</div>
+    <div class="sec"><h3>본문</h3>
+      <div class="body">${esc(m.content_text)||'<span class=mut>본문 없음(크롤 전이거나 이미지 위주 글)</span>'}</div>
+      <div style="margin-top:6px"><button class="minib" onclick="addText(curMaterial.content_text)">본문 넣기</button></div>
+    </div>
+    <div class="sec"><h3>링크 (${(m.links||[]).length})</h3>${linksHtml}</div>
+    <div class="sec"><h3>이미지 (${(m.images||[]).length})</h3>${imgsHtml}</div>
+    <div class="sec"><h3>댓글 (${(m.comments||[]).length})</h3>${cmtsHtml}</div>`;
+}
+
+async function unfurl(i,urlEnc){
+  const url=decodeURIComponent(urlEnc);
+  const box=$("#res"+i); box.classList.add("show"); box.innerHTML='해제 중…';
+  let d;
+  try{ d=await api("/api/studio/unfurl",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})}); }
+  catch(e){ box.innerHTML='<span class="mut">실패</span>'; return; }
+  if(d.status==="error"){ box.innerHTML=`<span class="st error">오류</span> ${esc(d.error||"")}`; return; }
+  if(d.status==="alive" && !verified.some(v=>v.final_url===d.final_url)) verified.push(d);
+  box.innerHTML=`
+    <div><span class="st ${d.status}">${d.status==="alive"?"살아있음":d.status==="dead"?"품절/종료":"오류"}</span>
+      <b>${esc(d.domain||"")}</b></div>
+    ${d.title?`<div style="margin-top:4px">${esc(d.title)}</div>`:""}
+    ${d.price?`<div style="color:var(--pop);font-weight:700;margin-top:3px">${esc(d.price)}</div>`:""}
+    <div class="small mut" style="word-break:break-all;margin-top:4px">→ ${esc(d.final_url||"")}</div>
+    <div style="margin-top:6px"><button class="minib" onclick='addText("- "+${JSON.stringify((d.title||d.domain)+" "+(d.price||"")+" "+d.final_url)}+"\\n")'>원고에 넣기</button></div>`;
+}
+
+/* 작업대 */
+function addText(t){ const b=$("#dbody"); b.value=(b.value?b.value+"\n":"")+(t||""); b.focus(); }
+function insertVerified(){
+  if(!verified.length){ toast("먼저 링크를 해제(🔎)해 살아있는 링크를 확인하세요."); return; }
+  const lines=verified.map(v=>`- ${v.title||v.domain} ${v.price||""}\n  ${v.final_url}`).join("\n");
+  addText("\n[확인된 링크]\n"+lines+"\n");
+}
+function tplHotdeal(){
+  const m=curMaterial||{};
+  const t=$("#dtitle"); if(!t.value && m.title) t.value="["+(m.board_name||"핫딜")+"] "+m.title;
+  const tpl=
+`■ 상품/혜택:\n■ 가격:\n■ 쇼핑몰:\n■ 마감/조건:\n■ 링크:\n\n(요약)\n`;
+  addText(tpl);
+}
+function copyBody(){ navigator.clipboard.writeText($("#dbody").value); toast("복사됨"); }
+function newDraft(){ curDraftId=null; $("#dtitle").value=""; $("#dbody").value=""; toast("새 초안"); }
+
+async function saveDraft(){
+  const payload={ id:curDraftId, cafe_id:curCafe, article_id:curArticle,
+    title:$("#dtitle").value, body:$("#dbody").value,
+    meta:JSON.stringify({src:curArticle?curMaterial?.url:null, verified}) };
+  const d=await api("/api/studio/drafts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  curDraftId=d.id; toast("저장됨 (#"+d.id+")"); loadDrafts();
+}
+async function loadDrafts(){
+  const d=await api("/api/studio/drafts");
+  const box=$("#drafts");
+  if(!(d.drafts||[]).length){ box.innerHTML='<div class="mut small">아직 저장된 초안이 없습니다.</div>'; return; }
+  box.innerHTML=d.drafts.map(x=>`
+    <div class="draftitem">
+      <span class="t" onclick="openDraft(${x.id})">${esc(x.title||"(제목없음)")}</span>
+      <button class="minib" onclick="delDraft(${x.id})">✕</button>
+    </div>`).join("");
+}
+async function openDraft(id){
+  const d=await api("/api/studio/drafts/"+id);
+  curDraftId=d.id; $("#dtitle").value=d.title||""; $("#dbody").value=d.body||"";
+  toast("불러옴 #"+id);
+}
+async function delDraft(id){
+  if(!confirm("이 초안을 삭제할까요?"))return;
+  await api("/api/studio/drafts/"+id+"/delete",{method:"POST"});
+  if(curDraftId===id)newDraft(); loadDrafts();
+}
+function toast(t){ const m=$("#dmsg"); m.textContent=t; setTimeout(()=>{if(m.textContent===t)m.textContent="";},2500); }
+
+boot();
+</script>
+</body>
+</html>
