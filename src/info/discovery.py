@@ -351,9 +351,49 @@ def _looks_like_board(sug: dict) -> bool:
     return "board.php" in u or "bo_table=" in u or ".web" in u or "list" in u.lower()
 
 
+def auto_register(limit: int | None = None) -> dict:
+    """'new' 후보를 순회하며 게시판 자동탐색·검증(≥2건) 통과분만 config에 자동 등록.
+    사람 손 없이 수집 소스를 넓히는 배치(발굴 직후 자동 호출).
+    - 국가/유틸 도메인(_UTIL)은 지역 커뮤니티와 무관하므로 건너뜀
+    - 등록 성공 → 'added'(register_candidate가 처리)
+    - 게시판 못 찾음/검증 실패 → 'review'로 강등해 활성 큐에서 분리(사람 확인용)"""
+    db = Database(DB_PATH)
+    try:
+        cands = [dict(r) for r in db.list_candidates(status="new")]
+    finally:
+        db.close()
+    if limit:
+        cands = cands[:limit]
+    added, failed, skipped, to_review = [], [], 0, []
+    for cand in cands:
+        if _UTIL.search(cand.get("cand_key") or ""):
+            skipped += 1
+            continue
+        try:
+            res = register_candidate(cand["cand_key"])
+        except Exception as e:
+            res = {"ok": False, "error": str(e)[:80]}
+        if res.get("ok"):
+            added.append({"name": res.get("name"), "id": res.get("id"),
+                          "inserted": res.get("inserted", 0)})
+        else:
+            failed.append({"name": cand.get("name"), "error": res.get("error", "")})
+            if res.get("error") != "이미 등록됨":
+                to_review.append(cand["cand_key"])
+    if to_review:
+        db = Database(DB_PATH)
+        try:
+            for k in to_review:
+                db.set_candidate_status(k, "review")
+        finally:
+            db.close()
+    return {"added": len(added), "failed": len(failed), "skipped_util": skipped,
+            "registered": added}
+
+
 # ── 파이프라인 ────────────────────────────────────────────────────────────
-def run(regions: list[str], probe: bool = True) -> dict:
-    """루트 실행 → 정규화·dedup → 판별 → candidates 저장. 요약 반환."""
+def run(regions: list[str], probe: bool = True, auto: bool = True) -> dict:
+    """루트 실행 → 정규화·dedup → 판별 → candidates 저장 → 고신뢰 후보 자동등록."""
     db = Database(DB_PATH)
     known = known_domains()
     existing = db.candidate_keys()
@@ -380,9 +420,13 @@ def run(regions: list[str], probe: bool = True) -> dict:
             "evidence": r.get("evidence", ""),
         })
         added += 1
-    total_new = len(db.list_candidates(status="new"))
     db.close()
-    return {"scanned": len(raw), "added": added, "by_crawl_type": by_type, "total_new": total_new}
+    auto_res = auto_register() if auto else {"added": 0}   # 발굴 직후 자동 등록
+    db2 = Database(DB_PATH)
+    total_new = len(db2.list_candidates(status="new"))
+    db2.close()
+    return {"scanned": len(raw), "added": added, "by_crawl_type": by_type,
+            "total_new": total_new, "auto_register": auto_res}
 
 
 def main():

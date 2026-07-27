@@ -478,6 +478,18 @@ async def admin_discover(request: Request):
     return {"ok": True, **res}
 
 
+@app.post("/api/admin/auto-register")
+async def admin_auto_register(request: Request):
+    """적체된 'new' 후보를 게시판 자동탐색·검증 후 통과분만 일괄 등록.
+    body: {limit?} — 검증 통과(≥2건)한 후보만 등록, 나머지는 review로 분리."""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from .discovery import auto_register
+    body = await request.json()
+    res = auto_register(limit=body.get("limit"))
+    return {"ok": True, **res}
+
+
 @app.post("/api/admin/add-source")
 async def admin_add_source(request: Request):
     """블로그 ID/주소 또는 RSS 주소를 받아 소스로 등록하고 즉시 수집.
