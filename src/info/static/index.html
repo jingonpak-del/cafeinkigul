@@ -117,13 +117,15 @@
     <div class="drow">
       <span class="dlabel">기간</span>
       <input type="date" id="dFrom" class="search"/><span class="dlabel">~</span><input type="date" id="dTo" class="search"/>
-      <button class="act" id="dGenLocal">📍 지역 일일글</button>
-      <button class="act" id="dGenNat">🇰🇷 전국 일일글</button>
+      <label class="dlabel" title="이미 카페에 올린 글은 빼고 새 글만"><input type="checkbox" id="dNewOnly" checked/> 미발행분만</label>
+      <button class="act" id="dGenLocal">📍 지역 발행글</button>
+      <button class="act" id="dGenNat">🇰🇷 전국 발행글</button>
+      <button class="act" id="dPublish">📋 복사 &amp; 발행완료</button>
       <button class="act ghost" id="dClear">삭제</button>
-      <button class="act ghost" id="dCopy">복사</button>
+      <button class="act ghost" id="dCopy">복사만</button>
       <span class="dcount" id="dCount"></span>
     </div>
-    <textarea id="dOut" class="dout" placeholder="두 가지 일일글을 만들 수 있어요. ▸ '📍 지역 일일글' = 선택한 지역 사람들이 볼만한 지역 소식(전국글 제외). ▸ '🇰🇷 전국 일일글' = 전국 단위로 도움되는 글(정책·복지·건강·경제 등, 주제 미선택 시 자동). 중복 내용은 하나만 들어갑니다." readonly></textarea>
+    <textarea id="dOut" class="dout" placeholder="매일 발행 흐름: ① '📍 지역 발행글' 또는 '🇰🇷 전국 발행글'을 누르면 아직 안 올린 최근 소식이 자동으로 정리됩니다(중복 제거). ② '📋 복사 & 발행완료'를 누르면 클립보드에 복사되고 발행 기록이 남아, 카페에 붙여넣기만 하면 됩니다. 다음날 같은 글은 다시 안 나옵니다. ('미발행분만' 체크 해제 시 기간 전체를 다시 볼 수 있어요.)" readonly></textarea>
   </div>
   <div class="tabs" id="regions"></div>
   <div class="tabs" id="cats"></div>
@@ -309,30 +311,51 @@ $('#digestBtn').onclick = ()=>{
     if(!$('#dTo').value) $('#dTo').value = today;
   } else { p.style.display='none'; }
 };
+let lastDigest = null;   // {scope, keys, titles} — '발행완료' 처리용
 async function genDigest(scope, btn){
   const orig=btn.textContent; btn.disabled=true; btn.textContent='생성 중…';
   const tops=[...document.querySelectorAll('[data-dtop].on')].map(e=>e.dataset.dtop).join(',');
-  // 지역 일일글만 지역 선택 사용. 전국은 지역 무시(전국 작성글 대상).
+  // 지역 발행글만 지역 선택 사용. 전국은 지역 무시(전국 작성글 대상).
   const regs = scope==='local'
     ? [...document.querySelectorAll('[data-dreg].on')].map(e=>e.dataset.dreg).join(',') : '';
+  const newOnly = $('#dNewOnly').checked ? '1' : '';
   const qp = new URLSearchParams({scope, regions:regs, topics:tops,
-    date_from:$('#dFrom').value, date_to:$('#dTo').value});
+    date_from:$('#dFrom').value, date_to:$('#dTo').value, new_only:newOnly});
   try{
     const d = await fetch('/api/digest?'+qp).then(r=>r.json());
     $('#dOut').value = d.markdown || '';
-    $('#dCount').textContent = `${d.region} · ${d.date} · ${d.count}건`;
-  }catch(e){ $('#dOut').value = '생성 실패: '+e.message; }
+    $('#dCount').textContent = `${d.region} · ${d.date} · ${d.count}건${newOnly?' (미발행)':''}`;
+    lastDigest = {scope, keys:d.keys||[], titles:d.titles||{}};
+  }catch(e){ $('#dOut').value = '생성 실패: '+e.message; lastDigest=null; }
   btn.disabled=false; btn.textContent=orig;
 }
 $('#dGenLocal').onclick = (e)=>genDigest('local', e.currentTarget);
 $('#dGenNat').onclick = (e)=>genDigest('national', e.currentTarget);
 $('#dClear').onclick = ()=>{
   document.querySelectorAll('[data-dreg].on,[data-dtop].on').forEach(e=>e.classList.remove('on'));
-  $('#dOut').value=''; $('#dCount').textContent='';
+  $('#dOut').value=''; $('#dCount').textContent=''; lastDigest=null;
 };
 $('#dCopy').onclick = ()=>{
   const t=$('#dOut'); t.select(); document.execCommand('copy');
-  const b=$('#dCopy'); b.textContent='복사됨!'; setTimeout(()=>b.textContent='복사',1200);
+  const b=$('#dCopy'); b.textContent='복사됨!'; setTimeout(()=>b.textContent='복사만',1200);
+};
+// 복사 + 발행완료 기록(다음날부터 이 항목들은 제외) — 카페엔 붙여넣기만 하면 됨
+$('#dPublish').onclick = async (e)=>{
+  const b=e.currentTarget;
+  if(!$('#dOut').value.trim() || !lastDigest || !lastDigest.keys.length){
+    b.textContent='먼저 발행글 생성'; setTimeout(()=>b.textContent='📋 복사 & 발행완료',1500); return;
+  }
+  const t=$('#dOut'); t.select(); document.execCommand('copy');   // 클립보드 복사
+  b.disabled=true; b.textContent='발행 처리 중…';
+  try{
+    const r=await fetch('/api/digest/mark-published',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(lastDigest)}).then(r=>r.json());
+    b.textContent=`✅ 복사됨·발행완료 ${r.marked}건`;
+    $('#dCount').textContent='카페에 붙여넣기만 하면 됩니다 · '+$('#dCount').textContent;
+    lastDigest=null;   // 중복 기록 방지
+  }catch(err){ b.textContent='발행처리 실패'; }
+  setTimeout(()=>{b.textContent='📋 복사 & 발행완료'; b.disabled=false;},2500);
 };
 $('#refresh').onclick = ()=>{reset();fetch('/api/stats').then(r=>r.json()).then(refreshStat);};
 $('#q').addEventListener('input', ()=>{clearTimeout(window._t);

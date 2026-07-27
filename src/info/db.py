@@ -58,9 +58,18 @@ CREATE TABLE IF NOT EXISTS candidates (
     updated_at  INTEGER
 );
 
+-- 일일글 발행 이력. 한 번 카페에 올린 항목은 다음날 일일글에서 제외(중복 방지).
+CREATE TABLE IF NOT EXISTS published (
+    pub_key      TEXT PRIMARY KEY,   -- 정규화 제목|지역 (digest 중복키와 동일)
+    scope        TEXT,               -- 'local' | 'national'
+    title        TEXT,
+    published_at INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_posts_published ON posts (published_at);
 CREATE INDEX IF NOT EXISTS idx_posts_source    ON posts (source_id);
 CREATE INDEX IF NOT EXISTS idx_cand_status     ON candidates (status);
+CREATE INDEX IF NOT EXISTS idx_pub_at          ON published (published_at);
 """
 
 
@@ -178,3 +187,24 @@ class Database:
 
     def candidate_keys(self) -> set:
         return {r[0] for r in self.conn.execute("SELECT cand_key FROM candidates")}
+
+    # --- 일일글 발행 이력 -------------------------------------------------------
+    def published_keys(self) -> set:
+        """이미 발행한 항목 키 집합(일일글에서 제외용)."""
+        return {r[0] for r in self.conn.execute("SELECT pub_key FROM published")}
+
+    def mark_published(self, keys: list, scope: str, titles: dict | None = None):
+        """항목들을 발행 완료로 기록. keys: pub_key 목록."""
+        ts = now_ms()
+        titles = titles or {}
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO published (pub_key, scope, title, published_at) "
+            "VALUES (?,?,?,?)",
+            [(k, scope, titles.get(k, ""), ts) for k in keys])
+        self.conn.commit()
+
+    def prune_published(self, days: int = 90):
+        """오래된 발행 이력 정리(그 사이 재게시될 일 없으므로)."""
+        self.conn.execute("DELETE FROM published WHERE published_at < ?",
+                          (now_ms() - days * 86400 * 1000,))
+        self.conn.commit()

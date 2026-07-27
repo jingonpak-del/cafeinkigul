@@ -225,14 +225,26 @@ def _dedup_rows(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _pub_key(r: dict) -> str:
+    """발행 이력 키 = 중복 판정키와 동일(정규화 제목|지역)."""
+    nt = _norm_title(r.get("title") or "") or (r.get("title") or "").strip()
+    return nt + "|" + (r.get("region2") or r.get("region") or "")
+
+
+# 일일글 자동 발행 시 최근 며칠치를 훑을지(미발행분만 나오므로 넉넉히)
+PUBLISH_WINDOW_DAYS = 7
+
+
 @app.get("/api/digest")
 def digest(region: str = "", regions: str = "", topics: str = "",
-           date: str = "", date_from: str = "", date_to: str = "", scope: str = ""):
+           date: str = "", date_from: str = "", date_to: str = "", scope: str = "",
+           new_only: str = ""):
     """지역·주제 다중선택 + 날짜 기간으로 신규 수집글을 주제별 마크다운 생성.
     - regions/topics: 콤마구분 다중값(비우면 전체). region/date는 하위호환.
     - date_from~date_to: 기간(둘 다 없으면 date, 그것도 없으면 오늘).
     - scope: ''(기존) | 'local'(지역: 전국글 제외, 해당 지역 소식만)
              | 'national'(전국: 전국 작성글 중 도움되는 정책·복지·건강·경제 등).
+    - new_only: '1'이면 이미 발행한 항목 제외 + 기간 미지정 시 최근 PUBLISH_WINDOW_DAYS일.
     중복(정규화 제목 동일)은 하나만 남긴다."""
     reg_list = [r for r in (regions or region).split(",") if r.strip()]
     topic_list = [t for t in topics.split(",") if t.strip()]
@@ -250,8 +262,10 @@ def digest(region: str = "", regions: str = "", topics: str = "",
             date_label = date[:10]
         else:
             now = datetime.now()
-            start = int(datetime(now.year, now.month, now.day).timestamp() * 1000)
-            end = start + 86400 * 1000
+            today0 = int(datetime(now.year, now.month, now.day).timestamp() * 1000)
+            end = today0 + 86400 * 1000
+            # 발행 모드: 최근 N일치(미발행분만) / 일반: 오늘치
+            start = today0 - (PUBLISH_WINDOW_DAYS - 1) * 86400 * 1000 if new_only else today0
             date_label = now.strftime("%Y-%m-%d")
     except ValueError:
         return JSONResponse({"error": "날짜 형식은 YYYY-MM-DD"}, status_code=400)
@@ -281,6 +295,16 @@ def digest(region: str = "", regions: str = "", topics: str = "",
         conn.close()
 
     rows = _dedup_rows(rows)      # 중복 내용은 하나만
+    if new_only:                  # 이미 발행한 항목 제외
+        from .db import Database
+        _db = Database(DB_PATH)
+        try:
+            done = _db.published_keys()
+        finally:
+            _db.close()
+        rows = [r for r in rows if _pub_key(r) not in done]
+    keys = [_pub_key(r) for r in rows]
+    titles = {_pub_key(r): (r.get("title") or "") for r in rows}
     by_topic: dict[str, list] = {}
     for r in rows:
         by_topic.setdefault(r.get("topic") or "기타", []).append(r)
@@ -313,7 +337,26 @@ def digest(region: str = "", regions: str = "", topics: str = "",
             lines.append("")   # 항목 사이 빈 줄(가시성)
         lines.append("")
     return {"date": date_label, "region": reg_label, "count": len(rows),
-            "markdown": "\n".join(lines)}
+            "markdown": "\n".join(lines), "scope": scope,
+            "keys": keys, "titles": titles}
+
+
+@app.post("/api/digest/mark-published")
+async def digest_mark_published(request: Request):
+    """일일글을 카페에 올린 뒤 호출 → 해당 항목들을 발행 완료로 기록해
+    다음날 일일글에서 제외한다. body: {scope, keys:[...], titles:{key:title}}"""
+    body = await request.json()
+    keys = body.get("keys") or []
+    if not keys:
+        return {"ok": True, "marked": 0}
+    from .db import Database
+    db = Database(DB_PATH)
+    try:
+        db.mark_published(keys, body.get("scope", ""), body.get("titles") or {})
+        db.prune_published(90)
+    finally:
+        db.close()
+    return {"ok": True, "marked": len(keys)}
 
 
 @app.post("/api/ingest")
