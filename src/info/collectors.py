@@ -147,9 +147,9 @@ def collect_generic_rss(source: dict) -> list[dict]:
 
 # 전국문화축제표준데이터 기본 필드 매핑(공공데이터포털 표준). field_map으로 재정의 가능.
 _DATAGO_FESTIVAL_MAP = {
-    "title": "fstvlNm", "start": "festvlBgngDe", "end": "festvlEndDe",
+    "title": "fstvlNm", "start": "fstvlStartDate", "end": "fstvlEndDate",
     "place": "opar", "addr": "rdnmadr", "addr2": "lnmadr",
-    "org": "mnnstNm", "home": "homepageUrl", "content": "fstvlCn",
+    "org": "mnnstNm", "home": "homepageUrl", "content": "fstvlCo",
 }
 _DATAGO_REGION_TERMS = ("경상남도", "경남", "창원", "마산", "진해", "김해", "함안")
 
@@ -206,9 +206,18 @@ def collect_data_go_kr(source: dict) -> list[dict]:
                 return (_dt.date.today() - _dt.timedelta(days=int(m.group(1) or 0))).strftime("%Y%m%d")
         return v
     user_params = {k: _resolve(v) for k, v in (source.get("params") or {}).items()}
-    params = {"serviceKey": key, "page": "1", "perPage": str(source.get("rows", 300)),
-              "pageNo": "1", "numOfRows": str(source.get("rows", 300)), "type": "json",
-              **user_params}
+    rows = str(source.get("rows", 300))
+    # API 스타일별 페이징 파라미터가 다르다. 섞어 보내면 표준 API가 0건을 반환한다.
+    #  - odcloud(api.odcloud.kr): page / perPage
+    #  - 표준·TourAPI(api(s).data.go.kr): pageNo / numOfRows (+ type)
+    style = source.get("api_style") or ("odcloud" if "odcloud.kr" in source["api_url"] else "standard")
+    if style == "odcloud":
+        base = {"serviceKey": key, "page": "1", "perPage": rows}
+    else:
+        # 응답형식 파라미터(type/_type)는 API마다 달라 base에 넣지 않는다.
+        # (표준데이터=type, TourAPI=_type) → 각 소스 params에서 지정.
+        base = {"serviceKey": key, "pageNo": "1", "numOfRows": rows}
+    params = {**base, **user_params}
     r = httpx.get(source["api_url"], params=params, timeout=30,
                   headers={"User-Agent": UA})
     r.raise_for_status()

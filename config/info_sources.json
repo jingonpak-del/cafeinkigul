@@ -3008,7 +3008,7 @@
       "type": "data_go_kr",
       "name": "전국 문화축제(경남)",
       "category": "공공데이터",
-      "enabled": false,
+      "enabled": true,
       "region": "경남",
       "region2": "",
       "org_type": "문화체육",
@@ -3023,14 +3023,17 @@
         "진해",
         "김해",
         "함안"
-      ]
+      ],
+      "params": {
+        "type": "json"
+      }
     },
     {
       "id": "data_go_kr:tour_festival_gn",
       "type": "data_go_kr",
       "name": "경남 축제·행사(관광공사)",
       "category": "공공데이터",
-      "enabled": false,
+      "enabled": true,
       "region": "경남",
       "region2": "",
       "org_type": "문화체육",
