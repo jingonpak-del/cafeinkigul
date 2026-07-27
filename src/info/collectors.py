@@ -324,6 +324,38 @@ def _chrome_major() -> int | None:
     return None
 
 
+def _kill_proc_tree(pid: int | None) -> None:
+    """PID의 프로세스 트리를 강제 종료(Windows taskkill /T /F)."""
+    if not pid:
+        return
+    try:
+        import subprocess
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                       capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
+def _chrome_pids() -> set[int]:
+    """현재 실행 중인 chrome.exe PID 집합. 드라이버 실행 전후를 비교해
+    이번에 새로 뜬(재부모화 포함) chrome만 정리하기 위한 것."""
+    try:
+        import subprocess
+        r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH", "/FO", "CSV"],
+                           capture_output=True, timeout=10)
+        pids = set()
+        for line in r.stdout.splitlines():
+            parts = line.split(b'","')
+            if len(parts) >= 2:
+                try:
+                    pids.add(int(parts[1].strip(b'"')))
+                except ValueError:
+                    pass
+        return pids
+    except Exception:
+        return set()
+
+
 def collect_browser(source: dict) -> list[dict]:
     """헤드리스 브라우저(undetected-chromedriver)로 SPA 렌더 후 수집.
     RSS·API 없는 자바스크립트 사이트용. 창은 표시하지 않음(headless).
@@ -346,6 +378,7 @@ def collect_browser(source: dict) -> list[dict]:
                 "--window-size=1400,1000", "--disable-dev-shm-usage",
                 "--lang=ko-KR"):
         opts.add_argument(arg)
+    before = _chrome_pids()          # 실행 전 chrome 스냅샷(사용자 크롬 보존용)
     driver = uc.Chrome(options=opts, version_main=_chrome_major())
     try:
         driver.set_page_load_timeout(40)
@@ -360,10 +393,14 @@ def collect_browser(source: dict) -> list[dict]:
         _t.sleep(1.5)   # 렌더 안정화
         html = driver.page_source
     finally:
+        # uc의 quit()는 Windows에서 재부모화된 chrome.exe를 남긴다(장기 실행 서버에
+        # 누적 → 메모리 누수). quit() 후, 이번 실행으로 새로 뜬 chrome만 강제 종료.
         try:
             driver.quit()
         except Exception:
             pass
+        for pid in (_chrome_pids() - before):
+            _kill_proc_tree(pid)
     return _extract_items(html, url, source)
 
 
