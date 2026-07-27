@@ -198,10 +198,17 @@ def _day_start_ms(date_str: str) -> int:
 
 
 def _norm_title(t: str) -> str:
-    """중복 판정용 제목 정규화: 앞머리 대괄호 태그([공지][안내]) 제거 +
-    한글/영숫자만 남기고 소문자화. 같은 글이 여러 출처로 들어와도 하나로 본다."""
-    t = re.sub(r"^\s*(?:[\[\(【][^\]\)】]*[\]\)】]\s*)+", "", t or "")
-    return re.sub(r"[^0-9a-z가-힣]", "", t.lower())
+    """중복 판정용 제목 정규화. 같은 글이 여러 출처·표기로 들어와도 하나로 본다.
+    - 끝의 기간/날짜 괄호 제거: '(26. 7. 29. ~ 8. 12.)'
+    - 괄호문자 제거(내용은 유지) → 전체가 [ ]로 묶인 제목도 살린다
+    - 한글/영숫자만 남기고 소문자화(띄어쓰기·문장부호 차이 무시)
+    - 흔한 접미사(안내/알림/공고) 제거 → '모집 안내' == '모집'"""
+    t = (t or "").lower()
+    t = re.sub(r"[\(\[【][\d\s.,~\-]*[\)\]】]\s*$", "", t)   # 끝 괄호 안 날짜/기간
+    t = re.sub(r"[\[\]\(\)【】]", "", t)                     # 남은 괄호문자
+    t = re.sub(r"[^0-9a-z가-힣]", "", t)
+    t = re.sub(r"(안내문|안내|알림|공고)$", "", t)
+    return t
 
 
 def _dedup_rows(rows: list[dict]) -> list[dict]:
@@ -209,11 +216,9 @@ def _dedup_rows(rows: list[dict]) -> list[dict]:
     지역을 키에 넣어 서로 다른 지역의 동명 글이 잘못 합쳐지는 것을 막는다."""
     seen, out = set(), []
     for r in rows:
-        nt = _norm_title(r.get("title") or "")
-        if not nt:
-            continue
+        nt = _norm_title(r.get("title") or "") or (r.get("title") or "").strip()
         key = (nt, r.get("region2") or r.get("region") or "")
-        if key in seen:
+        if not nt or key in seen:
             continue
         seen.add(key)
         out.append(r)
