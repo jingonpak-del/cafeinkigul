@@ -154,6 +154,18 @@ _DATAGO_FESTIVAL_MAP = {
 _DATAGO_REGION_TERMS = ("경상남도", "경남", "창원", "마산", "진해", "김해", "함안")
 
 
+def _datago_date(s: str) -> int | None:
+    """공공데이터 날짜: 'YYYYMMDD'(구분자 없음) 우선, 아니면 일반 파서."""
+    s = (s or "").strip()
+    if re.fullmatch(r"20\d{6}", s):
+        import datetime as _dt
+        try:
+            return int(_dt.datetime(int(s[:4]), int(s[4:6]), int(s[6:8])).timestamp() * 1000)
+        except Exception:
+            return None
+    return _parse_date_ms(s)
+
+
 def collect_data_go_kr(source: dict) -> list[dict]:
     """공공데이터포털 표준 OpenAPI(행사·축제 등) 수집. serviceKey 필요.
 
@@ -169,9 +181,18 @@ def collect_data_go_kr(source: dict) -> list[dict]:
     key = source.get("service_key") or os.environ.get("DATA_GO_KR_KEY", "")
     if not key:
         raise ValueError("data_go_kr: service_key 없음(공공데이터포털 발급 필요)")
+    import datetime as _dt
+
+    def _resolve(v):   # '{today}' '{today-30d}' → YYYYMMDD (config가 낡지 않게)
+        if isinstance(v, str):
+            m = re.fullmatch(r"\{today(?:-(\d+)d)?\}", v)
+            if m:
+                return (_dt.date.today() - _dt.timedelta(days=int(m.group(1) or 0))).strftime("%Y%m%d")
+        return v
+    user_params = {k: _resolve(v) for k, v in (source.get("params") or {}).items()}
     params = {"serviceKey": key, "page": "1", "perPage": str(source.get("rows", 300)),
               "pageNo": "1", "numOfRows": str(source.get("rows", 300)), "type": "json",
-              **(source.get("params") or {})}
+              **user_params}
     r = httpx.get(source["api_url"], params=params, timeout=30,
                   headers={"User-Agent": UA})
     r.raise_for_status()
@@ -195,8 +216,8 @@ def collect_data_go_kr(source: dict) -> list[dict]:
         title = str(it.get(fm["title"]) or "").strip()
         if not title:
             continue
-        start = _parse_date_ms(str(it.get(fm["start"]) or ""))
-        end = _parse_date_ms(str(it.get(fm["end"]) or ""))
+        start = _datago_date(str(it.get(fm["start"]) or ""))
+        end = _datago_date(str(it.get(fm["end"]) or ""))
         home = str(it.get(fm["home"]) or "").strip()
         out.append({
             "source_id": source["id"],
