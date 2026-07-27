@@ -149,21 +149,31 @@ def posts(q: str = "", category: str = "", source: str = "", kind: str = "",
           limit: int = 100, offset: int = 0):
     """수집한 글 목록. 최신 발행순(발행일 없으면 수집일).
     category/source/kind/topic/region/org_type/q 필터."""
+    def _csv(s):   # 콤마 다중값 → 리스트(각 필터를 여러 개 동시 선택 가능)
+        return [x.strip() for x in str(s).split(",") if x.strip()]
+
+    def _in(col, vals):
+        return f"{col} IN ({','.join('?' * len(vals))})"
+
     conn = _ro_conn()
     try:
         where, params = [], []
-        if category:
-            where.append("category = ?"); params.append(category)
-        if source:
-            where.append("source_id = ?"); params.append(source)
-        if kind:
-            where.append("kind = ?"); params.append(kind)
-        if topic:
-            where.append("topic = ?"); params.append(topic)
-        if region:
-            where.append("(region = ? OR region2 = ?)"); params.extend([region, region])
-        if org_type:
-            where.append("org_type = ?"); params.append(org_type)
+        cats, srcs = _csv(category), _csv(source)
+        kinds, topics = _csv(kind), _csv(topic)
+        regs, orgs = _csv(region), _csv(org_type)
+        if cats:
+            where.append(_in("category", cats)); params += cats
+        if srcs:
+            where.append(_in("source_id", srcs)); params += srcs
+        if kinds:
+            where.append(_in("kind", kinds)); params += kinds
+        if topics:
+            where.append(_in("topic", topics)); params += topics
+        if regs:
+            where.append("(" + _in("region", regs) + " OR " + _in("region2", regs) + ")")
+            params += regs + regs
+        if orgs:
+            where.append(_in("org_type", orgs)); params += orgs
         if q:
             where.append("(title LIKE ? OR content_text LIKE ?)")
             params.extend([f"%{q}%", f"%{q}%"])
@@ -336,9 +346,51 @@ def digest(region: str = "", regions: str = "", topics: str = "",
             lines.append(f"- {r['title']}  \n  {src}{(' · '+loc) if loc and loc != '전국' else ''}{tail}  \n  {r['url']}")
             lines.append("")   # 항목 사이 빈 줄(가시성)
         lines.append("")
+    # 상단/하단 고정멘트(등록해두면 매 일일글에 자동 삽입)
+    from .db import Database
+    _db = Database(DB_PATH)
+    try:
+        header = (_db.get_meta("digest_header") or "").strip()
+        footer = (_db.get_meta("digest_footer") or "").strip()
+    finally:
+        _db.close()
+    body = []
+    if header:
+        body += [header, ""]
+    body += lines
+    if footer:
+        body += ["", footer]
     return {"date": date_label, "region": reg_label, "count": len(rows),
-            "markdown": "\n".join(lines), "scope": scope,
+            "markdown": "\n".join(body), "scope": scope,
             "keys": keys, "titles": titles}
+
+
+@app.get("/api/digest/notes")
+def digest_notes_get():
+    """일일글 상단/하단 고정멘트 조회."""
+    from .db import Database
+    db = Database(DB_PATH)
+    try:
+        return {"header": db.get_meta("digest_header") or "",
+                "footer": db.get_meta("digest_footer") or ""}
+    finally:
+        db.close()
+
+
+@app.post("/api/digest/notes")
+async def digest_notes_set(request: Request):
+    """일일글 상단/하단 고정멘트 저장. body: {header, footer}"""
+    if not _is_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    from .db import Database
+    db = Database(DB_PATH)
+    try:
+        db.set_meta("digest_header", body.get("header", ""))
+        db.set_meta("digest_footer", body.get("footer", ""))
+    finally:
+        db.close()
+    return {"ok": True}
 
 
 @app.post("/api/digest/mark-published")

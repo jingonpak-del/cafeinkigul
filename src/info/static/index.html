@@ -112,6 +112,11 @@
     <button class="act" id="ingest">지금 수집</button>
   </div>
   <div class="digest" id="digestPanel" style="display:none">
+    <div class="dsect"><span class="dlabel">상단멘트</span>
+      <input id="dHeader" class="search" style="flex:1" placeholder="일일글 맨 위에 항상 넣을 문구 (예: 안녕하세요! 오늘의 창원 소식입니다 😊)"/></div>
+    <div class="dsect"><span class="dlabel">하단멘트</span>
+      <input id="dFooter" class="search" style="flex:1" placeholder="일일글 맨 아래에 항상 넣을 문구 (예: 도움되셨다면 이웃추가 부탁드려요!)"/>
+      <button class="act ghost" id="dSaveNotes">멘트 저장</button></div>
     <div class="dsect"><span class="dlabel">지역</span><span id="dRegions" class="dchips"></span></div>
     <div class="dsect"><span class="dlabel">주제</span><span id="dTopics" class="dchips"></span></div>
     <div class="drow">
@@ -168,7 +173,14 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let state = {category:"", source:"", topic:"", region:"", org_type:"", q:"", offset:0, limit:100, done:false};
+let state = {category:[], source:[], topic:[], region:[], org_type:[], q:"", offset:0, limit:100, done:false};
+// 필터 다중선택 토글: 값 클릭 시 추가/해제, '전체'(빈값) 클릭 시 초기화
+function toggleFilter(key, val){
+  if(!val){ state[key] = []; }
+  else { const i = state[key].indexOf(val); if(i>=0) state[key].splice(i,1); else state[key].push(val); }
+  reset(); loadMeta();
+}
+const isOn = (key, val)=> val ? state[key].includes(val) : state[key].length===0;
 let REGIONS = [], TOPICS = [];
 
 function esc(s){return (s||"").replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -178,44 +190,44 @@ async function loadMeta(){
     fetch('/api/sources').then(r=>r.json()),
     fetch('/api/stats').then(r=>r.json())
   ]);
-  // 카테고리 칩
+  // 카테고리 칩 (다중선택)
   CATS = srcRes.categories || [];
   const cats = ['전체', ...(srcRes.categories||[])];
   $('#cats').innerHTML = cats.map(c=>{
     const val = c==='전체'?'':c;
-    return `<span class="chip ${state.category===val?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
+    return `<span class="chip ${isOn('category',val)?'on':''}" data-cat="${esc(val)}">${esc(c)}</span>`;
   }).join('');
   REGIONS = srcRes.regions||[]; TOPICS = srcRes.topics||[];
   // 기관유형 칩
   const orgts = ['전체 유형', ...(srcRes.org_types||[])];
   $('#orgtypes').innerHTML = orgts.map(o=>{
     const val = o==='전체 유형'?'':o;
-    return `<span class="chip ot ${state.org_type===val?'on':''}" data-org="${esc(val)}">${esc(o)}</span>`;
+    return `<span class="chip ot ${isOn('org_type',val)?'on':''}" data-org="${esc(val)}">${esc(o)}</span>`;
   }).join('');
-  document.querySelectorAll('[data-org]').forEach(el=>el.onclick=()=>{state.org_type=el.dataset.org;reset();loadMeta();});
+  document.querySelectorAll('[data-org]').forEach(el=>el.onclick=()=>toggleFilter('org_type',el.dataset.org));
   // 지역 칩
   const regions = ['전체 지역', ...(srcRes.regions||[])];
   $('#regions').innerHTML = regions.map(rg=>{
     const val = rg==='전체 지역'?'':rg;
-    return `<span class="chip rg ${state.region===val?'on':''}" data-region="${esc(val)}">${esc(rg)}</span>`;
+    return `<span class="chip rg ${isOn('region',val)?'on':''}" data-region="${esc(val)}">${esc(rg)}</span>`;
   }).join('');
-  document.querySelectorAll('[data-region]').forEach(el=>el.onclick=()=>{state.region=el.dataset.region;reset();loadMeta();});
+  document.querySelectorAll('[data-region]').forEach(el=>el.onclick=()=>toggleFilter('region',el.dataset.region));
   // 주제 칩
   const topics = ['전체 주제', ...(srcRes.topics||[])];
   $('#topics').innerHTML = topics.map(t=>{
     const val = t==='전체 주제'?'':t;
-    return `<span class="chip tpc ${state.topic===val?'on':''}" data-topic="${esc(val)}">${esc(t)}</span>`;
+    return `<span class="chip tpc ${isOn('topic',val)?'on':''}" data-topic="${esc(val)}">${esc(t)}</span>`;
   }).join('');
-  document.querySelectorAll('[data-topic]').forEach(el=>el.onclick=()=>{state.topic=el.dataset.topic;reset();loadMeta();});
-  // 소스 칩(접이식)
+  document.querySelectorAll('[data-topic]').forEach(el=>el.onclick=()=>toggleFilter('topic',el.dataset.topic));
+  // 소스 칩(접이식, 다중선택)
   const srcs = srcRes.sources||[];
-  $('#srcs').innerHTML = '<span class="chip '+(state.source===''?'on':'')+'" data-src="">전체 출처</span>' +
-    srcs.map(s=>`<span class="chip ${state.source===s.id?'on':''}" data-src="${esc(s.id)}">${esc(s.name)}</span>`).join('');
-  document.querySelectorAll('[data-cat]').forEach(el=>el.onclick=()=>{state.category=el.dataset.cat;reset();loadMeta();});
-  document.querySelectorAll('[data-src]').forEach(el=>el.onclick=()=>{state.source=el.dataset.src;reset();loadMeta();});
-  // 접이식 토글 라벨: 선택된 출처가 있으면 표시
-  const selName = state.source ? (srcs.find(s=>s.id===state.source)||{}).name : '';
-  $('#srcToggle').textContent = (srcsOpen?'▾':'▸') + ` 출처 선택 (${srcs.length})` + (selName?` · ${selName}`:'');
+  $('#srcs').innerHTML = '<span class="chip '+(isOn('source','')?'on':'')+'" data-src="">전체 출처</span>' +
+    srcs.map(s=>`<span class="chip ${isOn('source',s.id)?'on':''}" data-src="${esc(s.id)}">${esc(s.name)}</span>`).join('');
+  document.querySelectorAll('[data-cat]').forEach(el=>el.onclick=()=>toggleFilter('category',el.dataset.cat));
+  document.querySelectorAll('[data-src]').forEach(el=>el.onclick=()=>toggleFilter('source',el.dataset.src));
+  // 접이식 토글 라벨: 선택된 출처 개수 표시
+  const nSel = state.source.length;
+  $('#srcToggle').textContent = (srcsOpen?'▾':'▸') + ` 출처 선택 (${srcs.length})` + (nSel?` · ${nSel}개 선택`:'');
   $('#srcs').style.display = srcsOpen ? 'flex' : 'none';
   $('#srcSearch').style.display = srcsOpen ? 'inline-block' : 'none';
   applySrcFilter();
@@ -246,8 +258,9 @@ function reset(){ state.offset=0; state.done=false; $('#rows').innerHTML=''; loa
 
 async function load(){
   $('#loading').style.display='block'; $('#more').style.display='none';
-  const p = new URLSearchParams({q:state.q, category:state.category, source:state.source,
-    topic:state.topic, region:state.region, org_type:state.org_type, limit:state.limit, offset:state.offset});
+  const p = new URLSearchParams({q:state.q, category:state.category.join(','),
+    source:state.source.join(','), topic:state.topic.join(','), region:state.region.join(','),
+    org_type:state.org_type.join(','), limit:state.limit, offset:state.offset});
   const data = await fetch('/api/posts?'+p).then(r=>r.json());
   $('#loading').style.display='none';
   const tb = $('#rows');
@@ -298,18 +311,32 @@ function buildDigestChips(){
   $('#dTopics').innerHTML = TOPICS.map(t=>`<span class="dchip" data-dtop="${esc(t)}">${esc(t)}</span>`).join('');
   document.querySelectorAll('[data-dreg],[data-dtop]').forEach(el=>el.onclick=()=>el.classList.toggle('on'));
   // 메인에서 지역을 고른 상태면 그 지역을 기본 선택
-  if(state.region){ const m=$(`[data-dreg="${CSS.escape(state.region)}"]`); if(m) m.classList.add('on'); }
+  state.region.forEach(rv=>{ const m=$(`[data-dreg="${CSS.escape(rv)}"]`); if(m) m.classList.add('on'); });
   digestReady = true;
 }
 $('#digestBtn').onclick = ()=>{
   const p=$('#digestPanel');
   if(p.style.display==='none'){
     p.style.display='block';
-    if(!digestReady) buildDigestChips();
+    if(!digestReady){ buildDigestChips(); loadNotes(); }
     const today = new Date().toISOString().slice(0,10);
     if(!$('#dFrom').value) $('#dFrom').value = today;
     if(!$('#dTo').value) $('#dTo').value = today;
   } else { p.style.display='none'; }
+};
+// 상단/하단 고정멘트 로드·저장(서버 meta에 영구 저장 → 모든 일일글에 자동 삽입)
+async function loadNotes(){
+  try{ const n=await fetch('/api/digest/notes').then(r=>r.json());
+    $('#dHeader').value=n.header||''; $('#dFooter').value=n.footer||''; }catch(e){}
+}
+$('#dSaveNotes').onclick = async (e)=>{
+  const b=e.currentTarget; b.disabled=true; const o=b.textContent; b.textContent='저장 중…';
+  try{
+    const r=await fetch('/api/digest/notes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({header:$('#dHeader').value, footer:$('#dFooter').value})}).then(r=>r.json());
+    b.textContent = r.ok ? '저장됨!' : '권한 필요';
+  }catch(err){ b.textContent='저장 실패'; }
+  setTimeout(()=>{b.textContent=o; b.disabled=false;},1400);
 };
 let lastDigest = null;   // {scope, keys, titles} — '발행완료' 처리용
 async function genDigest(scope, btn){
