@@ -205,9 +205,13 @@ def collect_data_go_kr(source: dict) -> list[dict]:
         items = items.get("item", [])
     fm = {**_DATAGO_FESTIVAL_MAP, **(source.get("field_map") or {})}
     terms = source.get("region_filter", list(_DATAGO_REGION_TERMS))
+    keep_where = source.get("keep_where") or {}   # {필드: [허용값,...]} 화이트리스트
     out = []
     for it in items:
         if not isinstance(it, dict):
+            continue
+        if keep_where and not all(
+                str(it.get(f, "")) in vals for f, vals in keep_where.items()):
             continue
         addr = (str(it.get(fm["addr"]) or "") + " " + str(it.get(fm["addr2"]) or "")
                 + " " + str(it.get(fm["place"]) or ""))
