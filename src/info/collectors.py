@@ -59,7 +59,17 @@ def _to_ms(pubdate: str) -> int | None:
     try:
         return int(parsedate_to_datetime(pubdate).timestamp() * 1000)
     except Exception:
-        return None
+        pass
+    # 비표준 형식(국내 언론 RSS 다수): '2026-07-27 11:50:03' '2026.07.27' 등
+    import datetime as _dt
+    s = pubdate.strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
+                "%Y.%m.%d %H:%M:%S", "%Y.%m.%d", "%Y/%m/%d %H:%M:%S", "%Y/%m/%d"):
+        try:
+            return int(_dt.datetime.strptime(s, fmt).timestamp() * 1000)
+        except Exception:
+            continue
+    return _parse_date_ms(s)   # 최후: 문자열에서 날짜 패턴 추출
 
 
 def _txt(el, tag: str) -> str:
@@ -103,10 +113,19 @@ def collect_rss(source: dict, feed_url: str, name: str) -> list[dict]:
 
 
 def _clean_url(link: str) -> str:
-    """RSS 링크의 추적 파라미터 제거."""
+    """RSS 링크의 추적 파라미터만 제거(기사 id 등 의미있는 쿼리는 보존).
+    국내 언론은 ?idxno=, ?articleId= 같은 쿼리에 기사 식별자를 두므로
+    쿼리 전체를 잘라내면 모든 기사가 같은 URL이 되는 문제가 있었다."""
     if not link:
         return link
-    return re.split(r"[?#]", link)[0]
+    from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+    try:
+        p = urlsplit(link)
+        q = [(k, v) for k, v in parse_qsl(p.query)
+             if not re.match(r"(utm_|fbclid|gclid|spm|ref$)", k, re.I)]
+        return urlunsplit((p.scheme, p.netloc, p.path, urlencode(q), ""))
+    except Exception:
+        return re.split(r"[#]", link)[0]
 
 
 def _post_key_from_link(link: str) -> str | None:
@@ -124,6 +143,79 @@ def collect_naver_blog(source: dict) -> list[dict]:
 
 def collect_generic_rss(source: dict) -> list[dict]:
     return collect_rss(source, source["url"], source.get("name", ""))
+
+
+# 전국문화축제표준데이터 기본 필드 매핑(공공데이터포털 표준). field_map으로 재정의 가능.
+_DATAGO_FESTIVAL_MAP = {
+    "title": "fstvlNm", "start": "festvlBgngDe", "end": "festvlEndDe",
+    "place": "opar", "addr": "rdnmadr", "addr2": "lnmadr",
+    "org": "mnnstNm", "home": "homepageUrl", "content": "fstvlCn",
+}
+_DATAGO_REGION_TERMS = ("경상남도", "경남", "창원", "마산", "진해", "김해", "함안")
+
+
+def collect_data_go_kr(source: dict) -> list[dict]:
+    """공공데이터포털 표준 OpenAPI(행사·축제 등) 수집. serviceKey 필요.
+
+    config 예:
+      {"type":"data_go_kr", "name":"전국 문화축제(경남)",
+       "api_url":"https://api.odcloud.kr/api/...",  # 또는 apis.data.go.kr/...
+       "service_key":"<발급키>", "rows":300,
+       "region_filter":["경남","창원",...],   # 주소에 이 단어 포함분만(비우면 전체)
+       "field_map":{...}}                       # 표준별 필드명 재정의
+    """
+    import os
+    from urllib.parse import urljoin
+    key = source.get("service_key") or os.environ.get("DATA_GO_KR_KEY", "")
+    if not key:
+        raise ValueError("data_go_kr: service_key 없음(공공데이터포털 발급 필요)")
+    params = {"serviceKey": key, "page": "1", "perPage": str(source.get("rows", 300)),
+              "pageNo": "1", "numOfRows": str(source.get("rows", 300)), "type": "json",
+              **(source.get("params") or {})}
+    r = httpx.get(source["api_url"], params=params, timeout=30,
+                  headers={"User-Agent": UA})
+    r.raise_for_status()
+    data = r.json()
+    # 응답 구조 편차 대응: odcloud(data[]) / 표준(response.body.items[])
+    items = (data.get("data")
+             or data.get("response", {}).get("body", {}).get("items")
+             or [])
+    if isinstance(items, dict):
+        items = items.get("item", [])
+    fm = {**_DATAGO_FESTIVAL_MAP, **(source.get("field_map") or {})}
+    terms = source.get("region_filter", list(_DATAGO_REGION_TERMS))
+    out = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        addr = (str(it.get(fm["addr"]) or "") + " " + str(it.get(fm["addr2"]) or "")
+                + " " + str(it.get(fm["place"]) or ""))
+        if terms and not any(t in addr for t in terms):
+            continue
+        title = str(it.get(fm["title"]) or "").strip()
+        if not title:
+            continue
+        start = _parse_date_ms(str(it.get(fm["start"]) or ""))
+        end = _parse_date_ms(str(it.get(fm["end"]) or ""))
+        home = str(it.get(fm["home"]) or "").strip()
+        out.append({
+            "source_id": source["id"],
+            "post_key": (title + "|" + (str(it.get(fm["start"]) or "")))[:200],
+            "source_name": source.get("name", "공공데이터"),
+            "source_type": "data_go_kr",
+            "category": source.get("category", "공공데이터"),
+            "title": title,
+            "author": str(it.get(fm["org"]) or "") or None,
+            "url": home or source.get("api_url"),
+            "published_at": start,
+            "view_count": None,
+            "content_text": str(it.get(fm["content"]) or it.get(fm["place"]) or "")[:2000],
+            "kind": "event",
+            "event_start_at": start,
+            "event_end_at": end,
+            "location": str(it.get(fm["place"]) or it.get(fm["addr"]) or "") or None,
+        })
+    return out
 
 
 _DATE_RE = re.compile(r"(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})")
@@ -590,6 +682,7 @@ COLLECTORS = {
     "rss": collect_generic_rss,
     "html": collect_html,
     "post_html": collect_post_html,
+    "data_go_kr": collect_data_go_kr,
     "browser": collect_browser,
     "gnuboard": collect_gnuboard,
     "adapter": collect_adapter,

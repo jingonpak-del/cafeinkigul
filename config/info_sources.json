@@ -2969,6 +2969,39 @@
       "item_selector": "li.li1",
       "link_selector": "a.a1",
       "title_selector": ".t1"
+    },
+    {
+      "id": "rss:idomin",
+      "type": "rss",
+      "name": "경남도민일보",
+      "url": "http://www.idomin.com/rss/allArticle.xml",
+      "category": "지역언론",
+      "enabled": true,
+      "region": "경남",
+      "region2": "",
+      "org_type": "언론"
+    },
+    {
+      "id": "rss:gnnews",
+      "type": "rss",
+      "name": "경남일보",
+      "url": "https://www.gnnews.co.kr/rss/allArticle.xml",
+      "category": "지역언론",
+      "enabled": true,
+      "region": "경남",
+      "region2": "",
+      "org_type": "언론"
+    },
+    {
+      "id": "rss:gndomin",
+      "type": "rss",
+      "name": "경남도민신문",
+      "url": "http://www.gndomin.com/rss/allArticle.xml",
+      "category": "지역언론",
+      "enabled": true,
+      "region": "경남",
+      "region2": "",
+      "org_type": "언론"
     }
   ]
 }
