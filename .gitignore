@@ -8,6 +8,8 @@ data/
 config/dashboard_auth.json
 # SSO 공유 시크릿 (대시보드 ↔ 다른 앱 통합 로그인)
 config/sso_secret.txt
+# 공공데이터포털 등 외부 API 키
+config/secrets.json
 
 # 구글 서비스계정 / 인증
 credentials.json

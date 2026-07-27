@@ -3012,7 +3012,7 @@
       "region": "경남",
       "region2": "",
       "org_type": "문화체육",
-      "api_url": "https://api.odcloud.kr/api/15013104/v1/uddi:PLACEHOLDER",
+      "api_url": "https://api.data.go.kr/openapi/tn_pubr_public_cltur_fstvl_api",
       "service_key": "",
       "rows": 300,
       "region_filter": [
@@ -3024,6 +3024,69 @@
         "김해",
         "함안"
       ]
+    },
+    {
+      "id": "data_go_kr:tour_festival_gn",
+      "type": "data_go_kr",
+      "name": "경남 축제·행사(관광공사)",
+      "category": "공공데이터",
+      "enabled": false,
+      "region": "경남",
+      "region2": "",
+      "org_type": "문화체육",
+      "api_url": "http://apis.data.go.kr/B551011/KorService2/searchFestival2",
+      "service_key": "",
+      "rows": 100,
+      "region_filter": [],
+      "params": {
+        "MobileOS": "ETC",
+        "MobileApp": "infowhitedr",
+        "_type": "json",
+        "areaCode": "36",
+        "arrange": "A",
+        "eventStartDate": "{today-30d}"
+      },
+      "field_map": {
+        "title": "title",
+        "start": "eventstartdate",
+        "end": "eventenddate",
+        "place": "addr1",
+        "addr": "addr1",
+        "addr2": "addr2",
+        "org": "tel",
+        "home": "__none__",
+        "content": "addr1"
+      }
+    },
+    {
+      "id": "data_go_kr:bojo24_central",
+      "type": "data_go_kr",
+      "name": "정부 지원금(보조금24)",
+      "category": "공공데이터",
+      "enabled": true,
+      "region": "전국",
+      "region2": "",
+      "org_type": "행정",
+      "api_url": "https://api.odcloud.kr/api/gov24/v3/serviceList",
+      "service_key": "",
+      "rows": 100,
+      "region_filter": [],
+      "keep_where": {
+        "소관기관유형": [
+          "중앙행정기관"
+        ]
+      },
+      "field_map": {
+        "title": "서비스명",
+        "content": "지원내용",
+        "home": "상세조회URL",
+        "org": "소관기관명",
+        "start": "__none__",
+        "end": "__none__",
+        "place": "__none__",
+        "addr": "소관기관명",
+        "addr2": "__none__"
+      }
     }
   ]
 }

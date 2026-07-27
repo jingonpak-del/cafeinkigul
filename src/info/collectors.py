@@ -154,6 +154,24 @@ _DATAGO_FESTIVAL_MAP = {
 _DATAGO_REGION_TERMS = ("경상남도", "경남", "창원", "마산", "진해", "김해", "함안")
 
 
+def _load_secret(name: str) -> str:
+    """비밀값 로드: 환경변수 → config/secrets.json(깃 제외). API 키를 코드/설정에
+    커밋하지 않기 위한 것(원격 저장소 노출 방지)."""
+    import os
+    v = os.environ.get(name)
+    if v:
+        return v
+    try:
+        import json
+        from pathlib import Path
+        p = Path(__file__).resolve().parents[2] / "config" / "secrets.json"
+        if p.exists():
+            return (json.loads(p.read_text(encoding="utf-8")) or {}).get(name, "")
+    except Exception:
+        pass
+    return ""
+
+
 def _datago_date(s: str) -> int | None:
     """공공데이터 날짜: 'YYYYMMDD'(구분자 없음) 우선, 아니면 일반 파서."""
     s = (s or "").strip()
@@ -176,11 +194,9 @@ def collect_data_go_kr(source: dict) -> list[dict]:
        "region_filter":["경남","창원",...],   # 주소에 이 단어 포함분만(비우면 전체)
        "field_map":{...}}                       # 표준별 필드명 재정의
     """
-    import os
-    from urllib.parse import urljoin
-    key = source.get("service_key") or os.environ.get("DATA_GO_KR_KEY", "")
+    key = source.get("service_key") or _load_secret("DATA_GO_KR_KEY")
     if not key:
-        raise ValueError("data_go_kr: service_key 없음(공공데이터포털 발급 필요)")
+        raise ValueError("data_go_kr: 서비스키 없음(config/secrets.json 또는 발급 필요)")
     import datetime as _dt
 
     def _resolve(v):   # '{today}' '{today-30d}' → YYYYMMDD (config가 낡지 않게)
