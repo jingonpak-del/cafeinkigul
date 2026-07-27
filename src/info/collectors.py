@@ -324,36 +324,25 @@ def _chrome_major() -> int | None:
     return None
 
 
-def _kill_proc_tree(pid: int | None) -> None:
-    """PID의 프로세스 트리를 강제 종료(Windows taskkill /T /F)."""
-    if not pid:
+def _kill_chrome_by_profile(profile_dir: str | None) -> None:
+    """지정한 user-data-dir(우리 헤드리스 인스턴스 전용 임시 프로필)을 쓰는
+    chrome.exe만 종료한다. 사용자가 쓰는 일반 크롬(기본 프로필)은 절대 건드리지
+    않는다 — undetected-chromedriver는 인스턴스마다 tempfile.mkdtemp()로 만든
+    고유 프로필 경로를 커맨드라인(--user-data-dir=...)에 넣기 때문에 이 경로로
+    정확히 우리 것만 골라낼 수 있다."""
+    if not profile_dir:
         return
+    import os
+    import subprocess
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+          "Where-Object { $_.CommandLine -like $env:UC_PROFILE_GLOB } | "
+          "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
     try:
-        import subprocess
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                       capture_output=True, timeout=10)
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                       capture_output=True, timeout=20,
+                       env={**os.environ, "UC_PROFILE_GLOB": "*" + profile_dir + "*"})
     except Exception:
         pass
-
-
-def _chrome_pids() -> set[int]:
-    """현재 실행 중인 chrome.exe PID 집합. 드라이버 실행 전후를 비교해
-    이번에 새로 뜬(재부모화 포함) chrome만 정리하기 위한 것."""
-    try:
-        import subprocess
-        r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/NH", "/FO", "CSV"],
-                           capture_output=True, timeout=10)
-        pids = set()
-        for line in r.stdout.splitlines():
-            parts = line.split(b'","')
-            if len(parts) >= 2:
-                try:
-                    pids.add(int(parts[1].strip(b'"')))
-                except ValueError:
-                    pass
-        return pids
-    except Exception:
-        return set()
 
 
 def collect_browser(source: dict) -> list[dict]:
@@ -378,8 +367,8 @@ def collect_browser(source: dict) -> list[dict]:
                 "--window-size=1400,1000", "--disable-dev-shm-usage",
                 "--lang=ko-KR"):
         opts.add_argument(arg)
-    before = _chrome_pids()          # 실행 전 chrome 스냅샷(사용자 크롬 보존용)
     driver = uc.Chrome(options=opts, version_main=_chrome_major())
+    profile = getattr(driver, "user_data_dir", None)   # 이 인스턴스 전용 고유 프로필
     try:
         driver.set_page_load_timeout(40)
         driver.get(url)
@@ -394,13 +383,13 @@ def collect_browser(source: dict) -> list[dict]:
         html = driver.page_source
     finally:
         # uc의 quit()는 Windows에서 재부모화된 chrome.exe를 남긴다(장기 실행 서버에
-        # 누적 → 메모리 누수). quit() 후, 이번 실행으로 새로 뜬 chrome만 강제 종료.
+        # 누적 → 메모리 누수). quit() 후, 이 인스턴스 고유 프로필을 쓰는 chrome만
+        # 정리한다 → 사용자가 쓰는 일반 크롬은 절대 건드리지 않는다.
         try:
             driver.quit()
         except Exception:
             pass
-        for pid in (_chrome_pids() - before):
-            _kill_proc_tree(pid)
+        _kill_chrome_by_profile(profile)
     return _extract_items(html, url, source)
 
 
