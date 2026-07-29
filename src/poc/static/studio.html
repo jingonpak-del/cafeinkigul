@@ -57,6 +57,26 @@
  .draftitem{display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:#141a28;font-size:12.5px}
  .draftitem .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
  .empty{color:var(--mut);text-align:center;padding:30px 10px;font-size:13px}
+ /* AI 생성 박스 */
+ .genbox{border:1px solid var(--pop);border-radius:10px;padding:10px;margin-bottom:10px;background:#1a1710}
+ .genrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+ .genrow select{flex:1;min-width:120px}
+ #extra{width:100%;resize:vertical;min-height:40px}
+ .basket{margin:8px 0;min-height:22px;display:flex;flex-direction:column;gap:5px}
+ .bchip{display:flex;gap:6px;align-items:center;background:#202a3f;border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px}
+ .bchip .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .bchip .rm{cursor:pointer;color:var(--bad);font-weight:700}
+ .basket .none{color:var(--mut);font-size:12px}
+ #genbtn:disabled{opacity:.55;cursor:default}
+ .spin{display:inline-block;width:13px;height:13px;border:2px solid #fff5;border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+ @keyframes sp{to{transform:rotate(360deg)}}
+ /* 페르소나 관리 모달 */
+ .modal{position:fixed;inset:0;background:#000a;z-index:300;display:none;align-items:center;justify-content:center}
+ .modal.show{display:flex}
+ .modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(460px,92vw);padding:18px}
+ .modal h3{margin:0 0 12px} .modal label{font-size:12px;color:var(--mut);display:block;margin:8px 0 4px}
+ .modal input,.modal textarea{width:100%} .modal textarea{min-height:90px;resize:vertical}
+ .modal .row{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
  .gate{max-width:420px;margin:80px auto;text-align:center;color:var(--mut)}
  @media(max-width:1100px){.grid{grid-template-columns:1fr;height:auto}.col{height:auto;max-height:70vh}}
 </style>
@@ -98,12 +118,29 @@
     <div class="hd"><span>원고 작업대</span><span class="sp"></span>
       <button class="minib" onclick="newDraft()">＋새 초안</button></div>
     <div class="bd" style="display:flex;flex-direction:column">
+      <!-- AI 재작성(구독) -->
+      <div class="genbox">
+        <div class="genrow">
+          <span style="font-weight:600">✨ AI 재작성</span>
+          <select id="persona" title="말투/페르소나"></select>
+          <button class="minib" onclick="managePersona()">관리</button>
+          <button class="minib" onclick="engineCheck()" title="구독 생성 준비 확인">🔌점검</button>
+        </div>
+        <textarea id="extra" placeholder="추가 지침 (예: 가격 강조, 이모지 적게, 존댓말)"></textarea>
+        <div class="basket" id="basket"></div>
+        <div class="genrow">
+          <button class="btnp" id="genbtn" onclick="doGenerate()">원고 생성</button>
+          <span class="small mut" id="genhint">바구니가 비면 현재 글감 1개로 생성</span>
+        </div>
+        <div class="msg" id="genmsg" style="color:var(--pop)"></div>
+      </div>
+
       <input id="dtitle" placeholder="제목"/>
       <div class="toolrow">
         <button class="minib" onclick="tplHotdeal()">🧩 핫딜 템플릿</button>
         <button class="minib" onclick="insertVerified()">✅ 확인된 링크 넣기</button>
       </div>
-      <textarea id="dbody" placeholder="여기서 글감을 조립해 원고를 만듭니다.&#10;중앙 글감의 [넣기] 버튼으로 본문·댓글·링크를 가져올 수 있어요."></textarea>
+      <textarea id="dbody" placeholder="AI 재작성 결과가 여기에 들어옵니다. 직접 편집해 완성하세요."></textarea>
       <div class="toolrow" style="margin-top:8px">
         <button class="btnp" onclick="saveDraft()">💾 저장</button>
         <button class="minib" onclick="copyBody()">📋 복사</button>
@@ -121,6 +158,27 @@
   <h2>master 전용 페이지</h2>
   <p>이 스튜디오는 master 계정으로 로그인해야 사용할 수 있습니다.</p>
   <p><a href="/">← 대시보드로</a></p>
+</div>
+
+<!-- 페르소나 관리 모달 -->
+<div id="pmodal" class="modal">
+  <div class="box">
+    <h3>페르소나(말투/지침) 관리</h3>
+    <label>프리셋 선택</label>
+    <select id="pmsel" onchange="pmLoad()"></select>
+    <label>이름</label>
+    <input id="pmname" placeholder="예: 친근한 맘카페체"/>
+    <label>페르소나·말투 설명</label>
+    <textarea id="pmtext" placeholder="이 프리셋으로 글을 쓸 때의 말투/톤/규칙"></textarea>
+    <div class="row">
+      <button class="btnp" onclick="pmSave()">저장</button>
+      <button class="minib" onclick="pmNew()">＋새로</button>
+      <button class="minib" onclick="pmDelete()">삭제</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="minib" onclick="$('#pmodal').classList.remove('show')">닫기</button>
+    </div>
+    <div class="msg" id="pmmsg"></div>
+  </div>
 </div>
 
 <script>
@@ -145,7 +203,7 @@ async function boot(){
   // 핫딜류가 있으면 기본 선택
   const hot=(cats.categories||[]).find(c=>c.includes("핫딜"));
   if(hot) sel.value=hot;
-  loadCands(); loadDrafts();
+  loadCands(); loadDrafts(); loadPersonas(); renderBasket();
 }
 
 async function loadCands(){
@@ -198,6 +256,7 @@ async function openMaterial(cafe,article,el){
     ? m.comments.slice(0,30).map(c=>`<div class="cmt"><span class="who">${esc(c.writer_nickname||"")}</span>${esc(c.content||"")}</div>`).join("")
     : '<div class="mut small">댓글 없음</div>';
   $("#material").innerHTML=`
+    <div style="margin-bottom:9px"><button class="minib btnp" onclick="addToBasket()">🧺 이 글 바구니에 담기</button></div>
     <div class="small mut" style="margin-bottom:10px">${esc(m.cafe_name)} · ${esc(m.board_name)} · ${esc(m.write_str||"")}</div>
     <div class="sec"><h3>본문</h3>
       <div class="body">${esc(m.content_text)||'<span class=mut>본문 없음(크롤 전이거나 이미지 위주 글)</span>'}</div>
@@ -270,6 +329,109 @@ async function delDraft(id){
   if(curDraftId===id)newDraft(); loadDrafts();
 }
 function toast(t){ const m=$("#dmsg"); m.textContent=t; setTimeout(()=>{if(m.textContent===t)m.textContent="";},2500); }
+function gmsg(t){ $("#genmsg").innerHTML=t; }
+
+/* ===== 페르소나 ===== */
+let personas=[];
+async function loadPersonas(){
+  const d=await api("/api/studio/personas");
+  personas=d.personas||[];
+  if(d.default_extra && !$("#extra").value) $("#extra").value=d.default_extra;
+  const sel=$("#persona");
+  sel.innerHTML=personas.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");
+}
+function curPersonaText(){ const p=personas[+$("#persona").value]; return p?p.persona:""; }
+function managePersona(){ $("#pmodal").classList.add("show"); pmRefresh(); }
+function pmRefresh(){
+  const sel=$("#pmsel");
+  sel.innerHTML='<option value="-1">+ 새 프리셋</option>'+personas.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");
+  sel.value=$("#persona").value||"0"; pmLoad();
+}
+function pmLoad(){
+  const i=+$("#pmsel").value;
+  if(i<0){ $("#pmname").value=""; $("#pmtext").value=""; }
+  else { $("#pmname").value=personas[i].name; $("#pmtext").value=personas[i].persona; }
+}
+function pmNew(){ $("#pmsel").value="-1"; pmLoad(); $("#pmname").focus(); }
+async function pmSave(){
+  const name=$("#pmname").value.trim(), text=$("#pmtext").value.trim();
+  if(!name){ $("#pmmsg").textContent="이름을 입력하세요."; return; }
+  const i=+$("#pmsel").value;
+  if(i<0) personas.push({name,persona:text});
+  else personas[i]={name,persona:text};
+  await savePersonas(); pmRefresh(); $("#pmmsg").textContent="저장됨";
+}
+async function pmDelete(){
+  const i=+$("#pmsel").value;
+  if(i<0||personas.length<=1) return;
+  if(!confirm("이 프리셋을 삭제할까요?"))return;
+  personas.splice(i,1); await savePersonas(); pmRefresh();
+}
+async function savePersonas(){
+  const d=await api("/api/studio/personas",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({personas,default_extra:""})});
+  personas=d.personas||personas;
+  const keep=Math.min(+$("#persona").value||0,personas.length-1);
+  $("#persona").innerHTML=personas.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("");
+  $("#persona").value=keep;
+}
+
+/* ===== 글감 바구니 ===== */
+let basket=[];
+function addToBasket(){
+  if(!curMaterial){ toast("먼저 글을 선택하세요"); return; }
+  const key=curMaterial.cafe_id+":"+curMaterial.article_id;
+  if(basket.some(b=>b.key===key)){ toast("이미 담겨 있어요"); return; }
+  basket.push({key,cafe_id:curMaterial.cafe_id,article_id:curMaterial.article_id,title:curMaterial.title});
+  renderBasket(); toast("바구니에 담음 ("+basket.length+")");
+}
+function rmBasket(key){ basket=basket.filter(b=>b.key!==key); renderBasket(); }
+function renderBasket(){
+  const box=$("#basket");
+  if(!basket.length){ box.innerHTML='<div class="none">🧺 바구니 비어있음 — 중앙에서 글을 담으면 여러 글을 하나로 통합합니다</div>';
+    $("#genhint").textContent="바구니가 비면 현재 글감 1개로 생성"; return; }
+  box.innerHTML=basket.map(b=>`<div class="bchip"><span class="t">${esc(b.title||"(제목없음)")}</span><span class="rm" onclick="rmBasket('${b.key}')">✕</span></div>`).join("");
+  $("#genhint").textContent=basket.length+"개 글감을 하나의 원고로 통합";
+}
+
+/* ===== 생성(구독) ===== */
+async function doGenerate(){
+  let items=basket.map(b=>({cafe_id:b.cafe_id,article_id:b.article_id}));
+  if(!items.length){
+    if(!curMaterial){ gmsg("글감을 선택하거나 바구니에 담으세요."); return; }
+    items=[{cafe_id:curMaterial.cafe_id,article_id:curMaterial.article_id}];
+  }
+  const btn=$("#genbtn"); btn.disabled=true; const old=btn.textContent;
+  btn.innerHTML='<span class="spin"></span> 생성 중…';
+  gmsg("구독으로 재작성 중… (최대 30초 안팎)");
+  try{
+    const d=await api("/api/studio/generate",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({items,persona:curPersonaText(),extra:$("#extra").value,verified_links:verified})});
+    if(d.error){
+      if(d.need_login){
+        gmsg('⚠️ 구독 미인증. 터미널에서 <b>claude setup-token</b> 실행 후 다시 시도하세요.');
+      } else gmsg("실패: "+esc(d.error));
+      return;
+    }
+    curDraftId=null;
+    $("#dtitle").value=d.title||"";
+    $("#dbody").value=d.body||"";
+    const sec=d.duration_ms?(d.duration_ms/1000).toFixed(1)+"초":"";
+    gmsg(`✅ 생성 완료 ${sec} · 구독(무과금). 검토 후 저장하세요.`);
+  }catch(e){ gmsg("오류: "+esc(e.message)); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+
+/* ===== 엔진 점검 ===== */
+async function engineCheck(){
+  gmsg("엔진 점검 중…");
+  try{
+    const d=await api("/api/studio/engine-check",{method:"POST"});
+    if(d.ok) gmsg("✅ 구독 생성 준비 완료");
+    else if(d.need_login) gmsg('⚠️ 미인증 — 터미널에서 <b>claude setup-token</b> 실행 필요');
+    else gmsg("⚠️ "+esc(d.detail||"점검 실패"));
+  }catch(e){ gmsg("오류: "+esc(e.message)); }
+}
 
 boot();
 </script>

@@ -727,18 +727,15 @@ def studio_candidates(request: Request, category: str = "", order: str = "hot", 
     return articles(type="general", order=order, category=category, limit=limit)
 
 
-@app.get("/api/studio/material/{cafe_id}/{article_id}")
-def studio_material(cafe_id: int, article_id: int, request: Request):
-    """한 글의 글감: 본문 텍스트 + 댓글 + 추출된 외부링크/이미지 URL(재크롤 없음)."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+def _studio_material(cafe_id: int, article_id: int) -> dict | None:
+    """한 글의 글감(본문·댓글·링크·이미지)을 조립해 반환. 없으면 None."""
     from . import studio
     conn = _row_conn()
     try:
         a = conn.execute("SELECT * FROM articles WHERE cafe_id=? AND article_id=?",
                          (cafe_id, article_id)).fetchone()
         if not a:
-            return JSONResponse({"error": "not found"}, status_code=404)
+            return None
         a = dict(a)
         comments = [dict(r) for r in conn.execute(
             """SELECT writer_nickname, content, update_ts FROM comments
@@ -758,6 +755,15 @@ def studio_material(cafe_id: int, article_id: int, request: Request):
         "links": mat["links"], "images": mat["images"],
         "url": f"https://cafe.naver.com/ca-fe/cafes/{cafe_id}/articles/{article_id}",
     }
+
+
+@app.get("/api/studio/material/{cafe_id}/{article_id}")
+def studio_material(cafe_id: int, article_id: int, request: Request):
+    """한 글의 글감: 본문 텍스트 + 댓글 + 추출된 외부링크/이미지 URL(재크롤 없음)."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    m = _studio_material(cafe_id, article_id)
+    return m or JSONResponse({"error": "not found"}, status_code=404)
 
 
 @app.post("/api/studio/unfurl")
@@ -807,6 +813,58 @@ def studio_draft_delete(did: int, request: Request):
     from . import studio
     studio.delete_draft(DB_PATH, did)
     return {"ok": True}
+
+
+STUDIO_PERSONAS = ROOT / "config" / "studio_personas.json"
+
+
+@app.get("/api/studio/personas")
+def studio_personas(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    return studio.load_personas(STUDIO_PERSONAS)
+
+
+@app.post("/api/studio/personas")
+async def studio_personas_save(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    body = await request.json()
+    studio.save_personas(STUDIO_PERSONAS, body)
+    return {"ok": True, **studio.load_personas(STUDIO_PERSONAS)}
+
+
+@app.post("/api/studio/generate")
+async def studio_generate(request: Request):
+    """구독(claude -p)으로 글감 재작성/큐레이션 → 초안. items=[{cafe_id,article_id}]."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    body = await request.json()
+    items = body.get("items") or []
+    if not items:
+        return JSONResponse({"error": "글감(items)이 없습니다."}, status_code=400)
+    mats = []
+    for it in items[:6]:   # 한 번에 최대 6개 글감
+        m = _studio_material(int(it["cafe_id"]), int(it["article_id"]))
+        if m:
+            mats.append(m)
+    if not mats:
+        return JSONResponse({"error": "글감을 찾지 못했습니다."}, status_code=404)
+    d = await asyncio.to_thread(
+        studio.generate, mats, body.get("persona", ""), body.get("extra", ""),
+        body.get("verified_links") or None, body.get("model") or None)
+    return d
+
+
+@app.post("/api/studio/engine-check")
+async def studio_engine_check(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    return await asyncio.to_thread(studio.engine_check)
 
 
 @app.websocket("/ws")
