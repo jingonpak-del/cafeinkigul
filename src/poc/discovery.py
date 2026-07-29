@@ -28,11 +28,13 @@ APIS = "https://apis.naver.com/cafe-home-web/cafe-home"
 SECTION_REFERER = "https://section.cafe.naver.com/"
 
 # 발굴 계획 기본값(config.discovery로 덮어씀).
+# themes.dir1_ids="auto" → 대분류 목록을 동적으로 받아 '모든 테마'를 훑는다
+# (한 페이지만이 아니라 테마별 여러 페이지까지). 다양한 카페 확보용.
 DEFAULT_PLAN = {
     "daily_batch": 5,
     "powers": {"sectors": ["popular"], "max_pages": 1},
-    "regions": {"codes": [], "max_pages": 1},          # 예: ["09"](서울)
-    "themes": {"dir1_ids": [], "sort": "uppoint", "type": "ar", "max_pages": 1},
+    "regions": {"codes": [], "max_pages": 1},          # 예: ["09"](서울) — 확인된 코드만
+    "themes": {"dir1_ids": "auto", "sort": "uppoint", "type": "ar", "max_pages": 2},
 }
 
 
@@ -176,6 +178,22 @@ def fetch_theme_subdirs(client, dir1) -> list[dict]:
         return []
 
 
+def fetch_top_directories(client) -> list[int]:
+    """테마 대분류(dir1) id 목록. 엔드포인트 best-effort → 실패 시 1..25 범위 탐색
+    (무효 id는 열거 시 빈 결과라 자동 걸러짐)."""
+    for path in ("v1/directories", "v1/theme-directories", "v2/directories"):
+        try:
+            res = _api_get(client, path, {})
+            dirs = res.get("directories") or res.get("themeDirectories") or []
+            ids = [d.get("directoryId") or d.get("themeDir1Id") or d.get("id") for d in dirs]
+            ids = [int(i) for i in ids if i]
+            if ids:
+                return ids
+        except Exception:
+            continue
+    return list(range(1, 26))
+
+
 def discover(client, plan: dict | None = None) -> list[dict]:
     """계획대로 섹션을 훑어 후보 dict 리스트(club_id 기준 dedup) 반환."""
     plan = {**DEFAULT_PLAN, **(plan or {})}
@@ -187,7 +205,10 @@ def discover(client, plan: dict | None = None) -> list[dict]:
     for code in r.get("codes", []):
         found += fetch_region_cafes(client, code, r.get("max_pages", 1))
     t = plan.get("themes", {})
-    for d1 in t.get("dir1_ids", []):
+    dir_ids = t.get("dir1_ids", [])
+    if dir_ids in ("auto", ["auto"]):
+        dir_ids = fetch_top_directories(client)
+    for d1 in dir_ids:
         found += fetch_theme_cafes(client, d1, 0, t.get("sort", "uppoint"),
                                    t.get("type", "ar"), t.get("max_pages", 1))
     dedup: dict[int, dict] = {}
