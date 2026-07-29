@@ -529,6 +529,11 @@ async def admin_save_cafe(request: Request):
     if boards:
         cfg["cafes"].append({"cluburl": cluburl, "club_id": cid, "name": name, "boards": boards})
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    if boards:                              # 발굴 후보였다면 '등록됨'으로 표시
+        try:
+            _cand_set_status(cid, "tracked")
+        except Exception:
+            pass
     return {"ok": True, "boards": len(boards)}
 
 
@@ -545,6 +550,183 @@ async def admin_categories(request: Request):
         cfg["popular_category"] = body["popular_category"]
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "categories": cats}
+
+
+# ── 카페 발굴 후보 ───────────────────────────────────────────────────────────
+_CAND_DDL = """
+CREATE TABLE IF NOT EXISTS cafe_candidates (
+    club_id INTEGER PRIMARY KEY, cluburl TEXT, name TEXT, source TEXT, theme TEXT,
+    is_power INTEGER DEFAULT 0, is_local INTEGER DEFAULT 0, member_count INTEGER,
+    daily_posts REAL, open_level TEXT, join_required INTEGER DEFAULT 0,
+    sample_boards TEXT, score REAL, discovered_at INTEGER, updated_at INTEGER,
+    status TEXT DEFAULT 'new');
+"""
+_CAND_FIELDS = ("cluburl", "name", "source", "theme", "is_power", "is_local",
+                "member_count", "daily_posts", "open_level", "join_required",
+                "sample_boards", "score")
+_DISCOVER_RUNNING = False
+
+
+def _ensure_candidates_table():
+    c = _write_conn()
+    try:
+        c.executescript(_CAND_DDL)
+        c.commit()
+    finally:
+        c.close()
+
+
+_ensure_candidates_table()
+
+
+def _cand_upsert(d: dict):
+    """후보 저장/갱신. 기존 후보의 status(dismissed/tracked)는 보존."""
+    ts = int(time.time() * 1000)
+    p = {k: d.get(k) for k in _CAND_FIELDS}
+    p["club_id"] = d["club_id"]
+    p["ts"] = ts
+    p["status"] = d.get("status", "new")
+    c = _write_conn()
+    try:
+        c.execute(
+            """INSERT INTO cafe_candidates
+               (club_id,cluburl,name,source,theme,is_power,is_local,member_count,
+                daily_posts,open_level,join_required,sample_boards,score,
+                discovered_at,updated_at,status)
+               VALUES (:club_id,:cluburl,:name,:source,:theme,:is_power,:is_local,
+                :member_count,:daily_posts,:open_level,:join_required,:sample_boards,
+                :score,:ts,:ts,:status)
+               ON CONFLICT(club_id) DO UPDATE SET
+                 cluburl=excluded.cluburl,name=excluded.name,source=excluded.source,
+                 theme=excluded.theme,is_power=excluded.is_power,is_local=excluded.is_local,
+                 member_count=excluded.member_count,daily_posts=excluded.daily_posts,
+                 open_level=excluded.open_level,join_required=excluded.join_required,
+                 sample_boards=excluded.sample_boards,score=excluded.score,
+                 updated_at=excluded.updated_at""",
+            p,
+        )
+        c.commit()
+    finally:
+        c.close()
+
+
+def _cand_set_status(club_id: int, status: str):
+    c = _write_conn()
+    try:
+        c.execute("UPDATE cafe_candidates SET status=?, updated_at=? WHERE club_id=?",
+                  (status, int(time.time() * 1000), club_id))
+        c.commit()
+    finally:
+        c.close()
+
+
+@app.get("/api/admin/candidates")
+def admin_candidates(request: Request, status: str = "new"):
+    """발굴 후보 목록. status=new|join_needed|dismissed|tracked|all. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    c = _row_conn()
+    try:
+        if status == "all":
+            rows = c.execute("SELECT * FROM cafe_candidates ORDER BY status, score DESC").fetchall()
+        else:
+            rows = c.execute(
+                "SELECT * FROM cafe_candidates WHERE status=? ORDER BY score DESC, member_count DESC",
+                (status,)).fetchall()
+        return {"candidates": [dict(r) for r in rows], "running": _DISCOVER_RUNNING}
+    finally:
+        c.close()
+
+
+@app.post("/api/admin/candidates/probe-add")
+async def admin_candidate_probe_add(request: Request):
+    """카페 주소를 직접 조사해 후보로 추가. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    cafe = (body.get("cafe") or "").strip()
+    if not cafe:
+        return JSONResponse({"error": "카페 주소를 입력하세요"}, status_code=400)
+    from . import discovery
+    cl = _naver_client()
+    try:
+        cand = discovery.probe_cafe(cafe, source="manual", client=cl)
+    except Exception as e:
+        return JSONResponse({"error": f"조사 실패: {e}"}, status_code=400)
+    finally:
+        cl.close()
+    if not cand.get("club_id"):
+        return JSONResponse({"error": "카페를 찾지 못했습니다"}, status_code=400)
+    if cand.get("join_required"):
+        cand["status"] = "join_needed"
+    _cand_upsert(cand)
+    return {"ok": True, "candidate": cand}
+
+
+@app.post("/api/admin/candidates/dismiss")
+async def admin_candidate_dismiss(request: Request):
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    _cand_set_status(int(body["club_id"]), "dismissed")
+    return {"ok": True}
+
+
+@app.post("/api/admin/candidates/{club_id}/join-confirmed")
+async def admin_candidate_join(request: Request, club_id: int):
+    """가입 완료 후 재확인 — 인기글 접근되면 등록 가능(new)으로 전환."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    c = _row_conn()
+    try:
+        row = c.execute("SELECT cluburl FROM cafe_candidates WHERE club_id=?", (club_id,)).fetchone()
+    finally:
+        c.close()
+    if not row:
+        return JSONResponse({"error": "후보를 찾을 수 없습니다"}, status_code=404)
+    from . import discovery
+    cl = _naver_client()
+    try:
+        cand = discovery.probe_cafe(row["cluburl"], client=cl)
+    finally:
+        cl.close()
+    status = "join_needed" if cand.get("join_required") else "new"
+    _cand_upsert(cand)
+    _cand_set_status(club_id, status)
+    return {"ok": True, "join_required": bool(cand.get("join_required")), "status": status}
+
+
+@app.post("/api/admin/candidates/refresh")
+async def admin_candidate_refresh(request: Request):
+    """섹션 발굴을 백그라운드로 1회 실행(등록카페 제외 후 후보 저장). master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    global _DISCOVER_RUNNING
+    if _DISCOVER_RUNNING:
+        return {"ok": True, "running": True}
+
+    def job():
+        global _DISCOVER_RUNNING
+        _DISCOVER_RUNNING = True
+        try:
+            from . import discovery
+            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            registered = {c["club_id"] for c in cfg.get("cafes", [])}
+            cl = _naver_client()
+            try:
+                for cand in discovery.discover(cl, cfg.get("discovery")):
+                    if cand["club_id"] in registered:
+                        continue
+                    _cand_upsert(cand)
+            finally:
+                cl.close()
+        except Exception:
+            pass
+        finally:
+            _DISCOVER_RUNNING = False
+
+    threading.Thread(target=job, daemon=True).start()
+    return {"ok": True, "started": True}
 
 
 @app.get("/api/stats")

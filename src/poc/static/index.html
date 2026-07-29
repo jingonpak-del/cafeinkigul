@@ -200,6 +200,33 @@
   <div class="setbody">
 
     <div class="setsec">
+      <h3>🔎 카페 발굴 <span class="setmsg" id="discmsg"></span></h3>
+      <p class="hint">섹션(대표·동네·테마)에서 참조할 만한 카페를 모아 보여줍니다.
+        <b>등록</b>을 누르면 아래 [카페 게시판 등록] 편집기로 불러와 분류를 지정해 저장하세요.
+        🔒 표시는 가입해야 글이 보이는 카페입니다 — 크롤 계정으로 가입 후 [가입완료]를 누르세요.</p>
+      <div class="setrow">
+        <button class="btnp" onclick="refreshDiscovery()">🔄 지금 발굴</button>
+        <input id="probeurl" placeholder="카페 주소로 직접 추가" size="18"
+               onkeydown="if(event.key==='Enter')probeAdd()"/>
+        <button onclick="probeAdd()">+ 조사</button>
+        <select id="candfilter" onchange="loadCandidates()" style="margin-left:auto">
+          <option value="new">신규</option>
+          <option value="join_needed">가입필요</option>
+          <option value="tracked">등록됨</option>
+          <option value="dismissed">무시함</option>
+          <option value="all">전체</option>
+        </select>
+      </div>
+      <div class="boardbox">
+        <table>
+          <thead><tr><th>카페</th><th style="width:78px">회원수</th><th style="width:56px">일발행</th>
+            <th style="width:76px">유형</th><th style="width:120px">주제</th><th style="width:150px">동작</th></tr></thead>
+          <tbody id="candrows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="setsec">
       <h3>분류(카테고리)</h3>
       <p class="hint">게시판을 등록할 때 지정할 분류입니다. 추가·삭제하면 즉시 반영됩니다. (인기글 분류는 삭제할 수 없습니다)</p>
       <div class="chips" id="catchips"></div>
@@ -453,7 +480,7 @@ function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_cur
 
 /* ===== ⚙️ 설정 (master 전용) ===== */
 let setCats=[], setPopCat="일반인기글", curCafe=null;   // curCafe={cluburl,club_id,name,boards:[{menu_id,name,category,tracked}],popular}
-function openSettings(){ $("#settings").classList.add("show"); loadAdminConfig(); }
+function openSettings(){ $("#settings").classList.add("show"); loadAdminConfig(); loadCandidates(); }
 function closeSettings(){ $("#settings").classList.remove("show"); }
 async function loadAdminConfig(){
   let d;
@@ -542,7 +569,74 @@ async function saveCafe(){
                          boards, popular:$("#cafepop").checked})});
   if(!r.ok){ $("#savemsg").textContent="⚠ 저장 실패"; return; }
   $("#savemsg").textContent=`✓ 저장됨 (수집 ${boards.length}개${$("#cafepop").checked?' + 인기글':''}) — 워처 자동 반영`;
-  loadAdminConfig(); loadCategories();
+  loadAdminConfig(); loadCategories(); loadCandidates();
+}
+
+/* ===== 🔎 카페 발굴 ===== */
+function fmtNum(n){ return (n==null||n==="")?'-':Number(n).toLocaleString(); }
+async function loadCandidates(){
+  const st=$("#candfilter")?$("#candfilter").value:"new";
+  let d;
+  try{ d=await (await fetch("/api/admin/candidates?status="+st,{cache:"no-store"})).json(); }
+  catch(e){ return; }
+  renderCandidates(d.candidates||[]);
+}
+function renderCandidates(list){
+  if(!list.length){ $("#candrows").innerHTML='<tr><td colspan="6" style="color:var(--mut)">후보가 없습니다. [🔄 지금 발굴]을 눌러보세요.</td></tr>'; return; }
+  $("#candrows").innerHTML=list.map(c=>{
+    const type=[c.is_power?'⭐대표':'',c.is_local?'📍동네':''].filter(Boolean).join(' ')||'-';
+    const lock=c.join_required?' <span style="color:var(--pop)">🔒</span>':'';
+    let action;
+    if(c.status==='tracked'){ action='<span style="color:var(--mut)">등록됨</span>'; }
+    else if(c.status==='dismissed'){ action=`<button onclick="restoreCand(${c.club_id})">복원</button>`; }
+    else if(c.join_required){
+      action=`<a href="https://cafe.naver.com/${esc(c.cluburl)}" target="_blank" rel="noopener">가입페이지</a>
+        <button class="btnp" onclick="joinConfirm(${c.club_id})">가입완료</button>`;
+    } else {
+      action=`<button class="btnp" onclick="pickCandidate('${esc(c.cluburl)}')">등록</button>
+        <span class="rm" onclick="dismissCand(${c.club_id})" title="무시">✕</span>`;
+    }
+    return `<tr data-name="${esc(c.name||'')}">
+      <td><b>${esc(c.name||c.cluburl)}</b>${lock}<br><span style="color:var(--mut);font-size:11px">${esc(c.cluburl)}</span></td>
+      <td>${fmtNum(c.member_count)}</td>
+      <td>${c.daily_posts==null?'-':c.daily_posts}</td>
+      <td style="font-size:12px">${type}</td>
+      <td style="font-size:12px">${esc(c.theme||'-')}</td>
+      <td>${action}</td></tr>`;
+  }).join("");
+}
+async function refreshDiscovery(){
+  $("#discmsg").textContent="발굴 중… (섹션 순회, 최대 1~2분)";
+  try{ await fetch("/api/admin/candidates/refresh",{method:"POST"}); }catch(e){}
+  let n=0; const t=setInterval(async()=>{ await loadCandidates(); if(++n>=8){ clearInterval(t); $("#discmsg").textContent=""; } }, 5000);
+}
+async function probeAdd(){
+  const v=$("#probeurl").value.trim(); if(!v) return;
+  $("#discmsg").textContent="조사 중…";
+  let d;
+  try{ const r=await fetch("/api/admin/candidates/probe-add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cafe:v})}); d=await r.json();
+       if(!r.ok){ $("#discmsg").textContent="⚠ "+(d.error||"실패"); return; } }
+  catch(e){ $("#discmsg").textContent="⚠ 실패"; return; }
+  $("#probeurl").value=""; $("#discmsg").textContent="✓ 추가됨";
+  $("#candfilter").value=d.candidate.join_required?'join_needed':'new'; loadCandidates();
+  setTimeout(()=>$("#discmsg").textContent="",2000);
+}
+function pickCandidate(url){ loadCafeBoards(url); setTimeout(()=>$("#cafeedit").scrollIntoView({behavior:"smooth"}),300); }
+async function dismissCand(id){
+  await fetch("/api/admin/candidates/dismiss",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({club_id:id})});
+  loadCandidates();
+}
+async function restoreCand(id){
+  await fetch(`/api/admin/candidates/${id}/join-confirmed`,{method:"POST"});   // 재조사 → new/join_needed로 복귀
+  loadCandidates();
+}
+async function joinConfirm(id){
+  $("#discmsg").textContent="가입 확인 중…";
+  let d;
+  try{ const r=await fetch(`/api/admin/candidates/${id}/join-confirmed`,{method:"POST"}); d=await r.json(); }
+  catch(e){ $("#discmsg").textContent="⚠ 실패"; return; }
+  $("#discmsg").textContent = d.join_required? "아직 가입이 확인되지 않았습니다 — 크롤 계정으로 가입했는지 확인하세요":"✓ 가입 확인됨 — 이제 등록할 수 있습니다";
+  loadCandidates(); setTimeout(()=>$("#discmsg").textContent="",4000);
 }
 function renderCafeList(cafes){
   if(!cafes.length){ $("#cafelist").innerHTML='<span style="color:var(--mut);font-size:13px">등록된 카페가 없습니다.</span>'; return; }
