@@ -126,6 +126,14 @@
           <button class="minib" onclick="managePersona()">관리</button>
           <button class="minib" onclick="engineCheck()" title="구독 생성 준비 확인">🔌점검</button>
         </div>
+        <div class="genrow" style="margin-top:6px">
+          <span class="small mut">길이</span>
+          <select id="length" title="본문 분량">
+            <option value="short">짧게</option>
+            <option value="medium" selected>보통</option>
+            <option value="long">길게</option>
+          </select>
+        </div>
         <textarea id="extra" placeholder="추가 지침 (예: 가격 강조, 이모지 적게, 존댓말)"></textarea>
         <div class="basket" id="basket"></div>
         <div class="genrow">
@@ -414,7 +422,7 @@ async function doGenerate(){
   gmsg("구독으로 재작성 중… (최대 30초 안팎)");
   try{
     const d=await api("/api/studio/generate",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({items,persona:curPersonaText(),extra:$("#extra").value,verified_links:verified})});
+      body:JSON.stringify({items,persona:curPersonaText(),extra:$("#extra").value,length:$("#length").value,verified_links:verified})});
     if(d.error){
       if(d.need_login){
         gmsg('⚠️ 구독 미인증 — 아래에 토큰을 저장하세요.');

@@ -883,7 +883,8 @@ async def studio_generate(request: Request):
         return JSONResponse({"error": "글감을 찾지 못했습니다."}, status_code=404)
     d = await asyncio.to_thread(
         studio.generate, mats, body.get("persona", ""), body.get("extra", ""),
-        body.get("verified_links") or None, body.get("model") or None, 180, _studio_token())
+        body.get("verified_links") or None, body.get("model") or None, 180, _studio_token(),
+        body.get("length") or "medium")
     return d
 
 
