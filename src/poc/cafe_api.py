@@ -140,6 +140,44 @@ def fetch_board_list(club_id: int, client: httpx.Client | None = None) -> list[d
             client.close()
 
 
+# 카페 기본정보(회원수·이름·공개수준) — best-effort. 정확한 엔드포인트는
+# 섹션 API 캡처(발굴 설계 0단계) 후 확정. 실패해도 {} 반환하고 죽지 않는다.
+CAFE_INFO_URLS = (
+    "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{club_id}",
+    "https://apis.naver.com/cafe-web/cafe-cafeinfo-api/v1.0/cafes/{club_id}",
+)
+
+
+def fetch_cafe_info(club_id: int, client: httpx.Client | None = None) -> dict:
+    """{name, member_count, open_level} 반환(가능한 항목만). 실패 시 {}."""
+    own = client is None
+    client = client or make_client()
+    try:
+        for url in CAFE_INFO_URLS:
+            try:
+                r = client.get(
+                    url.format(club_id=club_id),
+                    headers={"Referer": f"https://cafe.naver.com/f-e/cafes/{club_id}",
+                             "X-Cafe-Product": "pc"},
+                )
+                if r.status_code != 200:
+                    continue
+                body = r.json()
+                res = body.get("result") or body.get("message", {}).get("result") or {}
+                info = res.get("cafe") or res
+                mc = info.get("memberCount") or info.get("memberCnt") or info.get("member")
+                name = info.get("cafeName") or info.get("name")
+                if mc or name:
+                    return {"name": name, "member_count": mc,
+                            "open_level": info.get("openType") or info.get("cafeType")}
+            except Exception:
+                continue
+        return {}
+    finally:
+        if own:
+            client.close()
+
+
 def resolve_club_id(cluburl: str, client: httpx.Client | None = None) -> int:
     """Resolve a cafe vanity url (e.g. 'memberupup3') to its numeric clubId."""
     own = client is None

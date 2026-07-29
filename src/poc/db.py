@@ -64,10 +64,33 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 
+-- 카페 발굴 후보: 섹션 페이지/수동 조사로 발견한 '참조할 만한' 카페.
+-- 체크(등록)하면 config.cafes로 승격되어 크롤 대상이 된다.
+CREATE TABLE IF NOT EXISTS cafe_candidates (
+    club_id       INTEGER PRIMARY KEY,
+    cluburl       TEXT,
+    name          TEXT,
+    source        TEXT,               -- theme:2 | area:<code> | power | manual
+    theme         TEXT,               -- 대표주제(섹션 테마명)
+    is_power      INTEGER DEFAULT 0,  -- 대표(파워)카페 여부
+    is_local      INTEGER DEFAULT 0,  -- 동네(지역)카페 여부
+    member_count  INTEGER,
+    daily_posts   REAL,               -- 하루 발행량(추정)
+    open_level    TEXT,               -- 공개수준
+    join_required INTEGER DEFAULT 0,  -- 인기글/글 열람에 가입 필요
+    sample_boards TEXT,               -- 대표 게시판명(콤마)
+    score         REAL,               -- 참조가치 점수(정렬용)
+    discovered_at INTEGER,
+    updated_at    INTEGER,
+    status        TEXT DEFAULT 'new'  -- new | tracked | dismissed | join_needed
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_revisit
     ON articles (revisit_done, revisit_at);
 CREATE INDEX IF NOT EXISTS idx_articles_pending_body
     ON articles (body_crawled);
+CREATE INDEX IF NOT EXISTS idx_candidates_status
+    ON cafe_candidates (status, score);
 """
 
 
@@ -213,6 +236,59 @@ class Database:
         return self.conn.execute(
             "SELECT * FROM comments WHERE cafe_id=? AND article_id=? ORDER BY comment_id",
             (cafe_id, article_id)).fetchall()
+
+    # --- cafe 발굴 후보 -------------------------------------------------------
+    _CAND_FIELDS = ("cluburl", "name", "source", "theme", "is_power", "is_local",
+                    "member_count", "daily_posts", "open_level", "join_required",
+                    "sample_boards", "score")
+
+    def upsert_candidate(self, c: dict):
+        """후보 저장/갱신. 기존 후보면 지표만 갱신하고 status는 보존
+        (한번 dismissed/tracked한 카페가 다시 new로 돌아오지 않게)."""
+        ts = now_ms()
+        p = {k: c.get(k) for k in self._CAND_FIELDS}
+        p["club_id"] = c["club_id"]
+        p["ts"] = ts
+        self.conn.execute(
+            """INSERT INTO cafe_candidates
+               (club_id, cluburl, name, source, theme, is_power, is_local,
+                member_count, daily_posts, open_level, join_required,
+                sample_boards, score, discovered_at, updated_at, status)
+               VALUES (:club_id,:cluburl,:name,:source,:theme,:is_power,:is_local,
+                :member_count,:daily_posts,:open_level,:join_required,
+                :sample_boards,:score,:ts,:ts,'new')
+               ON CONFLICT(club_id) DO UPDATE SET
+                 cluburl=excluded.cluburl, name=excluded.name, source=excluded.source,
+                 theme=excluded.theme, is_power=excluded.is_power, is_local=excluded.is_local,
+                 member_count=excluded.member_count, daily_posts=excluded.daily_posts,
+                 open_level=excluded.open_level, join_required=excluded.join_required,
+                 sample_boards=excluded.sample_boards, score=excluded.score,
+                 updated_at=excluded.updated_at""",
+            p,
+        )
+        self.conn.commit()
+
+    def list_candidates(self, status: str | None = None):
+        if status:
+            return self.conn.execute(
+                "SELECT * FROM cafe_candidates WHERE status=? ORDER BY score DESC, member_count DESC",
+                (status,)).fetchall()
+        return self.conn.execute(
+            "SELECT * FROM cafe_candidates ORDER BY status, score DESC").fetchall()
+
+    def get_candidate(self, club_id: int):
+        return self.conn.execute(
+            "SELECT * FROM cafe_candidates WHERE club_id=?", (club_id,)).fetchone()
+
+    def set_candidate_status(self, club_id: int, status: str):
+        self.conn.execute(
+            "UPDATE cafe_candidates SET status=?, updated_at=? WHERE club_id=?",
+            (status, now_ms(), club_id))
+        self.conn.commit()
+
+    def candidate_exists(self, club_id: int) -> bool:
+        return self.conn.execute(
+            "SELECT 1 FROM cafe_candidates WHERE club_id=?", (club_id,)).fetchone() is not None
 
     # --- stats ---------------------------------------------------------------
     def counts(self) -> dict:
