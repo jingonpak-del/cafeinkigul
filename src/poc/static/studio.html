@@ -133,6 +133,14 @@
           <span class="small mut" id="genhint">바구니가 비면 현재 글감 1개로 생성</span>
         </div>
         <div class="msg" id="genmsg" style="color:var(--pop)"></div>
+        <!-- 토큰 설정(미인증 시 안내) -->
+        <div id="tokrow" style="display:none;margin-top:8px;border-top:1px dashed var(--line);padding-top:8px">
+          <div class="small mut" style="margin-bottom:5px">터미널에서 <b style="color:var(--txt)">claude setup-token</b> 실행 → 출력된 <code>sk-ant-oat01-…</code> 토큰을 붙여넣고 저장:</div>
+          <div class="genrow">
+            <input id="oauthtok" type="password" placeholder="sk-ant-oat01-..." style="flex:1"/>
+            <button class="minib btnp" onclick="saveToken()">토큰 저장</button>
+          </div>
+        </div>
       </div>
 
       <input id="dtitle" placeholder="제목"/>
@@ -203,7 +211,7 @@ async function boot(){
   // 핫딜류가 있으면 기본 선택
   const hot=(cats.categories||[]).find(c=>c.includes("핫딜"));
   if(hot) sel.value=hot;
-  loadCands(); loadDrafts(); loadPersonas(); renderBasket();
+  loadCands(); loadDrafts(); loadPersonas(); renderBasket(); checkToken();
 }
 
 async function loadCands(){
@@ -409,7 +417,8 @@ async function doGenerate(){
       body:JSON.stringify({items,persona:curPersonaText(),extra:$("#extra").value,verified_links:verified})});
     if(d.error){
       if(d.need_login){
-        gmsg('⚠️ 구독 미인증. 터미널에서 <b>claude setup-token</b> 실행 후 다시 시도하세요.');
+        gmsg('⚠️ 구독 미인증 — 아래에 토큰을 저장하세요.');
+        $("#tokrow").style.display="block";
       } else gmsg("실패: "+esc(d.error));
       return;
     }
@@ -422,15 +431,29 @@ async function doGenerate(){
   finally{ btn.disabled=false; btn.textContent=old; }
 }
 
-/* ===== 엔진 점검 ===== */
+/* ===== 엔진 점검 · 토큰 ===== */
 async function engineCheck(){
-  gmsg("엔진 점검 중…");
+  gmsg("엔진 점검 중… (최대 1분)");
   try{
     const d=await api("/api/studio/engine-check",{method:"POST"});
-    if(d.ok) gmsg("✅ 구독 생성 준비 완료");
-    else if(d.need_login) gmsg('⚠️ 미인증 — 터미널에서 <b>claude setup-token</b> 실행 필요');
+    if(d.ok){ gmsg("✅ 구독 생성 준비 완료"); $("#tokrow").style.display="none"; }
+    else if(d.need_login){ gmsg('⚠️ 미인증 — 아래에 토큰을 저장하세요.'); $("#tokrow").style.display="block"; }
     else gmsg("⚠️ "+esc(d.detail||"점검 실패"));
   }catch(e){ gmsg("오류: "+esc(e.message)); }
+}
+async function checkToken(){
+  try{ const d=await api("/api/studio/engine-config"); if(!d.has_token) $("#tokrow").style.display="block"; }catch(e){}
+}
+async function saveToken(){
+  const t=$("#oauthtok").value.trim();
+  if(!t){ gmsg("토큰을 붙여넣으세요."); return; }
+  gmsg("토큰 저장 중…");
+  try{
+    await api("/api/studio/engine-config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({oauth_token:t})});
+    $("#oauthtok").value="";
+    gmsg("토큰 저장됨. 점검 중…");
+    await engineCheck();
+  }catch(e){ gmsg("저장 오류: "+esc(e.message)); }
 }
 
 boot();

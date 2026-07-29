@@ -816,6 +816,34 @@ def studio_draft_delete(did: int, request: Request):
 
 
 STUDIO_PERSONAS = ROOT / "config" / "studio_personas.json"
+STUDIO_ENGINE = ROOT / "config" / "studio_engine.json"   # gitignore — OAuth 토큰 보관
+
+
+def _studio_token():
+    from . import studio
+    return studio.load_engine_cfg(STUDIO_ENGINE).get("oauth_token") or None
+
+
+@app.get("/api/studio/engine-config")
+def studio_engine_config(request: Request):
+    """토큰 저장 여부만 반환(토큰 값은 노출하지 않음). master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    return {"has_token": bool(_studio_token())}
+
+
+@app.post("/api/studio/engine-config")
+async def studio_engine_config_save(request: Request):
+    """claude setup-token으로 발급한 OAuth 토큰 저장. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "master 전용"}, status_code=403)
+    from . import studio
+    body = await request.json()
+    tok = (body.get("oauth_token") or "").strip()
+    if not tok:
+        return JSONResponse({"error": "토큰이 비었습니다."}, status_code=400)
+    studio.save_engine_token(STUDIO_ENGINE, tok)
+    return {"ok": True, "has_token": True}
 
 
 @app.get("/api/studio/personas")
@@ -855,7 +883,7 @@ async def studio_generate(request: Request):
         return JSONResponse({"error": "글감을 찾지 못했습니다."}, status_code=404)
     d = await asyncio.to_thread(
         studio.generate, mats, body.get("persona", ""), body.get("extra", ""),
-        body.get("verified_links") or None, body.get("model") or None)
+        body.get("verified_links") or None, body.get("model") or None, 180, _studio_token())
     return d
 
 
@@ -864,7 +892,7 @@ async def studio_engine_check(request: Request):
     if not _require_admin(request):
         return JSONResponse({"error": "master 전용"}, status_code=403)
     from . import studio
-    return await asyncio.to_thread(studio.engine_check)
+    return await asyncio.to_thread(studio.engine_check, _studio_token())
 
 
 @app.websocket("/ws")

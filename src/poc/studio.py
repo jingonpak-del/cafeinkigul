@@ -231,11 +231,34 @@ def claude_exe() -> str:
     return "claude"
 
 
-def _clean_env():
-    """세션 주입 변수를 제거해 CLI가 사용자 구독 자격증명을 쓰게 한다."""
+def _clean_env(oauth_token: str | None = None):
+    """세션 주입 변수를 제거해 CLI가 사용자 구독 자격증명을 쓰게 한다.
+    oauth_token(claude setup-token 발급)이 있으면 CLAUDE_CODE_OAUTH_TOKEN으로 주입한다."""
     import os
-    return {k: v for k, v in os.environ.items()
-            if k not in _STRIP_ENV and not k.startswith("CLAUDE_CODE")}
+    env = {k: v for k, v in os.environ.items()
+           if k not in _STRIP_ENV
+           and not (k.startswith("CLAUDE_CODE") and k != "CLAUDE_CODE_OAUTH_TOKEN")}
+    tok = (oauth_token or env.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip()
+    if tok:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
+        for k in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+            env.pop(k, None)   # 토큰 사용 시 기본 Anthropic API로
+    return env
+
+
+def load_engine_cfg(path) -> dict:
+    import os
+    if os.path.exists(path):
+        try:
+            return json.loads(open(path, encoding="utf-8").read())
+        except Exception:
+            pass
+    return {}
+
+
+def save_engine_token(path, token: str) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"oauth_token": (token or "").strip()}, ensure_ascii=False))
 
 
 def build_prompt(materials: list[dict], persona: str, extra: str,
@@ -315,7 +338,7 @@ def _parse_draft(text: str) -> dict:
 
 def generate(materials: list[dict], persona: str = "", extra: str = "",
              verified_links: list[dict] | None = None, model: str | None = None,
-             timeout: int = 180) -> dict:
+             timeout: int = 180, oauth_token: str | None = None) -> dict:
     """구독(claude -p)으로 글감을 재작성/큐레이션한 초안 생성. 실패는 error 키로 반환."""
     import subprocess
     prompt = build_prompt(materials, persona, extra, verified_links)
@@ -324,7 +347,7 @@ def generate(materials: list[dict], persona: str = "", extra: str = "",
         cmd += ["--model", model]
     try:
         r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", env=_clean_env(),
+                           encoding="utf-8", errors="replace", env=_clean_env(oauth_token),
                            timeout=timeout)
     except subprocess.TimeoutExpired:
         return {"error": f"생성 시간 초과({timeout}s). 글감 수를 줄여보세요."}
@@ -349,14 +372,14 @@ def generate(materials: list[dict], persona: str = "", extra: str = "",
     return draft
 
 
-def engine_check() -> dict:
+def engine_check(oauth_token: str | None = None) -> dict:
     """구독 CLI가 headless로 인증돼 생성 가능한지 가볍게 확인(1콜 소모)."""
     import subprocess
     try:
         r = subprocess.run([claude_exe(), "-p", "--output-format", "json"],
                            input='JSON만 출력: {"title":"ok","body":"ok"}',
                            capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", env=_clean_env(), timeout=60)
+                           errors="replace", env=_clean_env(oauth_token), timeout=60)
     except Exception as e:
         return {"ok": False, "detail": str(e)[:200]}
     out = (r.stdout or "").strip()
