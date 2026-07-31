@@ -26,6 +26,11 @@
  /* 후보 리스트 */
  .cand{padding:9px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;cursor:pointer;background:#141a28}
  .cand:hover{border-color:var(--accent)} .cand.on{border-color:var(--accent);background:#1b2740}
+ .cand.inbasket{border-color:var(--pop);background:#1e2436}
+ .crow{display:flex;gap:6px;align-items:flex-start}
+ .crow .t{flex:1}
+ .badd{flex:0 0 auto;padding:2px 7px;font-size:13px;line-height:1.4;border:1px solid var(--line);border-radius:6px;background:#202a3f}
+ .badd:hover{border-color:var(--pop)}
  .cand .t{font-size:13px;line-height:1.35;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
  .cand .m{font-size:11.5px;color:var(--mut);display:flex;gap:8px;flex-wrap:wrap}
  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;background:#202a3f;border:1px solid var(--line)}
@@ -230,9 +235,17 @@ async function loadCands(){
   catch(e){ $("#cands").innerHTML='<div class="empty">불러오기 실패</div>'; return; }
   const rows=d.rows||[];
   if(!rows.length){ $("#cands").innerHTML='<div class="empty">후보 글이 없습니다.<br>정렬/분류를 바꿔보세요.</div>'; return; }
-  $("#cands").innerHTML=rows.map(r=>`
-    <div class="cand" onclick='openMaterial(${r.cafe_id},${r.article_id},this)'>
-      <div class="t">${esc(r.title)}</div>
+  candById={};
+  rows.forEach(r=>candById[r.cafe_id+":"+r.article_id]=r);
+  $("#cands").innerHTML=rows.map(r=>{
+    const key=r.cafe_id+":"+r.article_id;
+    const inb=basket.some(b=>b.key===key);
+    return `
+    <div class="cand${inb?' inbasket':''}" data-key="${key}" onclick='openMaterial(${r.cafe_id},${r.article_id},this)'>
+      <div class="crow">
+        <div class="t">${esc(r.title)}</div>
+        <button class="badd" title="바구니에 담기" onclick="event.stopPropagation();addBasketByKey('${key}')">🧺</button>
+      </div>
       <div class="m">
         <span>${esc(r.cafe_name||"")}</span>
         <span>·</span><span>${esc(r.board_name||"")}</span>
@@ -240,7 +253,7 @@ async function loadCands(){
         ${r.used?`<span class="badge used">사용됨</span>`:""}
         <span>조회 ${r.read_cnt??0} · 댓글 ${r.comment_cnt??0}</span>
       </div>
-    </div>`).join("");
+    </div>`;}).join("");
 }
 
 async function openMaterial(cafe,article,el){
@@ -393,21 +406,32 @@ async function savePersonas(){
 }
 
 /* ===== 글감 바구니 ===== */
-let basket=[];
-function addToBasket(){
+let basket=[], candById={};
+function pushBasket(cafe,article,title){
+  const key=cafe+":"+article;
+  if(basket.some(b=>b.key===key)){ toast("이미 담겨 있어요"); return false; }
+  basket.push({key,cafe_id:cafe,article_id:article,title});
+  renderBasket(); toast("바구니에 담음 ("+basket.length+")"); return true;
+}
+function addBasketByKey(key){   // 왼쪽 후보에서 바로 담기
+  const r=candById[key]; if(!r) return;
+  pushBasket(r.cafe_id,r.article_id,r.title);
+}
+function addToBasket(){         // 가운데 글감에서 담기
   if(!curMaterial){ toast("먼저 글을 선택하세요"); return; }
-  const key=curMaterial.cafe_id+":"+curMaterial.article_id;
-  if(basket.some(b=>b.key===key)){ toast("이미 담겨 있어요"); return; }
-  basket.push({key,cafe_id:curMaterial.cafe_id,article_id:curMaterial.article_id,title:curMaterial.title});
-  renderBasket(); toast("바구니에 담음 ("+basket.length+")");
+  pushBasket(curMaterial.cafe_id,curMaterial.article_id,curMaterial.title);
 }
 function rmBasket(key){ basket=basket.filter(b=>b.key!==key); renderBasket(); }
 function renderBasket(){
+  // 후보 카드 하이라이트 동기화
+  document.querySelectorAll('.cand').forEach(c=>{
+    c.classList.toggle('inbasket', basket.some(b=>b.key===c.dataset.key));
+  });
   const box=$("#basket");
-  if(!basket.length){ box.innerHTML='<div class="none">🧺 바구니 비어있음 — 중앙에서 글을 담으면 여러 글을 하나로 통합합니다</div>';
+  if(!basket.length){ box.innerHTML='<div class="none">🧺 바구니 비어있음 — 왼쪽 후보의 🧺 버튼으로 담으세요</div>';
     $("#genhint").textContent="바구니가 비면 현재 글감 1개로 생성"; return; }
   box.innerHTML=basket.map(b=>`<div class="bchip"><span class="t">${esc(b.title||"(제목없음)")}</span><span class="rm" onclick="rmBasket('${b.key}')">✕</span></div>`).join("");
-  $("#genhint").textContent=basket.length+"개 글감을 하나의 원고로 통합";
+  $("#genhint").textContent=basket.length+"개 글감 통합 · 생성 시 링크 자동검증";
 }
 
 /* ===== 생성(구독) ===== */
@@ -419,7 +443,7 @@ async function doGenerate(){
   }
   const btn=$("#genbtn"); btn.disabled=true; const old=btn.textContent;
   btn.innerHTML='<span class="spin"></span> 생성 중…';
-  gmsg("구독으로 재작성 중… (최대 30초 안팎)");
+  gmsg("링크 자동검증 + 재작성 중… (링크 확인으로 조금 더 걸릴 수 있어요)");
   try{
     const d=await api("/api/studio/generate",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({items,persona:curPersonaText(),extra:$("#extra").value,length:$("#length").value,verified_links:verified})});
@@ -427,14 +451,21 @@ async function doGenerate(){
       if(d.need_login){
         gmsg('⚠️ 구독 미인증 — 아래에 토큰을 저장하세요.');
         $("#tokrow").style.display="block";
-      } else gmsg("실패: "+esc(d.error));
+      } else {
+        let m="실패: "+esc(d.error);
+        if(d.excluded&&d.excluded.length) m+=" — 제외: "+d.excluded.map(esc).join(", ");
+        gmsg(m);
+      }
       return;
     }
     curDraftId=null;
     $("#dtitle").value=d.title||"";
     $("#dbody").value=d.body||"";
     const sec=d.duration_ms?(d.duration_ms/1000).toFixed(1)+"초":"";
-    gmsg(`✅ 생성 완료 ${sec} · 구독(무과금). 검토 후 저장하세요.`);
+    let note=`✅ 생성 완료 ${sec} · 구독(무과금)`;
+    if(d.used_count) note+=` · 글감 ${d.used_count}개`;
+    if(d.excluded&&d.excluded.length) note+=` · ⚠️ ${d.excluded.length}개 제외(링크 만료): `+d.excluded.map(esc).join(", ");
+    gmsg(note);
   }catch(e){ gmsg("오류: "+esc(e.message)); }
   finally{ btn.disabled=false; btn.textContent=old; }
 }

@@ -66,6 +66,16 @@ def extract_material(content_html: str | None, content_text: str | None) -> dict
     return {"links": ulinks, "images": _dedup(images)}
 
 
+def unfurl_many(urls: list[str], max_workers: int = 6) -> list[dict]:
+    """여러 링크를 동시에 해제(검증). 원고 생성 시 바구니 글감의 링크 일괄 검증용."""
+    from concurrent.futures import ThreadPoolExecutor
+    uniq = list(dict.fromkeys(u for u in urls if u and u.startswith("http")))[:20]
+    if not uniq:
+        return []
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(uniq))) as ex:
+        return list(ex.map(unfurl, uniq))
+
+
 def unfurl(url: str) -> dict:
     """링크를 리다이렉트 끝까지 따라가 최종 목적지와 메타·생사를 판정한다.
     사람이 일일이 클릭해 확인하던 걸 대신한다. 실패해도 예외 대신 status로 표시."""
@@ -327,11 +337,18 @@ def build_prompt(materials: list[dict], persona: str, extra: str,
                 txt = (c.get("content") or "").strip()
                 if txt:
                     L.append(f"- {txt[:200]}")
-        links = m.get("links") or []
-        if links:
-            L.append("[본문 링크]")
-            for l in links[:10]:
-                L.append(f"- {l.get('url','')}")
+        ver = m.get("verified") or []
+        if ver:
+            L.append("[검증된 링크(유효 확인됨 — 이 주소·정보만 사용)]")
+            for v in ver:
+                price = (" " + v.get("price", "")) if v.get("price") else ""
+                L.append(f"- {v.get('title') or v.get('domain','')}{price} → {v.get('final_url','')}")
+        else:
+            links = m.get("links") or []
+            if links:
+                L.append("[링크]")
+                for l in links[:6]:
+                    L.append(f"- {l.get('url','')}")
         L.append("")
     if verified_links:
         L.append("===== 유효성 점검된 링크(사실로 사용 가능) =====")
@@ -388,9 +405,25 @@ def generate(materials: list[dict], persona: str = "", extra: str = "",
              verified_links: list[dict] | None = None, model: str | None = None,
              timeout: int = 180, oauth_token: str | None = None,
              length: str = "medium") -> dict:
-    """구독(claude -p)으로 글감을 재작성/큐레이션한 초안 생성. 실패는 error 키로 반환."""
+    """구독(claude -p)으로 글감을 재작성/큐레이션한 초안 생성. 실패는 error 키로 반환.
+
+    생성 전 각 글감의 링크를 서버가 직접 해제(검증)해 유효(alive)한 것만 사용하고,
+    링크가 있으나 전부 만료/미검증인 글은 통째로 제외한다."""
     import subprocess
-    prompt = build_prompt(materials, persona, extra, verified_links, length)
+    used, excluded = [], []
+    for m in materials:
+        urls = [l.get("url") for l in (m.get("links") or []) if l.get("url")][:6]
+        if urls:
+            alive = [r for r in unfurl_many(urls) if r.get("status") == "alive"]
+            if not alive:
+                excluded.append(m.get("title") or "(제목없음)")
+                continue   # 링크 있는데 전부 죽음 → 만료로 보고 제외
+            m = {**m, "verified": alive}
+        used.append(m)
+    if not used:
+        return {"error": "생성할 글감이 없습니다 — 링크가 모두 만료/미검증입니다.",
+                "excluded": excluded}
+    prompt = build_prompt(used, persona, extra, verified_links, length)
     # --tools none: 도구 사용 차단(링크 fetch·파일읽기 방지) → 제공된 글감만으로 작성
     cmd = [claude_exe(), "-p", "--tools", "none", "--output-format", "json"]
     if model:
@@ -419,6 +452,8 @@ def generate(materials: list[dict], persona: str = "", extra: str = "",
     draft["engine"] = "claude-cli"
     draft["cost_usd"] = env_json.get("total_cost_usd")
     draft["duration_ms"] = env_json.get("duration_ms")
+    draft["used_count"] = len(used)
+    draft["excluded"] = excluded
     return draft
 
 
