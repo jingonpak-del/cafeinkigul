@@ -533,6 +533,17 @@
           "name": "인기글"
         }
       ]
+    },
+    {
+      "cluburl": "perfumelove",
+      "club_id": 10001688,
+      "name": "perfumelove",
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
     }
   ]
 }

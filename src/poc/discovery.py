@@ -16,13 +16,16 @@ from __future__ import annotations
 
 import json
 import math
+import re
+import statistics
 from pathlib import Path
 
-from . import cafe_api
+from . import cafe_api, ratelimit
+
+from .paths import DB_PATH  # 데이터는 D:\cafe-corpus (paths.py 참고)
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "targets.json"
-DB_PATH = ROOT / "data" / "tracker.db"
 
 APIS = "https://apis.naver.com/cafe-home-web/cafe-home"
 SECTION_REFERER = "https://section.cafe.naver.com/"
@@ -32,10 +35,127 @@ SECTION_REFERER = "https://section.cafe.naver.com/"
 # (한 페이지만이 아니라 테마별 여러 페이지까지). 다양한 카페 확보용.
 DEFAULT_PLAN = {
     "daily_batch": 5,
+    "probe_top": 15,        # 열거 상위 N개만 본문 표본을 읽는다(카페당 약 7요청)
+    "theme_cap": 2,         # 하루 배치에서 같은 주제는 N개까지 — 코퍼스 편중 방지
     "powers": {"sectors": ["popular"], "max_pages": 1},
     "regions": {"codes": [], "max_pages": 1},          # 예: ["09"](서울) — 확인된 코드만
     "themes": {"dir1_ids": "auto", "sort": "uppoint", "type": "ar", "max_pages": 2},
 }
+
+
+# ── 표본 기반 학습가치 신호 ─────────────────────────────────────────────────
+SAMPLE_BODIES = 5          # 카페당 본문 표본 수 (요청 예산과의 절충)
+
+
+def _account() -> str:
+    try:
+        return _config().get("account") or "default"
+    except Exception:
+        return "default"
+
+# 광고·바이럴 원고의 표면적 신호. 정식 분류기는 Phase 3, 여기서는 규칙만 쓴다.
+_AD_PATTERNS = [
+    r"0(?:1[016-9])[-. ]?\d{3,4}[-. ]?\d{4}",     # 휴대폰
+    r"카톡|카카오톡|오픈\s*채팅|오픈톡",
+    r"문의\s*(?:주세요|주시면|환영|바랍니다)",
+    r"상담\s*(?:문의|신청|환영)",
+    r"예약\s*(?:문의|필수)",
+    r"@[A-Za-z0-9_]{3,}",                          # 아이디 노출
+    r"http[s]?://(?:open\.kakao|pf\.kakao|booking\.naver|smartstore)",
+]
+_AD_RE = [re.compile(p) for p in _AD_PATTERNS]
+
+
+def _ad_score(text: str) -> float:
+    """0~1. 광고 신호가 몇 종류나 걸리는지로 본다(같은 신호 반복은 1회로)."""
+    if not text:
+        return 0.0
+    hits = sum(1 for r in _AD_RE if r.search(text))
+    return min(1.0, hits / 3.0)
+
+
+def _sample_signals(club_id: int, arts, client) -> dict:
+    """표본 게시글의 본문을 실제로 읽어 본문 길이·댓글밀도·광고비율을 잰다.
+
+    열거 API가 주는 회원수·활동성만으로는 '글이 어떤 글인지'를 알 수 없다. 여기서
+    카페당 SAMPLE_BODIES건만 실제로 열어 본다. 요청 예산은 발굴 레인 몫에서 쓴다."""
+    lim = ratelimit.get(_account())
+    bodies, lengths = 0, []
+    ads = 0.0
+    # 공지·블라인드는 표본에서 뺀다(본문이 정형적이라 신호를 왜곡한다).
+    live = [a for a in arts if not (a.is_notice or a.blinded)][:SAMPLE_BODIES]
+    for a in live:
+        try:
+            lim.acquire(reserve=ratelimit.RESERVE_DISCOVERY)
+            body = cafe_api.fetch_article_body(club_id, a.article_id,
+                                               menu_id=a.menu_id, client=client)
+        except Exception:
+            continue
+        bodies += 1
+        lengths.append(len(body.content_text or ""))
+        ads += _ad_score(f"{body.title}\n{body.content_text}")
+
+    avg_len = (sum(lengths) / len(lengths)) if lengths else 0.0
+
+    # 댓글은 평균이 아니라 중앙값을 쓴다. 여행카페의 '누적 질문 스레드' 하나가 댓글 수천 개를
+    # 달고 있으면 평균이 2,000을 넘어(실측) 카페 전체가 대화가 활발한 것처럼 보인다.
+    # 글당 100개에서 한 번 자르고 중앙값을 취해 그런 한두 글의 영향을 없앤다.
+    cmts = sorted(min(a.comment_count or 0, 100) for a in arts if a.comment_count is not None)
+    med_cmt = statistics.median(cmts) if cmts else 0.0
+    return {
+        "sample_bodies": bodies,
+        "avg_text_len": round(avg_len),
+        "avg_comments": round(med_cmt, 1),      # 이름은 유지하되 값은 중앙값
+        # 600자를 '충분히 긴 글'의 기준으로 잡는다(현재 코퍼스 평균이 222자).
+        "text_richness": round(min(1.0, avg_len / 600.0), 3),
+        "comment_density": round(min(1.0, med_cmt / 8.0), 3),
+        "ad_ratio": round(ads / bodies, 3) if bodies else 0.0,
+    }
+
+
+AD_REJECT = 0.5            # 표본의 절반이 광고 신호를 달고 있으면 학습 대상이 아니다
+MIN_TEXT_LEN = 120         # 표본 평균 본문이 이보다 짧으면 "자연스러운 글"로 보기 어렵다
+
+# 거래·홍보가 본질인 주제는 애초에 조사하지 않는다. 광고 규칙만으로 거르려 했더니
+# 표본을 어떻게 뽑느냐에 따라 중고나라의 ad_ratio가 0.60↔0.40으로 흔들려 통과했다.
+# 판매글은 길어도 "자연스러운 커뮤니티 글"이 아니므로 주제 단위로 빼는 게 안정적이다.
+# (수집 자체를 막는 게 아니라 발굴 대상에서 뺀다 — 핫딜·쇼핑 tier C 결정과 같은 취지.)
+DEFAULT_THEME_BLOCKLIST = [
+    "중고용품", "중고차", "쇼핑", "공동구매", "할인/쿠폰", "부업/재택",
+    "대출/금융", "성인", "분양/임대",
+]
+
+
+def _reject_reason(c: dict, min_samples: int) -> str | None:
+    """채택 자격 심사. 통과하면 None, 아니면 사람이 읽을 사유 문자열.
+
+    점수만으로 뽑으면 (a) 표본 수집이 실패해 근거가 없는데도 회원수만으로 상위에 오거나,
+    (b) 중고거래·홍보성 카페가 본문이 길다는 이유로 뽑힌다. 실제로 첫 실행에서 둘 다 나왔다.
+    """
+    if c.get("join_required"):
+        return "가입 필요 — 가입 후 재조사"
+    if (c.get("sample_bodies") or 0) < min_samples:
+        return f"표본 부족({c.get('sample_bodies') or 0}건) — 재조사 필요"
+    if (c.get("ad_ratio") or 0) >= AD_REJECT:
+        return f"광고 비중 {c['ad_ratio']:.2f}"
+    if (c.get("avg_text_len") or 0) < MIN_TEXT_LEN:
+        return f"본문 평균 {c.get('avg_text_len') or 0}자"
+    if (c.get("score") or 0) <= 0:
+        return "점수 0 이하"
+    return None
+
+
+def _topic_novelty(db, theme: str) -> float:
+    """이미 채택한 카페에 같은 주제가 많을수록 0에 가까워진다."""
+    if not theme:
+        return 0.5
+    try:
+        n = db.conn.execute(
+            "SELECT count(*) FROM cafe_candidates WHERE status='tracked' AND theme=?",
+            (theme,)).fetchone()[0]
+    except Exception:
+        n = 0
+    return round(1.0 / (1.0 + n), 3)
 
 
 # ── 개별 조사(probe) ────────────────────────────────────────────────────────
@@ -51,11 +171,24 @@ def _estimate_daily_posts(arts) -> float | None:
 
 
 def _score(c: dict) -> float:
-    """참조가치 점수(정렬용): 규모(회원수) + 활동성(일발행) − 가입장벽 + 대표/동네 보너스."""
+    """학습가치 점수.
+
+    원래는 회원수·활동성 위주였는데, 그렇게 뽑으면 핫딜·쇼핑 카페가 상위를 채운다.
+    실측상 그런 카페는 본문의 23%가 50자 미만이라 "자연스러운 커뮤니티 글"을 배우려는
+    목적에 맞지 않는다. 그래서 규모 가중을 낮추고 **글이 실제로 얼마나 길고 대화가 붙는지**를
+    주 신호로 쓴다. text_richness/comment_density/ad_ratio는 probe 단계에서 표본을 직접
+    읽어 채운다(열거 단계에서는 없으므로 0 → 규모·주제만으로 1차 정렬).
+    """
     s = 0.0
     if c.get("member_count"):
-        s += math.log10(c["member_count"] + 1) * 10
-    s += min(c.get("daily_posts") or 0, 50)
+        s += math.log10(c["member_count"] + 1) * 6      # 규모: 10 → 6으로 축소
+    # 활동성 가중을 1.0에서 낮춘다. 큰 카페는 전부 상한(50)에 걸려 +50을 받는 바람에
+    # 정작 구분하고 싶은 본문 품질(+25)보다 영향이 커져 있었다.
+    s += min(c.get("daily_posts") or 0, 50) * 0.4
+    s += (c.get("text_richness") or 0.0) * 25           # ★ 본문이 긴가
+    s += (c.get("comment_density") or 0.0) * 15         # ★ 대화가 붙는가
+    s += (c.get("topic_novelty") or 0.0) * 20           # ★ 아직 안 덮은 주제인가
+    s -= (c.get("ad_ratio") or 0.0) * 30                # ★ 광고글 비중
     if c.get("is_power"):
         s += 5
     if c.get("is_local"):
@@ -66,7 +199,7 @@ def _score(c: dict) -> float:
 
 
 def probe_cafe(cluburl: str, *, source: str = "manual", theme: str = "",
-               client=None) -> dict:
+               client=None, db=None) -> dict:
     """카페 주소를 개별 조사해 후보 dict 반환(이름·게시판·일발행량·가입필요 보강)."""
     own = client is None
     client = client or cafe_api.make_client()
@@ -96,6 +229,13 @@ def probe_cafe(cluburl: str, *, source: str = "manual", theme: str = "",
                 arts = cafe_api.fetch_article_list(
                     cid, boards[0]["menu_id"], per_page=30, client=client)
                 out["daily_posts"] = _estimate_daily_posts(arts)
+                # 표본 본문을 실제로 읽어 학습가치 신호를 채운다.
+                sig = _sample_signals(cid, arts, client)
+                out.update(sig)
+                # 목록은 보이는데 본문이 하나도 안 열리면 비회원 열람 제한이다.
+                # (실측상 절반 가까이가 이 경우 — 인기글 조회 성공 여부만으로는 안 잡힌다.)
+                if arts and sig["sample_bodies"] == 0:
+                    join_required = 1
             except Exception:
                 join_required = 1
         try:
@@ -103,6 +243,8 @@ def probe_cafe(cluburl: str, *, source: str = "manual", theme: str = "",
         except Exception:
             join_required = 1
         out["join_required"] = join_required
+        if db is not None:
+            out["topic_novelty"] = _topic_novelty(db, out.get("theme", ""))
         out["score"] = _score(out)
         return out
     finally:
@@ -244,37 +386,120 @@ def authed_client():
     return cafe_api.make_client(None)
 
 
-def run_discovery(db, client, plan: dict | None = None) -> dict:
-    """섹션 열거 → 이미 등록된 카페 제외 → cafe_candidates upsert.
-    반환: {found, upserted, skipped_registered}."""
+def run_discovery(db, client, plan: dict | None = None, *, log=print) -> dict:
+    """2단계 발굴.
+
+      1단계 열거  — 섹션 API로 수백 개를 훑는다. 값싸지만 회원수·주제만 안다.
+      2단계 probe — 상위 probe_top개만 게시판·본문 표본을 실제로 읽어 학습가치를 잰다.
+                    카페당 약 7요청이라 전수 조사는 예산이 안 된다.
+      선별       — 재계산된 점수로 정렬하되 주제당 theme_cap개까지만 뽑는다.
+                    점수만 보면 같은 주제가 상위를 독식해 코퍼스가 편중된다.
+
+    이미 등록됐거나 dismissed/tracked인 카페는 건너뛴다.
+    """
     cfg = _config()
+    plan = {**DEFAULT_PLAN, **(plan or cfg.get("discovery") or {})}
+    probe_top = int(plan.get("probe_top", 15))
+    theme_cap = int(plan.get("theme_cap", 2))
+    daily_batch = int(plan.get("daily_batch", 5))
+    min_samples = int(plan.get("min_samples", 3))
+    blocked = set(plan.get("theme_blocklist", DEFAULT_THEME_BLOCKLIST))
+
     registered = {c["club_id"] for c in cfg.get("cafes", [])}
-    cands = discover(client, plan or cfg.get("discovery"))
-    upserted = 0
-    for c in cands:
+    enumerated = discover(client, plan)
+    log(f"1단계 열거: {len(enumerated)}개")
+
+    added = 0
+    for c in enumerated:
         if c["club_id"] in registered:
             continue
-        db.upsert_candidate(c)
-        upserted += 1
-    return {"found": len(cands), "upserted": upserted,
-            "skipped_registered": sum(1 for c in cands if c["club_id"] in registered)}
+        row = db.get_candidate(c["club_id"])
+        if row is not None and row["status"] in ("tracked", "dismissed"):
+            continue          # 사람이 이미 판단한 카페는 다시 올리지 않는다
+        db.upsert_candidate(c, status="enumerated")   # 풀에만 넣는다(승인 큐 아님)
+        added += 1
+    log(f"후보 풀 갱신: {added}개")
+
+    # 2단계: 아직 조사 안 한 풀에서 상위 N개만 실제로 열어 본다.
+    pool = [r for r in db.unprobed_candidates(exclude_ids=registered)
+            if (r["theme"] or "") not in blocked]
+    log(f"미조사 풀 {len(pool)}개 → 상위 {probe_top}개 조사")
+    probed = []
+    for r in pool[:probe_top]:
+        c = dict(r)
+        try:
+            p = probe_cafe(c["cluburl"], source=c.get("source") or "",
+                           theme=c.get("theme") or "", client=client, db=db)
+        except Exception as e:
+            log(f"  probe 실패 {c['cluburl']}: {e}")
+            continue
+        merged = {**c, **{k: v for k, v in p.items() if v is not None}}
+        merged["club_id"] = c["club_id"]
+        merged["score"] = _score(merged)
+        db.save_candidate_signals(merged["club_id"], merged, merged["score"])
+        probed.append(merged)
+        log(f"  probe {(merged['name'] or '')[:20]:20} 점수 {merged['score']:6.1f} "
+            f"본문평균 {merged.get('avg_text_len', 0):>5}자 "
+            f"댓글 {merged.get('avg_comments', 0):>4} 광고 {merged.get('ad_ratio', 0):.2f}")
+
+    # 선별: 자격 심사 → 점수순 → 주제당 상한 → daily_batch개
+    picked, per_theme, rejected = [], {}, []
+    for c in sorted(probed, key=lambda x: x["score"], reverse=True):
+        why = _reject_reason(c, min_samples)
+        if why:
+            rejected.append((c.get("name", ""), why))
+            continue
+        t = c.get("theme") or "기타"
+        if per_theme.get(t, 0) >= theme_cap:
+            continue
+        per_theme[t] = per_theme.get(t, 0) + 1
+        picked.append(c)
+        if len(picked) >= daily_batch:
+            break
+    for name, why in rejected:
+        log(f"  ✕ {(name or '')[:24]:24} {why}")
+
+    # 검증을 통과한 소수만 승인 대기('new')로 올린다. 나머지는 보류(점수·신호는 남는다).
+    picked_ids = {c["club_id"] for c in picked}
+    join_needed = 0
+    for c in probed:
+        if c["club_id"] in picked_ids:
+            st = "new"
+        elif c.get("join_required"):
+            st = "join_needed"      # 가입만 하면 후보가 된다 — 사람 개입 대기함으로
+            join_needed += 1
+        else:
+            st = "backlog"
+        db.set_candidate_status(c["club_id"], st)
+    if join_needed:
+        log(f"  🔒 가입 필요 {join_needed}건 — 가입 후 재조사하면 후보가 됩니다")
+
+    return {"found": len(enumerated), "pool": len(pool), "probed": len(probed),
+            "picked": len(picked), "themes": per_theme,
+            "picked_list": [{"name": c["name"], "cluburl": c["cluburl"],
+                             "score": c["score"], "theme": c.get("theme", "")}
+                            for c in picked]}
 
 
 def main():
     from .db import Database
+    from .paths import prune_logs
+    prune_logs("discovery")
     cfg = _config()
     client = authed_client()
     db = Database(DB_PATH)
     try:
         stat = run_discovery(db, client, cfg.get("discovery"))
-        print(f"발굴 결과: 열거 {stat['found']} / 신규저장 {stat['upserted']} / "
-              f"등록됨제외 {stat['skipped_registered']}")
-        print("\n[점수 상위 후보]")
+        print(f"\n발굴 결과: 열거 {stat['found']} / 미조사풀 {stat['pool']} / "
+              f"probe {stat['probed']} / 채택 {stat['picked']}")
+        print(f"주제 분포: {stat['themes']}")
+        print("\n[승인 대기 후보]")
         for r in db.list_candidates("new")[:12]:
             flags = "".join(f for f, on in (("⭐", r["is_power"]), ("📍", r["is_local"])) if on)
             mc = f"{r['member_count']:,}" if r["member_count"] else "-"
-            print(f"  {r['score']:6.1f} {flags:2} {r['name'][:30]:30} "
-                  f"회원 {mc:>10}  주제 {r['theme'] or '-'}  ({r['cluburl']})")
+            print(f"  {r['score']:6.1f} {flags:2} {r['name'][:24]:24} 회원 {mc:>10} "
+                  f"본문 {r['avg_text_len'] or 0:>5}자 댓글 {r['avg_comments'] or 0:>4} "
+                  f"광고 {r['ad_ratio'] or 0:.2f}  {r['theme'] or '-'}  ({r['cluburl']})")
     finally:
         client.close()
         db.close()

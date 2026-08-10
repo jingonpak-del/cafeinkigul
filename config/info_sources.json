@@ -3090,6 +3090,18 @@
         "addr": "소관기관명",
         "addr2": "__none__"
       }
+    },
+    {
+      "id": "gnuboard:disc_kift",
+      "name": "제36회 거창국제연극제",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "",
+      "org_type": "기타",
+      "type": "gnuboard",
+      "board_url": "https://www.kift.or.kr/bbs/board.php?bo_table=notice",
+      "max_pages": 1
     }
   ]
 }

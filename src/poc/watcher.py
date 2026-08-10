@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 
-from . import cafe_api
+from . import cafe_api, ratelimit
 from .db import Database, now_ms
 from .session import SessionManager
 
@@ -55,10 +55,12 @@ def load_boards(cfg: dict) -> list[Board]:
 class Watcher:
     def __init__(self, cfg: dict, db: Database, client, *,
                  per_page: int = 30, revisit_after_s: int = 4 * 3600,
-                 min_request_gap_s: float = 1.0, sheets=None, on_event=None, log=print):
+                 min_request_gap_s: float = 1.0, sheets=None, on_event=None, log=print,
+                 session_mgr: SessionManager | None = None):
         self.cfg = cfg
         self.db = db
         self.client = client
+        self.session_mgr = session_mgr   # 있으면 갱신된 쿠키를 주기적으로 되쓴다
         self.per_page = per_page
         self.revisit_after_s = revisit_after_s
         self.min_gap = min_request_gap_s
@@ -74,15 +76,33 @@ class Watcher:
         self._cafe_name = {c["club_id"]: c.get("name") or c["cluburl"] for c in cfg["cafes"]}
         self._cfg_mtime = _cfg_mtime()   # config 핫리로드 감지용
         self._last_request = 0.0
+        self.account = cfg.get("account") or "default"
+        self.limiter = ratelimit.get(self.account)
         # 하드닝 상태
         self.session_ok = True
         self._errors = 0                  # 연속 오류 → 지수 백오프
         self._max_backoff = 60.0
         self._last_session_check = 0.0
         self._session_check_gap = 60.0    # 세션 체크 최소 간격(초)
+        # 세션 재저장 / 만료 경고
+        self._last_persist = 0.0
+        self._persist_gap = 600.0         # 쿠키 되쓰기 최소 간격(초)
+        self._saved_fp = None             # 마지막 저장 지문(값+만료) — 같으면 디스크 안 건드림
+        self._last_expiry_warn = 0.0
+        self._expiry_warn_gap = 3600.0    # 만료 경고는 시간당 1회까지
+        # API 사용량 이력
+        self._last_usage_snap = 0.0
+        self._usage_snap_gap = 300.0      # 5분마다. hour_count가 매시 리셋되므로 이 간격이면
+                                          # 시간별 최대값을 놓치지 않는다.
 
     # --- rate limit ----------------------------------------------------------
     def _throttle(self):
+        """계정 전역 예산에서 요청 1건을 받아온다.
+
+        백필 워커가 다른 프로세스에서 같은 계정으로 요청하기 때문에, 프로세스 안에서만
+        간격을 지키면 합산 레이트가 두 배가 된다. 예산은 ratelimit의 공유 버킷이 관리하고,
+        여기서는 스트림 우선순위(reserve=0)로 가져온다. min_gap은 하한으로만 남긴다."""
+        self.limiter.acquire(reserve=ratelimit.RESERVE_STREAM)
         wait = self.min_gap - (time.monotonic() - self._last_request)
         if wait > 0:
             time.sleep(wait)
@@ -151,6 +171,67 @@ class Watcher:
             else:
                 self.log("  ⚠ 세션 만료 감지 — 재로그인 필요 (capture 다시 실행)")
             self._emit("session", {"ok": ok})
+        if ok:
+            # 로그인이 살아 있을 때만 저장한다. 죽은 뒤 저장하면 쓸모없는 쿠키로 덮어쓴다.
+            self.persist_session()
+            self.warn_if_expiring()
+
+    def persist_session(self, force: bool = False):
+        """네이버가 굴려준 최신 쿠키를 세션 파일에 되쓴다.
+
+        이게 없으면 갱신분이 메모리에만 남아, 프로세스를 재시작하는 순간 처음 캡처한
+        낡은 쿠키로 되돌아간다. 실제로 그 상태였다(7/05 캡처분이 8/04에 명목 만료).
+        """
+        if not self.session_mgr or not self.account or self.account == "default":
+            return
+        if not force and (time.monotonic() - self._last_persist) < self._persist_gap:
+            return
+        self._last_persist = time.monotonic()
+        try:
+            fp = self.session_mgr.persist(self.account, self.client, prev=self._saved_fp)
+        except Exception as e:
+            self.log(f"  ! 세션 저장 실패: {e}")
+            return
+        if fp is None:
+            return                      # 갱신 없음 또는 로그인 쿠키 없음 — 정상 경로
+        first = self._saved_fp is None
+        self._saved_fp = fp
+        v = self.session_mgr.verify(self.account)
+        self.log(f"  ⟳ 세션 {'저장' if first else '갱신 저장'} — {v.expiry_text}")
+        self._emit("session_saved", {"account": self.account, "days_left": v.days_left})
+
+    def snapshot_usage(self):
+        """계정별 요청량을 시계열로 남긴다.
+
+        네이버 내부 엔드포인트에는 공개된 한도가 없어서 상한을 관측으로만 알 수 있다.
+        buckets는 현재값만 들고 있고 매시 리셋되므로, 여기서 주기적으로 떠 놓지 않으면
+        계정을 늘렸을 때 어디서 막히기 시작했는지 되짚을 수 없다."""
+        if (time.monotonic() - self._last_usage_snap) < self._usage_snap_gap:
+            return
+        self._last_usage_snap = time.monotonic()
+        try:
+            from . import usage
+            usage.snapshot()
+        except Exception as e:
+            self.log(f"  ! 사용량 스냅샷 실패: {e}")
+
+    def warn_if_expiring(self):
+        """만료가 임박했으면 알린다. 자동 갱신이 안 되는 유일한 지점이라 사람이 개입해야 한다."""
+        if not self.session_mgr or not self.account or self.account == "default":
+            return
+        if (time.monotonic() - self._last_expiry_warn) < self._expiry_warn_gap:
+            return
+        try:
+            v = self.session_mgr.verify(self.account)
+        except Exception:
+            return
+        if not v.expiring:
+            return
+        self._last_expiry_warn = time.monotonic()
+        self.log(f"  ⚠ 로그인 세션 {v.expiry_text} — 재로그인을 준비하세요 ({self.account})")
+        self._emit("session_expiring", {
+            "account": self.account, "days_left": v.days_left, "expires_at": v.expires_at,
+        })
 
     def _on_error(self):
         self._errors += 1
@@ -287,7 +368,10 @@ class Watcher:
         self.log(f"Watcher 시작 — 일반 {len(self.menu_boards)}개(실시간) / "
                  f"인기글 {len(self.popular_boards)}개(매일 {self.popular_hours[0]}·{self.popular_hours[1]}시), "
                  f"tick {tick_s}s, 재방문 {self.revisit_after_s}s 후")
-        self.check_session(force=True)        # 시작 시 1회 확인
+        # 시작 시 1회 확인. 로그인이 살아 있으면 이 안에서 현재 쿠키를 즉시 저장한다.
+        # (persist는 반드시 check_session의 ok 판정을 거쳐야 한다 — 죽은 쿠키로 덮어쓰면
+        #  복구가 안 되기 때문에, 여기서 따로 force 저장을 부르지 않는다.)
+        self.check_session(force=True)
         self.maybe_collect_popular()          # 시작 시 놓친 인기글 회차 보충
         n = max(1, len(self.menu_boards))
         cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
@@ -300,6 +384,13 @@ class Watcher:
                     self._on_success()
                     if new:
                         self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
+                except ratelimit.Tripped as e:
+                    # 서킷 차단은 사람이 세션을 갱신해야 풀린다. 재시도로 뚫릴 게 아니므로
+                    # 조용히 대기하며 대시보드에 세션 이상만 알린다.
+                    self.log(f"⛔ {e}")
+                    self.session_ok = False
+                    self._emit("session", {"ok": False, "reason": "rate_limit_tripped"})
+                    time.sleep(30)
                 except Exception as e:
                     self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
                     self._on_error()
@@ -307,6 +398,7 @@ class Watcher:
             if i % n == 0:                    # 한 사이클마다
                 self.process_revisits()
                 self.check_session()
+                self.snapshot_usage()         # 요청량 이력 (5분 간격, 내부 스로틀)
                 self.maybe_collect_popular()  # 예정시각 도래 시 인기글 수집
                 if self.sheets:
                     self.sheets.flush()
@@ -324,3 +416,8 @@ def build(account: str | None, db_path: Path, config_path: Path):
     cookies = sm.load_cookies(account) if account and sm.verify(account).ok else None
     client = cafe_api.make_client(cookies)
     return cfg, Database(db_path), client
+
+
+def build_session_manager() -> SessionManager:
+    """워처가 쿠키를 되쓸 때 쓰는 매니저. build()가 만드는 것과 같은 디렉토리를 본다."""
+    return SessionManager(ROOT / "data" / "sessions")

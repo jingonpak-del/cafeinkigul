@@ -6,6 +6,7 @@ every board that surfaced it. Schema maps 1:1 to a future Postgres version.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -117,9 +118,22 @@ class Database:
         for col, decl in (("cur_read", "INTEGER"), ("cur_comment", "INTEGER"),
                           ("cur_like", "INTEGER"), ("cur_snapshot_at", "INTEGER"),
                           ("used", "INTEGER DEFAULT 0"), ("used_by", "TEXT"), ("used_at", "INTEGER"),
-                          ("menu_name", "TEXT")):
+                          ("menu_name", "TEXT"),
+                          # Phase 0: HTML은 raw 아카이브로 빠지고, 스튜디오용 링크/이미지만 남긴다.
+                          ("material_json", "TEXT"),
+                          # Phase 1: 어느 레인이 수집했는지(stream | backfill). 보고서용.
+                          ("lane", "TEXT")):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {decl}")
+
+        # Phase 1: 발굴 후보의 학습가치 신호 (표본 본문을 실제로 읽어 잰 값).
+        ccols = {r[1] for r in self.conn.execute("PRAGMA table_info(cafe_candidates)")}
+        for col, decl in (("avg_text_len", "INTEGER"), ("avg_comments", "REAL"),
+                          ("ad_ratio", "REAL"), ("text_richness", "REAL"),
+                          ("comment_density", "REAL"), ("topic_novelty", "REAL"),
+                          ("sample_bodies", "INTEGER"), ("probed_at", "INTEGER")):
+            if col not in ccols:
+                self.conn.execute(f"ALTER TABLE cafe_candidates ADD COLUMN {col} {decl}")
 
     def close(self):
         self.conn.close()
@@ -148,6 +162,31 @@ class Database:
         self.conn.commit()
         return is_new
 
+    def upsert_article_from_body(self, body, lane: str = "backfill") -> bool:
+        """백필용: 목록 감지 없이 본문 응답만으로 게시글 행을 만든다.
+
+        스트림은 목록에서 먼저 보고 나중에 본문을 받지만, 백필은 article_id를 직접 찍어
+        본문부터 받는다. 과거 글은 조회수가 더 오르지 않으므로 재방문 대상에서 뺀다."""
+        ts = now_ms()
+        cur = self.conn.execute(
+            """INSERT OR IGNORE INTO articles
+               (cafe_id, article_id, menu_id, title, writer_nickname, member_key,
+                write_ts, first_seen_at, first_read_count, first_comment_count,
+                revisit_done, lane)
+               VALUES (?,?,?,?,?,?,?,?,?,?,1,?)""",
+            (body.cafe_id, body.article_id, body.menu_id, body.title,
+             body.writer_nickname, body.member_key, body.write_ts, ts,
+             body.read_count, body.comment_count, lane),
+        )
+        is_new = cur.rowcount > 0
+        self.conn.execute(
+            """INSERT OR IGNORE INTO board_detections
+               (cafe_id, article_id, board_key, detected_at) VALUES (?,?,?,?)""",
+            (body.cafe_id, body.article_id, lane, ts),
+        )
+        self.conn.commit()
+        return is_new
+
     def update_current_counts_bulk(self, arts):
         """폴링 시 목록이 준 현재 조회/댓글/좋아요를 일괄 갱신 (인기점수용)."""
         if not arts:
@@ -164,10 +203,24 @@ class Database:
 
     # --- body / comments -----------------------------------------------------
     def save_body(self, body):
+        """본문 저장. HTML은 DB가 아니라 raw 아카이브로 간다(Phase 0).
+
+        스튜디오가 쓰던 링크·이미지 목록은 크롤 시점에 뽑아 material_json으로 남겨,
+        HTML 없이도 재크롤 없이 쓸 수 있게 한다."""
+        from . import raw_archive, studio
+        raw_archive.get().write(cafe_id=body.cafe_id, article_id=body.article_id,
+                                write_ts=getattr(body, "write_ts", None),
+                                html=body.content_html)
+        try:
+            material = json.dumps(
+                studio.extract_material(body.content_html, body.content_text),
+                ensure_ascii=False)
+        except Exception:
+            material = None
         self.conn.execute(
-            """UPDATE articles SET content_text=?, content_html=?, body_crawled=1
+            """UPDATE articles SET content_text=?, material_json=?, body_crawled=1
                WHERE cafe_id=? AND article_id=?""",
-            (body.content_text, body.content_html, body.cafe_id, body.article_id),
+            (body.content_text, material, body.cafe_id, body.article_id),
         )
         self.conn.commit()
 
@@ -241,14 +294,26 @@ class Database:
     _CAND_FIELDS = ("cluburl", "name", "source", "theme", "is_power", "is_local",
                     "member_count", "daily_posts", "open_level", "join_required",
                     "sample_boards", "score")
+    # probe로만 채워지는 학습가치 신호. 열거만 한 후보는 값이 없으므로 별도로 쓴다
+    # (열거 결과가 probe 결과를 NULL로 덮어쓰지 않게).
+    # daily_posts·sample_boards·join_required도 여기 넣는다. 열거 단계에서는 알 수 없고
+    # probe에서만 채워지는데, 이 목록에 없으면 점수 계산에만 쓰이고 저장되지 않는다.
+    _SIGNAL_FIELDS = ("avg_text_len", "avg_comments", "ad_ratio", "text_richness",
+                      "comment_density", "topic_novelty", "sample_bodies",
+                      "daily_posts", "sample_boards", "join_required")
 
-    def upsert_candidate(self, c: dict):
+    def upsert_candidate(self, c: dict, status: str = "enumerated"):
         """후보 저장/갱신. 기존 후보면 지표만 갱신하고 status는 보존
-        (한번 dismissed/tracked한 카페가 다시 new로 돌아오지 않게)."""
+        (한번 dismissed/tracked한 카페가 다시 new로 돌아오지 않게).
+
+        status 기본값이 'enumerated'인 이유: 섹션 열거는 하루 700개 넘게 쏟아내는데
+        이걸 전부 'new'(승인 대기)로 넣으면 사람이 볼 큐가 무너진다. 열거 결과는 풀에
+        쌓아두고, probe로 검증해 뽑힌 소수만 'new'로 올린다."""
         ts = now_ms()
         p = {k: c.get(k) for k in self._CAND_FIELDS}
         p["club_id"] = c["club_id"]
         p["ts"] = ts
+        p["status"] = status
         self.conn.execute(
             """INSERT INTO cafe_candidates
                (club_id, cluburl, name, source, theme, is_power, is_local,
@@ -256,16 +321,45 @@ class Database:
                 sample_boards, score, discovered_at, updated_at, status)
                VALUES (:club_id,:cluburl,:name,:source,:theme,:is_power,:is_local,
                 :member_count,:daily_posts,:open_level,:join_required,
-                :sample_boards,:score,:ts,:ts,'new')
+                :sample_boards,:score,:ts,:ts,:status)
                ON CONFLICT(club_id) DO UPDATE SET
                  cluburl=excluded.cluburl, name=excluded.name, source=excluded.source,
                  theme=excluded.theme, is_power=excluded.is_power, is_local=excluded.is_local,
-                 member_count=excluded.member_count, daily_posts=excluded.daily_posts,
-                 open_level=excluded.open_level, join_required=excluded.join_required,
-                 sample_boards=excluded.sample_boards, score=excluded.score,
+                 member_count=excluded.member_count,
+                 open_level=excluded.open_level,
+                 -- 아래 셋은 probe로만 제대로 채워진다. 매일 도는 열거가 NULL/추정치로
+                 -- 덮어쓰면 힘들게 조사한 값이 사라진다(실측: 점수 104.0 → 43.2).
+                 daily_posts=CASE WHEN cafe_candidates.probed_at IS NOT NULL
+                                  THEN cafe_candidates.daily_posts ELSE excluded.daily_posts END,
+                 join_required=CASE WHEN cafe_candidates.probed_at IS NOT NULL
+                                    THEN cafe_candidates.join_required ELSE excluded.join_required END,
+                 sample_boards=CASE WHEN cafe_candidates.probed_at IS NOT NULL
+                                    THEN cafe_candidates.sample_boards ELSE excluded.sample_boards END,
+                 score=CASE WHEN cafe_candidates.probed_at IS NOT NULL
+                            THEN cafe_candidates.score ELSE excluded.score END,
                  updated_at=excluded.updated_at""",
             p,
         )
+        self.conn.commit()
+
+    def unprobed_candidates(self, exclude_ids=()):
+        """아직 표본 조사를 안 한 후보 풀. 매일 상위 몇 개씩 꺼내 조사한다.
+        probed_at이 있는 행을 빼지 않으면 매일 같은 카페만 다시 조사하게 된다."""
+        rows = self.conn.execute(
+            "SELECT * FROM cafe_candidates "
+            "WHERE probed_at IS NULL AND status NOT IN ('tracked','dismissed') "
+            "ORDER BY score DESC").fetchall()
+        ex = set(exclude_ids)
+        return [r for r in rows if r["club_id"] not in ex]
+
+    def save_candidate_signals(self, club_id: int, sig: dict, score: float):
+        """probe로 잰 학습가치 신호와 재계산된 점수를 후보에 기록."""
+        sets = ", ".join(f"{k}=:{k}" for k in self._SIGNAL_FIELDS)
+        p = {k: sig.get(k) for k in self._SIGNAL_FIELDS}
+        p.update(club_id=club_id, score=score, ts=now_ms())
+        self.conn.execute(
+            f"UPDATE cafe_candidates SET {sets}, score=:score, probed_at=:ts, updated_at=:ts "
+            "WHERE club_id=:club_id", p)
         self.conn.commit()
 
     def list_candidates(self, status: str | None = None):

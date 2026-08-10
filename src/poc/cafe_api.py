@@ -18,11 +18,12 @@ from typing import Any
 
 import httpx
 from bs4 import BeautifulSoup
+from navercafe_core import browserenv
 
-UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+# UA는 공용 코어가 단일 출처를 관리한다. 로그인은 아이디관리의 실제 크롬으로 하고
+# 크롤링은 여기서 HTTP로 하는데, 둘이 다른 Chrome 버전을 주장하면 같은 세션이 두 개의
+# 브라우저인 척하는 셈이 된다(실측: 브라우저 150 / 이 파일 124 / 아이디관리 116).
+UA = browserenv.load_ua()
 ARTICLE_LIST_URL = "https://apis.naver.com/cafe-web/cafe2/ArticleListV2.json"
 # Popular ("인기글") board — different endpoint and slightly different schema.
 POPULAR_LIST_URL = "https://apis.naver.com/cafe-web/cafe2/WeeklyPopularArticleListV3.json"
@@ -117,6 +118,11 @@ def make_client(cookies: list[dict[str, Any]] | None = None) -> httpx.Client:
         headers={"User-Agent": UA, "Accept": "application/json, text/plain, */*"},
         cookies=jar, timeout=12.0, follow_redirects=True,
     )
+
+
+def dump_cookies(client: httpx.Client) -> list[dict[str, Any]]:
+    """공용 코어로 이관됨. 네이버가 롤링 갱신한 쿠키를 저장 포맷으로 뽑는다."""
+    return browserenv.dump_cookies(client)
 
 
 MENU_LIST_URL = "https://apis.naver.com/cafe-web/cafe-cafemain-api/v1.0/cafes/{club_id}/menus"

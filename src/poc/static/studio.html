@@ -89,7 +89,7 @@
 <body>
 <header>
   <h1>📝 핫딜 원고작성 스튜디오</h1>
-  <span class="badge">실험용 · master 전용</span>
+  <span class="badge">실험용 · master/글쓰기 권한</span>
   <span class="sp"></span>
   <a href="/">← 대시보드</a>
 </header>
@@ -176,8 +176,8 @@
 </div>
 
 <div id="gate" class="gate" style="display:none">
-  <h2>master 전용 페이지</h2>
-  <p>이 스튜디오는 master 계정으로 로그인해야 사용할 수 있습니다.</p>
+  <h2>글쓰기 권한이 필요합니다</h2>
+  <p>이 스튜디오는 master 또는 글쓰기 권한이 부여된 계정으로 로그인해야 사용할 수 있습니다.</p>
   <p><a href="/">← 대시보드로</a></p>
 </div>
 
@@ -214,7 +214,8 @@ async function api(url,opt){const r=await fetch(url,opt);if(r.status===403)throw
 async function boot(){
   let me;
   try{ me=await api("/api/me"); }catch(e){ me={}; }
-  if(!me.admin){ $("#gate").style.display="block"; return; }
+  const canWrite = me.admin || (me.perms||[]).includes("write");
+  if(!canWrite){ $("#gate").style.display="block"; return; }
   $("#app").style.display="block";
   // 분류 셀렉트
   const cats=await api("/api/categories");

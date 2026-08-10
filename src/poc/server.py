@@ -30,8 +30,9 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .paths import DB_PATH  # 데이터는 D:\cafe-corpus (paths.py 참고)
+
 ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = ROOT / "data" / "tracker.db"
 CONFIG_PATH = ROOT / "config" / "targets.json"
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -239,7 +240,7 @@ class Hub:
 
 hub = Hub()
 app = FastAPI(title="인기글 트래커")
-STATE = {"session_ok": True}   # 워처가 갱신하는 런타임 상태
+STATE = {"session_ok": True, "session_days_left": None, "session_expiring": False}   # 워처가 갱신하는 런타임 상태
 
 
 def _load_accounts():
@@ -467,6 +468,13 @@ def _naver_client():
 def _require_admin(request):
     acct = _conn_account(request)
     return acct if (acct and acct.get("admin")) else None
+
+
+def _require_write(request):
+    """글쓰기(핫딜 원고작성 스튜디오) 권한: master(admin) 또는 perms에 'write' 포함.
+    → dashboard_auth.json 계정에 "write"를 넣으면 member 등급도 글쓰기 사용 가능."""
+    acct = _conn_account(request)
+    return acct if (acct and (acct.get("admin") or "write" in (acct.get("perms") or []))) else None
 
 
 @app.get("/api/admin/config")
@@ -741,6 +749,8 @@ def stats():
             "pending_revisit": q("SELECT COUNT(*) FROM articles WHERE revisit_done=0").fetchone()[0],
             "deleted": q("SELECT COUNT(*) FROM articles WHERE status='deleted'").fetchone()[0],
             "session_ok": STATE["session_ok"],
+            "session_days_left": STATE.get("session_days_left"),
+            "session_expiring": STATE.get("session_expiring", False),
         }
     finally:
         c.close()
@@ -904,8 +914,8 @@ async def mark_used(cafe_id: int, article_id: int, request: Request):
 @app.get("/api/studio/candidates")
 def studio_candidates(request: Request, category: str = "", order: str = "hot", limit: int = 60):
     """원고 후보 목록 — 기본은 반응 좋은 일반글. category로 핫딜 등 좁힘."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     return articles(type="general", order=order, category=category, limit=limit)
 
 
@@ -925,7 +935,16 @@ def _studio_material(cafe_id: int, article_id: int) -> dict | None:
                ORDER BY comment_id""", (cafe_id, article_id)).fetchall()]
     finally:
         conn.close()
-    mat = studio.extract_material(a.get("content_html"), a.get("content_text"))
+    # Phase 0 이후 HTML은 DB에 없다. 크롤 시점에 뽑아둔 material_json을 쓰고,
+    # 그 이전에 수집된 글은 본문 텍스트에서 URL만 뽑는 폴백으로 처리한다.
+    mat = None
+    if a.get("material_json"):
+        try:
+            mat = json.loads(a["material_json"])
+        except Exception:
+            mat = None
+    if mat is None:
+        mat = studio.extract_material(a.get("content_html"), a.get("content_text"))
     return {
         "cafe_id": cafe_id, "article_id": article_id,
         "title": a.get("title"), "writer": a.get("writer_nickname"),
@@ -942,8 +961,8 @@ def _studio_material(cafe_id: int, article_id: int) -> dict | None:
 @app.get("/api/studio/material/{cafe_id}/{article_id}")
 def studio_material(cafe_id: int, article_id: int, request: Request):
     """한 글의 글감: 본문 텍스트 + 댓글 + 추출된 외부링크/이미지 URL(재크롤 없음)."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     m = _studio_material(cafe_id, article_id)
     return m or JSONResponse({"error": "not found"}, status_code=404)
 
@@ -951,8 +970,8 @@ def studio_material(cafe_id: int, article_id: int, request: Request):
 @app.post("/api/studio/unfurl")
 async def studio_unfurl(request: Request):
     """링크 자동 해제: 리다이렉트 최종 URL·도메인·OG메타·가격·생사 판정."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     body = await request.json()
     url = (body.get("url") or "").strip()
@@ -963,16 +982,16 @@ async def studio_unfurl(request: Request):
 
 @app.get("/api/studio/drafts")
 def studio_drafts(request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     return {"drafts": studio.list_drafts(DB_PATH)}
 
 
 @app.get("/api/studio/drafts/{did}")
 def studio_draft_get(did: int, request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     d = studio.get_draft(DB_PATH, did)
     return d or JSONResponse({"error": "not found"}, status_code=404)
@@ -980,8 +999,8 @@ def studio_draft_get(did: int, request: Request):
 
 @app.post("/api/studio/drafts")
 async def studio_draft_save(request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     body = await request.json()
     did = studio.save_draft(DB_PATH, body)
@@ -990,8 +1009,8 @@ async def studio_draft_save(request: Request):
 
 @app.post("/api/studio/drafts/{did}/delete")
 def studio_draft_delete(did: int, request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     studio.delete_draft(DB_PATH, did)
     return {"ok": True}
@@ -1009,16 +1028,16 @@ def _studio_token():
 @app.get("/api/studio/engine-config")
 def studio_engine_config(request: Request):
     """토큰 저장 여부만 반환(토큰 값은 노출하지 않음). master 전용."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     return {"has_token": bool(_studio_token())}
 
 
 @app.post("/api/studio/engine-config")
 async def studio_engine_config_save(request: Request):
     """claude setup-token으로 발급한 OAuth 토큰 저장. master 전용."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     body = await request.json()
     tok = (body.get("oauth_token") or "").strip()
@@ -1030,16 +1049,16 @@ async def studio_engine_config_save(request: Request):
 
 @app.get("/api/studio/personas")
 def studio_personas(request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     return studio.load_personas(STUDIO_PERSONAS)
 
 
 @app.post("/api/studio/personas")
 async def studio_personas_save(request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     body = await request.json()
     studio.save_personas(STUDIO_PERSONAS, body)
@@ -1049,8 +1068,8 @@ async def studio_personas_save(request: Request):
 @app.post("/api/studio/generate")
 async def studio_generate(request: Request):
     """구독(claude -p)으로 글감 재작성/큐레이션 → 초안. items=[{cafe_id,article_id}]."""
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     body = await request.json()
     items = body.get("items") or []
@@ -1072,8 +1091,8 @@ async def studio_generate(request: Request):
 
 @app.post("/api/studio/engine-check")
 async def studio_engine_check(request: Request):
-    if not _require_admin(request):
-        return JSONResponse({"error": "master 전용"}, status_code=403)
+    if not _require_write(request):
+        return JSONResponse({"error": "글쓰기 권한 필요"}, status_code=403)
     from . import studio
     return await asyncio.to_thread(studio.engine_check, _studio_token())
 
@@ -1108,9 +1127,14 @@ def _start_watcher():
     def emit(kind: str, payload: dict):
         if kind == "session":
             STATE["session_ok"] = payload.get("ok", True)
+        elif kind in ("session_saved", "session_expiring"):
+            STATE["session_days_left"] = payload.get("days_left")
+            STATE["session_expiring"] = (kind == "session_expiring")
         hub.broadcast_threadsafe({"type": kind, **payload})
 
-    w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit, per_page=20)
+    # session_mgr를 넘겨야 워처가 갱신된 쿠키를 파일로 되쓴다(재시작해도 세션 유지).
+    w = watcher.Watcher(cfg, db, client, sheets=buf, on_event=emit, per_page=20,
+                        session_mgr=watcher.build_session_manager())
     print(f"Watcher 백그라운드 시작 — 일반 {len(w.menu_boards)}개 / 인기글 {len(w.popular_boards)}개")
     w.run(tick_s=1.0)
 

@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import cafe_api
+from .paths import DB_PATH  # 데이터는 D:\cafe-corpus (paths.py 참고)
 from .session import SessionManager
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -59,6 +60,12 @@ def cmd_capture(args):
 def cmd_verify(args):
     res = SessionManager(SESSION_DIR).verify(args.account)
     print(("OK  " if res.ok else "FAIL ") + res.reason)
+    if res.expires_at:
+        import datetime
+        when = datetime.datetime.fromtimestamp(res.expires_at)
+        print(f"     로그인 쿠키 만료: {when:%Y-%m-%d %H:%M} ({res.expiry_text})")
+    if res.expiring:
+        print("     ⚠ 재로그인을 준비하세요 — 아이디관리에서 [로그인] 또는 `capture` 실행")
 
 
 def cmd_fetch(args):
@@ -121,9 +128,6 @@ def cmd_track(args):
         client.close()
 
 
-DB_PATH = ROOT / "data" / "tracker.db"
-
-
 def cmd_sweep(args):
     from . import watcher
     cfg, db, client = watcher.build(args.account, DB_PATH, CONFIG_PATH)
@@ -150,7 +154,8 @@ def cmd_watch(args):
             print("[알림] config에 sheets.spreadsheet_id 없음 → 시트 push 비활성 (DB만 적재)")
     try:
         w = watcher.Watcher(cfg, db, client, per_page=args.n, revisit_after_s=args.revisit_after,
-                            min_request_gap_s=args.gap, sheets=buf)
+                            min_request_gap_s=args.gap, sheets=buf,
+                            session_mgr=watcher.build_session_manager())
         w.run(tick_s=args.tick)
     except KeyboardInterrupt:
         print("\n중단됨")
