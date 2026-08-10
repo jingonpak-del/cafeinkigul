@@ -35,6 +35,7 @@ SECTION_REFERER = "https://section.cafe.naver.com/"
 # (한 페이지만이 아니라 테마별 여러 페이지까지). 다양한 카페 확보용.
 DEFAULT_PLAN = {
     "daily_batch": 5,
+    "auto_adopt": True,     # 심사 통과한 picked를 자동으로 crawl_all 편입(가입필요 제외)
     "probe_top": 15,        # 열거 상위 N개만 본문 표본을 읽는다(카페당 약 7요청)
     "theme_cap": 2,         # 하루 배치에서 같은 주제는 N개까지 — 코퍼스 편중 방지
     "powers": {"sectors": ["popular"], "max_pages": 1},
@@ -459,23 +460,48 @@ def run_discovery(db, client, plan: dict | None = None, *, log=print) -> dict:
     for name, why in rejected:
         log(f"  ✕ {(name or '')[:24]:24} {why}")
 
-    # 검증을 통과한 소수만 승인 대기('new')로 올린다. 나머지는 보류(점수·신호는 남는다).
+    # 점수상위 자동 채택: 심사 통과한 picked를 crawl_all로 편입(가입필요 제외).
+    # auto_adopt=False면 기존처럼 '승인 대기(new)'로만 올린다.
+    auto_adopt = bool(plan.get("auto_adopt", True))
+    adopted_ids: set[int] = set()
+    if auto_adopt and picked:
+        cfg2 = _config()
+        reg2 = {c["club_id"] for c in cfg2.get("cafes", [])}
+        names = []
+        for c in picked:
+            cid = c["club_id"]
+            if c.get("join_required") or cid in reg2:
+                continue
+            cfg2["cafes"] = [x for x in cfg2.get("cafes", []) if x["club_id"] != cid]
+            cfg2["cafes"].append({"cluburl": c["cluburl"], "club_id": cid,
+                                  "name": c.get("name") or c["cluburl"],
+                                  "crawl_all": True,
+                                  "boards": [{"type": "popular", "name": "인기글"}]})
+            reg2.add(cid); adopted_ids.add(cid); names.append(c["cluburl"])
+        if adopted_ids:
+            CONFIG.write_text(json.dumps(cfg2, ensure_ascii=False, indent=2), encoding="utf-8")
+            log(f"  ✅ 자동 채택(crawl_all) {len(adopted_ids)}건: {', '.join(names)}")
+
+    # 나머지 상태 부여: 자동채택=tracked, (수동모드 picked)=new, 가입필요=join_needed, 그 외 backlog.
     picked_ids = {c["club_id"] for c in picked}
     join_needed = 0
     for c in probed:
-        if c["club_id"] in picked_ids:
+        cid = c["club_id"]
+        if cid in adopted_ids:
+            st = "tracked"
+        elif cid in picked_ids:
             st = "new"
         elif c.get("join_required"):
-            st = "join_needed"      # 가입만 하면 후보가 된다 — 사람 개입 대기함으로
+            st = "join_needed"      # 가입만 하면 후보가 된다 — 사람 개입 대기
             join_needed += 1
         else:
             st = "backlog"
-        db.set_candidate_status(c["club_id"], st)
+        db.set_candidate_status(cid, st)
     if join_needed:
         log(f"  🔒 가입 필요 {join_needed}건 — 가입 후 재조사하면 후보가 됩니다")
 
     return {"found": len(enumerated), "pool": len(pool), "probed": len(probed),
-            "picked": len(picked), "themes": per_theme,
+            "picked": len(picked), "adopted": len(adopted_ids), "themes": per_theme,
             "picked_list": [{"name": c["name"], "cluburl": c["cluburl"],
                              "score": c["score"], "theme": c.get("theme", "")}
                             for c in picked]}
@@ -491,7 +517,7 @@ def main():
     try:
         stat = run_discovery(db, client, cfg.get("discovery"))
         print(f"\n발굴 결과: 열거 {stat['found']} / 미조사풀 {stat['pool']} / "
-              f"probe {stat['probed']} / 채택 {stat['picked']}")
+              f"probe {stat['probed']} / 선별 {stat['picked']} / 자동채택 {stat.get('adopted', 0)}")
         print(f"주제 분포: {stat['themes']}")
         print("\n[승인 대기 후보]")
         for r in db.list_candidates("new")[:12]:
