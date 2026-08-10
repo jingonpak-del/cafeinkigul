@@ -704,6 +704,37 @@ async def admin_candidate_join(request: Request, club_id: int):
     return {"ok": True, "join_required": bool(cand.get("join_required")), "status": status}
 
 
+@app.post("/api/admin/candidates/{club_id}/adopt")
+async def admin_candidate_adopt(request: Request, club_id: int):
+    """게시판을 고르지 않고 카페를 통째로 크롤 대상에 편입(crawl_all).
+    → 인기글 무조건 수집(워처) + 전 게시판 과거글은 backfill이 축적. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    c = _row_conn()
+    try:
+        row = c.execute(
+            "SELECT cluburl, name, join_required FROM cafe_candidates WHERE club_id=?",
+            (club_id,)).fetchone()
+    finally:
+        c.close()
+    if not row:
+        return JSONResponse({"error": "후보를 찾을 수 없습니다"}, status_code=404)
+    if row["join_required"]:
+        return JSONResponse(
+            {"error": "가입이 필요한 카페입니다 — 크롤 계정으로 가입 후 [가입완료]를 먼저 누르세요"},
+            status_code=409)
+    cluburl = row["cluburl"]
+    name = row["name"] or cluburl
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    cfg["cafes"] = [x for x in cfg.get("cafes", []) if x["club_id"] != club_id]
+    cfg["cafes"].append({"cluburl": cluburl, "club_id": club_id, "name": name,
+                         "crawl_all": True,
+                         "boards": [{"type": "popular", "name": "인기글"}]})
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    _cand_set_status(club_id, "tracked")
+    return {"ok": True, "cluburl": cluburl, "crawl_all": True}
+
+
 @app.post("/api/admin/candidates/refresh")
 async def admin_candidate_refresh(request: Request):
     """섹션 발굴을 백그라운드로 1회 실행(등록카페 제외 후 후보 저장). master 전용."""

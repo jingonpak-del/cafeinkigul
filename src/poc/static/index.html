@@ -593,7 +593,8 @@ function renderCandidates(list){
       action=`<a href="https://cafe.naver.com/${esc(c.cluburl)}" target="_blank" rel="noopener">가입페이지</a>
         <button class="btnp" onclick="joinConfirm(${c.club_id})">가입완료</button>`;
     } else {
-      action=`<button class="btnp" onclick="pickCandidate('${esc(c.cluburl)}')">등록</button>
+      action=`<button class="btnp" onclick="adoptCand(${c.club_id})" title="게시판 선택 없이 인기글+전량 축적">통째</button>
+        <button onclick="pickCandidate('${esc(c.cluburl)}')" title="게시판 선별 등록">선별</button>
         <span class="rm" onclick="dismissCand(${c.club_id})" title="무시">✕</span>`;
     }
     return `<tr data-name="${esc(c.name||'')}">
@@ -622,6 +623,16 @@ async function probeAdd(){
   setTimeout(()=>$("#discmsg").textContent="",2000);
 }
 function pickCandidate(url){ loadCafeBoards(url); setTimeout(()=>$("#cafeedit").scrollIntoView({behavior:"smooth"}),300); }
+async function adoptCand(id){
+  $("#discmsg").textContent="통째 추가 중…";
+  let d;
+  try{ const r=await fetch(`/api/admin/candidates/${id}/adopt`,{method:"POST"}); d=await r.json();
+       if(!r.ok){ $("#discmsg").textContent="⚠ "+(d.error||"실패"); return; } }
+  catch(e){ $("#discmsg").textContent="⚠ 실패"; return; }
+  $("#discmsg").textContent="✓ 통째 추가됨 — 인기글 수집 + 전량(backfill) 축적 대상";
+  loadCandidates(); loadAdminConfig();
+  setTimeout(()=>$("#discmsg").textContent="",3000);
+}
 async function dismissCand(id){
   await fetch("/api/admin/candidates/dismiss",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({club_id:id})});
   loadCandidates();
