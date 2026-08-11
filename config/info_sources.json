@@ -3102,6 +3102,53 @@
       "type": "gnuboard",
       "board_url": "https://www.kift.or.kr/bbs/board.php?bo_table=notice",
       "max_pages": 1
+    },
+    {
+      "id": "adapter:masan_literature_booking",
+      "type": "adapter",
+      "adapter_id": "masan_literature_booking",
+      "name": "마산문학관 통합예약 문예강좌",
+      "category": "교육",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "교육",
+      "limit": 20
+    },
+    {
+      "id": "data_go_kr:lifelong_gn",
+      "type": "data_go_kr",
+      "name": "경남 평생학습 강좌",
+      "category": "교육",
+      "enabled": false,
+      "region": "경남",
+      "region2": "",
+      "org_type": "교육",
+      "api_url": "https://api.data.go.kr/openapi/tn_pubr_public_lftm_lrn_lctre_api",
+      "rows": 500,
+      "params": {
+        "type": "json"
+      },
+      "region_filter": [
+        "경상남도",
+        "경남",
+        "창원",
+        "마산",
+        "진해",
+        "김해",
+        "함안"
+      ],
+      "field_map": {
+        "title": "lctreNm",
+        "start": "eduStartDate",
+        "end": "eduEndDate",
+        "place": "eduPlace",
+        "addr": "rdnmadr",
+        "addr2": "lnmadr",
+        "org": "operInstitNm",
+        "home": "homepageUrl",
+        "content": "lctreContent"
+      }
     }
   ]
 }
