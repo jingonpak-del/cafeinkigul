@@ -363,6 +363,15 @@ class Watcher:
             self.log(f"⟳ 게시판 목록 갱신 — 일반 {len(new_menu)}개 / 인기글 {len(new_pop)}개")
         return changed
 
+    def _safe(self, fn, label: str):
+        """주기작업 1건을 예외로부터 격리 실행. 한 작업이 실패해도 워처 스레드가
+        죽지 않고 나머지 작업·수집 루프가 계속 돈다(총정지 방지)."""
+        try:
+            return fn()
+        except Exception as e:
+            self.log(f"  ! {label} 실패(무시하고 계속): {e}")
+            return None
+
     def run(self, tick_s: float = 1.0):
         """일반글: 라운드로빈 실시간 폴링. 인기글: 하루 2회 스케줄 수집."""
         self.log(f"Watcher 시작 — 일반 {len(self.menu_boards)}개(실시간) / "
@@ -371,42 +380,49 @@ class Watcher:
         # 시작 시 1회 확인. 로그인이 살아 있으면 이 안에서 현재 쿠키를 즉시 저장한다.
         # (persist는 반드시 check_session의 ok 판정을 거쳐야 한다 — 죽은 쿠키로 덮어쓰면
         #  복구가 안 되기 때문에, 여기서 따로 force 저장을 부르지 않는다.)
-        self.check_session(force=True)
-        self.maybe_collect_popular()          # 시작 시 놓친 인기글 회차 보충
+        self._safe(lambda: self.check_session(force=True), "시작 세션체크")
+        # 시작 시 인기글을 먼저 크게 훑으면(밀린 회차 보충) 그 시간 동안 일반게시판
+        # 폴링이 굶어 카테고리가 안 늘어난다. 인기글 보충은 아래 루프의 주기 호출에
+        # 맡겨, 일반게시판(카테고리)이 먼저 갱신되게 한다.
         n = max(1, len(self.menu_boards))
         cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
         i = 0
         while True:
-            if cycle is not None:
-                b = next(cycle)
-                try:
-                    total, new = self.poll_board(b)
-                    self._on_success()
-                    if new:
-                        self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
-                except ratelimit.Tripped as e:
-                    # 서킷 차단은 사람이 세션을 갱신해야 풀린다. 재시도로 뚫릴 게 아니므로
-                    # 조용히 대기하며 대시보드에 세션 이상만 알린다.
-                    self.log(f"⛔ {e}")
-                    self.session_ok = False
-                    self._emit("session", {"ok": False, "reason": "rate_limit_tripped"})
-                    time.sleep(30)
-                except Exception as e:
-                    self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
-                    self._on_error()
-            i += 1
-            if i % n == 0:                    # 한 사이클마다
-                self.process_revisits()
-                self.check_session()
-                self.snapshot_usage()         # 요청량 이력 (5분 간격, 내부 스로틀)
-                self.maybe_collect_popular()  # 예정시각 도래 시 인기글 수집
-                if self.sheets:
-                    self.sheets.flush()
-                if self.reload_boards_if_changed():   # config 변경 시 게시판 갱신 + 사이클 재구성
-                    cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
-                    n = max(1, len(self.menu_boards))
-                    i = 0
-            time.sleep(tick_s)
+            try:
+                if cycle is not None:
+                    b = next(cycle)
+                    try:
+                        total, new = self.poll_board(b)
+                        self._on_success()
+                        if new:
+                            self.log(f"■ {b.cluburl}/{b.name}: 신규 {new}건 (조회 {total})")
+                    except ratelimit.Tripped as e:
+                        # 서킷 차단은 사람이 세션을 갱신해야 풀린다. 재시도로 뚫릴 게 아니므로
+                        # 조용히 대기하며 대시보드에 세션 이상만 알린다.
+                        self.log(f"⛔ {e}")
+                        self.session_ok = False
+                        self._emit("session", {"ok": False, "reason": "rate_limit_tripped"})
+                        time.sleep(30)
+                    except Exception as e:
+                        self.log(f"■ {b.cluburl}/{b.name} 폴링 실패: {e}")
+                        self._on_error()
+                i += 1
+                if i % n == 0:                    # 한 사이클마다 — 각 작업을 예외 격리
+                    self._safe(self.process_revisits, "재방문")
+                    self._safe(self.check_session, "세션체크")
+                    self._safe(self.snapshot_usage, "사용량 스냅샷")
+                    self._safe(self.maybe_collect_popular, "인기글 수집")
+                    if self.sheets:
+                        self._safe(self.sheets.flush, "시트 flush")
+                    if self._safe(self.reload_boards_if_changed, "config 리로드"):
+                        cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
+                        n = max(1, len(self.menu_boards))
+                        i = 0
+                time.sleep(tick_s)
+            except Exception as e:
+                # 최후의 백스톱 — 예상 못한 예외에도 워처 스레드는 절대 죽지 않는다.
+                self.log(f"  !! 워처 루프 예외(복구하고 계속): {e}")
+                time.sleep(2)
 
 
 def build(account: str | None, db_path: Path, config_path: Path):
