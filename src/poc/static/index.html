@@ -282,6 +282,7 @@
         <label style="font-size:13px;display:flex;align-items:center;gap:5px">
           <input type="checkbox" id="bsUnclassified" onchange="loadBoardStats()"> 분류 안 된 것만</label>
       </div>
+      <div id="bsSuggest" class="chips" style="margin:6px 0"></div>
       <div class="boardbox">
         <table>
           <thead><tr><th>게시판 (카페)</th><th style="width:58px">인기율</th><th style="width:56px">글수</th>
@@ -687,6 +688,22 @@ async function loadBoardStats(){
   if(d.error){ $("#bsmsg").textContent="⚠ "+d.error; return; }
   $("#bsmsg").textContent="";
   renderBoardStats(d.boards||[]);
+  renderSuggest(d.themes||[]);
+}
+function renderSuggest(themes){
+  const cur=new Set(setCats||[]);
+  const cand=themes.filter(t=>t.theme && t.theme!=='(주제없음)' && (t.cafes||0)>=2 && !cur.has(t.theme))
+                   .slice(0,6);
+  if(!cand.length){ $("#bsSuggest").innerHTML=''; return; }
+  $("#bsSuggest").innerHTML='<span style="color:var(--mut);font-size:12px">새 분류 제안:</span> '+
+    cand.map(t=>`<span class="chip" style="cursor:pointer" onclick="suggestCategory('${esc(t.theme)}')" `+
+      `title="카페 ${t.cafes}개 · 게시판 ${t.boards} · 평균가치 ${t.avg_score}">+ ${esc(t.theme)}</span>`).join('');
+}
+function suggestCategory(name){
+  const el=$("#newcat"); if(!el) return;
+  el.value=name; el.scrollIntoView({behavior:"smooth"}); el.focus();
+  $("#catmsg").textContent="이름을 확인/수정하고 [+ 추가]를 누르세요";
+  setTimeout(()=>{ if($("#catmsg").textContent.startsWith("이름")) $("#catmsg").textContent=""; },4000);
 }
 function renderBoardStats(rows){
   if(!rows.length){ $("#bsrows").innerHTML='<tr><td colspan="6" style="color:var(--mut)">데이터가 부족합니다 — 글이 더 쌓이면 표시됩니다.</td></tr>'; return; }
