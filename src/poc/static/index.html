@@ -273,6 +273,24 @@
       <div id="cafelist"></div>
     </div>
 
+    <div class="setsec">
+      <h3>📊 가치 있는 게시판 <span class="setmsg" id="bsmsg"></span></h3>
+      <p class="hint">축적된 글에서 인기글 진입률·반응이 높은 게시판입니다.
+        ★ = 아직 분류 안 됨 — [분류]로 편집기에서 카테고리를 지정하세요. (글이 쌓일수록 정확해집니다)</p>
+      <div class="setrow">
+        <button class="btnp" onclick="loadBoardStats()">불러오기</button>
+        <label style="font-size:13px;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="bsUnclassified" onchange="loadBoardStats()"> 분류 안 된 것만</label>
+      </div>
+      <div class="boardbox">
+        <table>
+          <thead><tr><th>게시판 (카페)</th><th style="width:58px">인기율</th><th style="width:56px">글수</th>
+            <th style="width:44px">댓글</th><th style="width:52px">점수</th><th style="width:56px"></th></tr></thead>
+          <tbody id="bsrows"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -656,6 +674,32 @@ function renderCafeList(cafes){
     const pop=(c.boards||[]).some(b=>b.type==="popular");
     return `<span class="cafechip" onclick="loadCafeBoards('${esc(c.cluburl)}')">
       <b>${esc(c.name||c.cluburl)}</b> <span>${esc(c.cluburl)} · 수집 ${n}${pop?' +🔥':''}</span></span>`;
+  }).join("");
+}
+
+/* ===== 📊 가치 있는 게시판 ===== */
+async function loadBoardStats(){
+  $("#bsmsg").textContent="분석 중…";
+  const un=($("#bsUnclassified")&&$("#bsUnclassified").checked)?"&unclassified=true":"";
+  let d;
+  try{ d=await (await fetch("/api/admin/board-stats?limit=40"+un,{cache:"no-store"})).json(); }
+  catch(e){ $("#bsmsg").textContent="실패"; return; }
+  if(d.error){ $("#bsmsg").textContent="⚠ "+d.error; return; }
+  $("#bsmsg").textContent="";
+  renderBoardStats(d.boards||[]);
+}
+function renderBoardStats(rows){
+  if(!rows.length){ $("#bsrows").innerHTML='<tr><td colspan="6" style="color:var(--mut)">데이터가 부족합니다 — 글이 더 쌓이면 표시됩니다.</td></tr>'; return; }
+  $("#bsrows").innerHTML=rows.map(b=>{
+    const star=b.classified?"":"★ ";
+    const act=b.cluburl?`<button onclick="pickCandidate('${esc(b.cluburl)}')" title="편집기에서 이 게시판에 분류 지정">분류</button>`:"";
+    return `<tr>
+      <td>${star}<b>${esc(b.menu_name||b.menu_id)}</b><br><span style="color:var(--mut);font-size:11px">${esc(b.cafe_name||'')}${b.theme?' · '+esc(b.theme):''}</span></td>
+      <td>${(b.pop_rate*100).toFixed(0)}%</td>
+      <td>${(b.n||0).toLocaleString()}</td>
+      <td>${b.avg_comments}</td>
+      <td><b>${b.score}</b></td>
+      <td>${act}</td></tr>`;
   }).join("");
 }
 
