@@ -768,6 +768,24 @@ async def admin_candidate_refresh(request: Request):
     return {"ok": True, "started": True}
 
 
+@app.get("/api/admin/board-stats")
+def admin_board_stats(request: Request, min_n: int = 10, limit: int = 40,
+                      unclassified: bool = False):
+    """게시판 가치 분석(읽기전용): 인기글 진입률·반응·볼륨 랭크 + 주제 롤업. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from . import analytics
+    c = _row_conn()
+    try:
+        return {"boards": analytics.rank_boards(c, min_n=min_n, limit=limit,
+                                                only_unclassified=unclassified),
+                "themes": analytics.theme_rollup(c, min_n=min_n)}
+    except Exception as e:
+        return JSONResponse({"error": f"분석 실패: {e}"}, status_code=500)
+    finally:
+        c.close()
+
+
 @app.get("/api/stats")
 def stats():
     c = _row_conn()
