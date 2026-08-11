@@ -129,6 +129,35 @@ def sources():
     }
 
 
+@app.get("/api/directory")
+def directory():
+    """공개 출처 디렉토리: 활성 소스 + 글수 + 최근수집(지역/유형별 나열용)."""
+    cfg = _load_config()
+    conn = _ro_conn()
+    try:
+        st = {r["source_id"]: (r["n"], r["last"]) for r in conn.execute(
+            "SELECT source_id, COUNT(*) n, MAX(collected_at) last FROM posts GROUP BY source_id")}
+    finally:
+        conn.close()
+    out = []
+    for s in cfg.get("sources", []):
+        if not s.get("enabled", True):
+            continue
+        n, last = st.get(s["id"], (0, None))
+        out.append({"id": s["id"], "name": s.get("name", s["id"]),
+                    "category": s.get("category", ""), "type": s.get("type", ""),
+                    "region": s.get("region", "전국"), "region2": s.get("region2", ""),
+                    "org_type": s.get("org_type", "기타"), "posts": n, "last": _fmt(last)})
+    return {"sources": out, "total": len(out),
+            "total_posts": sum(x["posts"] for x in out)}
+
+
+@app.get("/sources", response_class=HTMLResponse)
+@app.get("/directory", response_class=HTMLResponse)
+def directory_page():
+    return (STATIC / "directory.html").read_text(encoding="utf-8")
+
+
 @app.get("/api/stats")
 def stats():
     c = _ro_conn()

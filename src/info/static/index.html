@@ -107,6 +107,7 @@
     <span class="stat" id="stat">불러오는 중…</span>
     <span class="spacer"></span>
     <input class="search" id="q" placeholder="제목·본문 검색"/>
+    <a class="act" href="/sources" style="text-decoration:none;display:inline-block">📚 출처</a>
     <button class="act" id="digestBtn">📰 일일글</button>
     <button class="act" id="refresh">새로고침</button>
     <button class="act" id="ingest">지금 수집</button>
@@ -539,6 +540,13 @@ async function loadDiscover(){
 }
 $('#discoverBtn').onclick = ()=>{ const p=$('#discoverPanel'); if(p.style.display==='none'){ loadDiscover(); } else { p.style.display='none'; } };
 
+// 출처 디렉토리 등에서 넘어온 필터(?source=,?region=,?topic=,?category=,?org_type=) 반영
+(function(){
+  const u=new URLSearchParams(location.search);
+  for(const k of ['source','region','topic','category','org_type']){
+    const v=u.get(k); if(v) state[k]=v.split(',').filter(Boolean);
+  }
+})();
 loadMeta().then(()=>{ load(); initAdmin(); });
 </script>
 </body>

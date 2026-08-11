@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>출처 디렉토리 · info.whitedr.com</title>
+<style>
+ :root{
+   --bg:#0f1420; --panel:#171d2b; --panel2:#131a28; --border:#26304a;
+   --text:#e6ebf5; --muted:#8a97b5; --accent:#4c8dff;
+ }
+ @media (prefers-color-scheme: light){
+   :root{ --bg:#f4f6fb; --panel:#fff; --panel2:#eef2f9; --border:#d5deee;
+          --text:#1a2233; --muted:#5b6a86; --accent:#2b6cff; }
+ }
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--text);
+   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;font-size:14px}
+ header{position:sticky;top:0;z-index:10;background:var(--bg);
+   border-bottom:1px solid var(--border);padding:13px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+ h1{font-size:16px;margin:0}
+ .stat{color:var(--muted);font-size:12.5px}
+ .spacer{flex:1}
+ a.back{color:var(--accent);text-decoration:none;font-size:13px}
+ .wrap{padding:16px 18px;max-width:1100px;margin:0 auto}
+ .toggle{display:flex;gap:6px;margin-bottom:16px}
+ .tbtn{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+   padding:7px 15px;color:var(--muted);cursor:pointer;font-size:13px}
+ .tbtn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+ .group{margin-bottom:22px}
+ .ghead{display:flex;align-items:baseline;gap:8px;margin:0 0 9px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+ .gtitle{font-size:14.5px;font-weight:700}
+ .gcount{color:var(--muted);font-size:12px}
+ .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+ .card{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:10px 12px;
+   text-decoration:none;color:var(--text);display:block;transition:border-color .1s}
+ .card:hover{border-color:var(--accent)}
+ .cname{font-weight:600;font-size:13.5px;line-height:1.35;margin-bottom:5px}
+ .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--muted)}
+ .badge{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+ .badge.n{color:#8fe3b0;border-color:#1e5c3a;background:#123020}
+ @media (prefers-color-scheme: light){ .badge.n{color:#1a7a45;background:#e5f6ec;border-color:#b8e4c8} }
+ .loading{color:var(--muted);padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 출처 디렉토리</h1>
+  <span class="stat" id="stat"></span>
+  <span class="spacer"></span>
+  <a class="back" href="/">← 대시보드</a>
+</header>
+<div class="wrap">
+  <div class="toggle">
+    <button class="tbtn on" data-mode="region">지역별</button>
+    <button class="tbtn" data-mode="org_type">유형별</button>
+    <button class="tbtn" data-mode="category">분류별</button>
+  </div>
+  <div id="groups"><div class="loading">불러오는 중…</div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let SRC=[]; let mode='region';
+// 지역 정렬 우선순위
+const REGION_ORDER=['전국','경남','창원','김해','함안','마산','진해'];
+function keyOf(s){
+  if(mode==='region') return s.region2 || s.region || '전국';
+  if(mode==='org_type') return s.org_type || '기타';
+  return s.category || '기타';
+}
+function order(keys){
+  if(mode!=='region') return keys.sort((a,b)=>a.localeCompare(b,'ko'));
+  return keys.sort((a,b)=>{
+    const ia=REGION_ORDER.indexOf(a), ib=REGION_ORDER.indexOf(b);
+    if(ia>=0||ib>=0) return (ia<0?99:ia)-(ib<0?99:ib);
+    return a.localeCompare(b,'ko');
+  });
+}
+function render(){
+  const g={};
+  for(const s of SRC){ (g[keyOf(s)] ||= []).push(s); }
+  const keys=order(Object.keys(g));
+  const html=keys.map(k=>{
+    const items=g[k].sort((a,b)=>b.posts-a.posts);
+    const total=items.reduce((n,x)=>n+x.posts,0);
+    const cards=items.map(s=>`
+      <a class="card" href="/?source=${encodeURIComponent(s.id)}" title="이 출처만 보기">
+        <div class="cname">${esc(s.name)}</div>
+        <div class="meta">
+          <span class="badge n">글 ${s.posts}</span>
+          <span class="badge">${esc(s.type)}</span>
+          ${mode!=='region'?`<span class="badge">${esc(s.region2||s.region)}</span>`:`<span class="badge">${esc(s.org_type)}</span>`}
+          ${s.last?`<span>· ${esc(s.last)}</span>`:''}
+        </div>
+      </a>`).join('');
+    return `<div class="group">
+      <div class="ghead"><span class="gtitle">${esc(k)}</span>
+        <span class="gcount">출처 ${items.length}곳 · 글 ${total}건</span></div>
+      <div class="cards">${cards}</div></div>`;
+  }).join('');
+  $('#groups').innerHTML = html || '<div class="loading">출처가 없습니다.</div>';
+}
+document.querySelectorAll('.tbtn').forEach(b=>b.onclick=()=>{
+  mode=b.dataset.mode;
+  document.querySelectorAll('.tbtn').forEach(x=>x.classList.toggle('on',x===b));
+  render();
+});
+fetch('/api/directory').then(r=>r.json()).then(d=>{
+  SRC=d.sources||[];
+  $('#stat').textContent = `${d.total}개 출처 · ${d.total_posts.toLocaleString()}건 수집`;
+  render();
+}).catch(e=>{ $('#groups').innerHTML='<div class="loading">불러오기 실패</div>'; });
+</script>
+</body>
+</html>
