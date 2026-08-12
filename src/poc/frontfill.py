@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import time
 
-from . import ratelimit
+from . import accountpool, ratelimit
 from .backfill import Backfiller, _client, _config, _deadline, _resolve_head
 from .db import Database, now_ms
 from .paths import DB_PATH, prune_logs
@@ -117,6 +117,36 @@ def run(db: Database, bf: Backfiller, cafes: list[dict], *,
     return out
 
 
+def run_multi(db: Database, cafes: list[dict], *, deadline: float | None = None,
+              max_ids: int | None = None, log=print) -> list[dict]:
+    """다계정 분산: 카페마다 '접근 가능한(회원/공개) 계정'을 배정해 그 계정으로 전진.
+    접근 가능 계정이 없으면 가입필요로 건너뛴다."""
+    out, join_needed = [], []
+    for cafe in cafes:
+        if deadline and time.time() >= deadline:
+            break
+        key, client = accountpool.account_for_cafe(cafe["club_id"])
+        if not key:
+            join_needed.append(cafe["cluburl"])
+            log(f"  🔒 {cafe['cluburl']}: 접근 가능 계정 없음 → 가입필요")
+            continue
+        bf = Backfiller(db, client, key)          # 계정별 rate 예산
+        try:
+            res = run_cafe(db, bf, cafe, deadline=deadline, max_ids=max_ids, log=log)
+        except ratelimit.Tripped as e:
+            log(f"⛔ [{key}] {e}")
+            continue
+        except Exception as e:
+            log(f"  {cafe['cluburl']} 실패([{key}]): {e}")
+            continue
+        res["account"] = key
+        out.append(res)
+        log(f"  {cafe['cluburl']} [{key}]: {res.get('reason')} 신규 {res.get('saved', 0)}")
+    if join_needed:
+        log(f"  가입필요 {len(join_needed)}개: {', '.join(join_needed[:12])}")
+    return out
+
+
 # ── crawl_all 카페 목록 ──────────────────────────────────────────────────────
 def crawl_all_cafes(cfg: dict, only: str | None = None) -> list[dict]:
     """통째 수집 대상. **기본은 모든 카페**(전 게시판 저장 = 학습 base).
@@ -131,25 +161,35 @@ def crawl_all_cafes(cfg: dict, only: str | None = None) -> list[dict]:
 def cmd_run(args):
     prune_logs("frontfill")
     cfg = _config()
-    account = args.account or cfg.get("account")
     cafes = crawl_all_cafes(cfg, args.cafe)
     if not cafes:
-        print("crawl_all 카페가 없습니다 — 발굴 탭에서 [통째 추가]하세요.")
+        print("통째 대상 카페가 없습니다.")
         return
     db = Database(DB_PATH)
     ensure_schema(db)
-    client = _client(account)
-    bf = Backfiller(db, client, account or "default")
     dl = _deadline(args.until, args.max_hours)
-    print(f"frontfill 시작 — crawl_all {len(cafes)}개"
-          + (f", {args.max}건/카페 상한" if args.max else ""))
+    client = None
     try:
-        res = run(db, bf, cafes, deadline=dl, max_ids=args.max)
+        if args.account:
+            # 단일 계정(명시 지정 시)
+            client = _client(args.account)
+            bf = Backfiller(db, client, args.account)
+            print(f"frontfill(단일계정 {args.account}) — {len(cafes)}개 카페"
+                  + (f", {args.max}건/카페 상한" if args.max else ""))
+            res = run(db, bf, cafes, deadline=dl, max_ids=args.max)
+        else:
+            # 다계정 분산(기본): 카페별 회원 계정 배정
+            n = len(accountpool.usable_accounts())
+            print(f"frontfill(다계정 {n}개 분산) — {len(cafes)}개 카페"
+                  + (f", {args.max}건/카페 상한" if args.max else ""))
+            res = run_multi(db, cafes, deadline=dl, max_ids=args.max)
         print(f"\n완료: 신규 {sum(r.get('saved', 0) for r in res)}건")
     except KeyboardInterrupt:
         print("\n중단됨 — 커서는 저장되어 있습니다.")
     finally:
-        client.close()
+        if client:
+            client.close()
+        accountpool.close_all()
         db.close()
 
 
