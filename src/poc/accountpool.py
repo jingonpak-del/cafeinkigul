@@ -62,10 +62,13 @@ def account_for_cafe(club_id: int, discover: bool = True):
     계정을 순서대로 접근 시도해 첫 member를 찾는다(그 결과는 캐시된다)."""
     pool = member_pool(club_id)
     if not pool and discover:
-        for a in usable_accounts():
-            if can_access(a.key, club_id):
-                pool = [a.key]
-                break
+        accts = usable_accounts()
+        if accts:
+            off = club_id % len(accts)                 # 카페마다 시작 계정을 돌려 분산
+            for a in accts[off:] + accts[:off]:
+                if can_access(a.key, club_id):
+                    pool = [a.key]
+                    break
     if not pool:
         return None, None
     i = _rr.get(club_id, 0) % len(pool)
