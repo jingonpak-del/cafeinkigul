@@ -264,8 +264,22 @@ def route_cleaneye(regions: list[str]) -> list[dict]:
 
 
 # ── 홈페이지 → 게시판 자동탐색 → 검증된 config ──────────────────────────────
+# 목록성 페이지로 볼 만한 링크의 키워드(게시판 + 강좌·프로그램·행사·모집 등).
+# 전국 다양한 기관을 폭넓게 훑기 위해 공지형뿐 아니라 강좌/프로그램/행사형도 포함.
+_BOARD_KW = re.compile(
+    r"(공지|알림|소식|보도|새소식|notice|news|board|bbs|"
+    r"강좌|강의|수강|프로그램|program|course|lecture|교육|평생학습|아카데미|academy|"
+    r"행사|공연|전시|축제|event|festival|"
+    r"모집|공모|접수|신청|지원사업|채용|recruit|apply)", re.I)
+# 목록 URL로 보이는 경로 패턴(list/View/게시판 CMS 흔적)
+_LIST_URL = re.compile(
+    r"(board\.php|bo_table=|\.web|list\.do|List\.do|selectNttList|selectBbsList|"
+    r"course\.do|lctre|program|/bbs/|/board/|list\.gne|list\.gyeong|/na/ntt/)", re.I)
+
+
 def find_board_urls(home: str) -> list[str]:
-    """홈페이지에서 공지/게시판 링크 후보(동일 도메인)를 추출."""
+    """홈페이지에서 목록성(게시판·강좌·행사·모집) 링크 후보(동일 도메인)를 추출.
+    전국 다양한 기관의 다양한 정보를 폭넓게 발굴하기 위해 공지형에 국한하지 않는다."""
     from bs4 import BeautifulSoup
     try:
         html = fetch_text(home)
@@ -278,13 +292,12 @@ def find_board_urls(home: str) -> list[str]:
         href = a.get("href") or ""
         txt = a.get_text() or ""
         full = urljoin(home, href)
-        hit = ("board.php" in href or "bo_table=" in href
-               or re.search(r"(공지|알림|소식|notice|news|board|bbs)", txt + href, re.I))
+        hit = _LIST_URL.search(href) or _BOARD_KW.search(txt + " " + href)
         if hit and full.startswith("http") and urlparse(full).netloc == base and full not in seen:
             seen.add(full); out.append(full)
-    # 게시판성(board.php/bo_table) 우선 정렬
-    out.sort(key=lambda u: 0 if ("board.php" in u or "bo_table=" in u) else 1)
-    return out[:8]
+    # 목록 URL 패턴(게시판/강좌 CMS)을 앞쪽으로 정렬
+    out.sort(key=lambda u: 0 if _LIST_URL.search(u) else 1)
+    return out[:12]
 
 
 def resolve_source_from_home(home: str) -> dict | None:

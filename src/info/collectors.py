@@ -376,8 +376,16 @@ def _extract_items(html: str, base_url: str, source: dict) -> list[dict]:
                 link = url_tmpl.format(id=pid) if url_tmpl else urljoin(base_url, f"#{pid}")
             else:
                 continue
-        title = cell(row, source["title_selector"]) if source.get("title_selector") \
-            else ((a.get_text(strip=True) or (a.get("title") or "").strip()) if a else "")
+        if source.get("title_selector"):
+            title = cell(row, source["title_selector"])
+        else:
+            title = (a.get_text(strip=True) or (a.get("title") or "").strip()) if a else ""
+            if not title:   # 카드형 레이아웃: 제목이 앵커가 아닌 별도 요소에 있을 때
+                for _sel in ("strong", "h1", "h2", "h3", "h4",
+                             "[class*=title]", "[class*=tit]", "[class*=subject]", "[class*=name]"):
+                    title = cell(row, _sel)
+                    if title:
+                        break
         if not title:
             continue
         # 날짜: date_selector 지정 시 그 셀, 없거나 못찾으면 행 전체 텍스트에서 첫 날짜

@@ -3149,6 +3149,20 @@
       },
       "max_pages": 30,
       "window_days": 180
+    },
+    {
+      "id": "html:changwon_lifelong_course",
+      "type": "html",
+      "name": "창원시평생학습관 강좌",
+      "category": "교육",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창원",
+      "org_type": "교육",
+      "list_url": "https://www.changwon.go.kr/lll/home/lllcourse.do",
+      "item_selector": "li.course-list__item",
+      "title_selector": "strong.course-list__title",
+      "link_selector": ".course-list__title a"
     }
   ]
 }
