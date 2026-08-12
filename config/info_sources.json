@@ -3016,14 +3016,12 @@
       "service_key": "",
       "rows": 300,
       "region_filter": [
-        "경상남도",
-        "경남",
-        "창원",
-        "마산",
-        "진해",
-        "김해",
-        "함안"
+        "경상남도", "경남", "마산", "진해",
+        "창원", "진주", "통영", "사천", "김해", "밀양", "거제", "양산",
+        "의령", "함안", "창녕", "고성", "남해", "하동", "산청", "함양", "거창", "합천"
       ],
+      "tag_sigungu": true,
+      "max_pages": 40,
       "params": {
         "type": "json"
       }
@@ -3130,12 +3128,11 @@
         "type": "json"
       },
       "region_filter": [
-        "창원",
-        "마산",
-        "진해",
-        "김해",
-        "함안"
+        "경상남도", "경남", "마산", "진해",
+        "창원", "진주", "통영", "사천", "김해", "밀양", "거제", "양산",
+        "의령", "함안", "창녕", "고성", "남해", "하동", "산청", "함양", "거창", "합천"
       ],
+      "tag_sigungu": true,
       "field_map": {
         "title": "lctreNm",
         "start": "edcStartDay",
@@ -3163,6 +3160,76 @@
       "item_selector": "li.course-list__item",
       "title_selector": "strong.course-list__title",
       "link_selector": ".course-list__title a"
+    },
+    {
+      "id": "html:jinju_news",
+      "type": "html",
+      "name": "진주시 새소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "진주",
+      "org_type": "행정",
+      "list_url": "https://www.jinju.go.kr/00130.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:tongyeong_news",
+      "type": "html",
+      "name": "통영시 새소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "통영",
+      "org_type": "행정",
+      "list_url": "https://www.tongyeong.go.kr/00681/00682/04043.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:sacheon_news",
+      "type": "html",
+      "name": "사천시 새소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "사천",
+      "org_type": "행정",
+      "list_url": "https://www.sacheon.go.kr/01605.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:changnyeong_news",
+      "type": "html",
+      "name": "창녕군 새소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "창녕",
+      "org_type": "행정",
+      "list_url": "https://www.cng.go.kr/03517/01553/01553.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
+    },
+    {
+      "id": "html:hadong_news",
+      "type": "html",
+      "name": "하동군 새소식",
+      "category": "지자체",
+      "enabled": true,
+      "region": "경남",
+      "region2": "하동",
+      "org_type": "행정",
+      "list_url": "https://www.hadong.go.kr/media.web",
+      "item_selector": "li.li1",
+      "link_selector": "a.a1",
+      "title_selector": ".t1"
     }
   ]
 }

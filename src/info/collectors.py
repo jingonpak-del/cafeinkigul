@@ -151,7 +151,24 @@ _DATAGO_FESTIVAL_MAP = {
     "place": "opar", "addr": "rdnmadr", "addr2": "lnmadr",
     "org": "mnnstNm", "home": "homepageUrl", "content": "fstvlCo",
 }
-_DATAGO_REGION_TERMS = ("경상남도", "경남", "창원", "마산", "진해", "김해", "함안")
+# 경상남도 18개 시군(전역 수집·시군별 다이제스트용). 마산/진해는 창원시 소속.
+_GN_SIGUNGU = ("창원", "진주", "통영", "사천", "김해", "밀양", "거제", "양산",
+               "의령", "함안", "창녕", "고성", "남해", "하동", "산청", "함양", "거창", "합천")
+# 지역필터 기본값: 도(道) 전체 + 18개 시군 + 창원 구단위(마산/진해)까지 폭넓게.
+_DATAGO_REGION_TERMS = ("경상남도", "경남", "마산", "진해") + _GN_SIGUNGU
+
+
+def _gn_region2(addr: str) -> str:
+    """경남 주소 문자열에서 시/군 단위를 추출(없으면 ''). 창원시 산하 마산/진해는
+    주소에 '창원시'가 포함되므로 자연히 '창원'으로 태깅된다."""
+    if not addr:
+        return ""
+    for name in _GN_SIGUNGU:
+        if name in addr:
+            return name
+    if "마산" in addr or "진해" in addr:
+        return "창원"
+    return ""
 
 
 def _load_secret(name: str) -> str:
@@ -258,7 +275,14 @@ def collect_data_go_kr(source: dict) -> list[dict]:
             start = _datago_date(str(it.get(fm["start"]) or ""))
             end = _datago_date(str(it.get(fm["end"]) or ""))
             home = str(it.get(fm["home"]) or "").strip()
+            # 경남 전역 소스는 항목 주소에서 시/군을 뽑아 region2로 태깅(시군별 일일글용).
+            extra = {}
+            if source.get("tag_sigungu"):
+                r2 = _gn_region2(addr)
+                if r2:
+                    extra = {"region": "경남", "region2": r2}
             out.append({
+                **extra,
                 "source_id": source["id"],
                 "post_key": pkey,
                 "source_name": source.get("name", "공공데이터"),

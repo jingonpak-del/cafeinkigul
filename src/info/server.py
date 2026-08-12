@@ -394,6 +394,39 @@ def digest(region: str = "", regions: str = "", topics: str = "",
             "keys": keys, "titles": titles}
 
 
+# 경상남도 18개 시군(시군별 일일글 버튼·정렬용)
+_GN_SIGUNGU = ["창원", "김해", "진주", "양산", "거제", "통영", "사천", "밀양",
+               "함안", "창녕", "고성", "남해", "하동", "산청", "함양", "거창", "합천", "의령"]
+
+
+@app.get("/api/digest/regions")
+def digest_regions(scope: str = "local", new_only: str = "1"):
+    """일일글 기간 내에 글이 있는 경남 시/군 목록 + 건수(시군별 버튼 노출용).
+    발행모드(new_only)면 최근 창(窓)의 미발행분 기준."""
+    now = datetime.now()
+    today0 = int(datetime(now.year, now.month, now.day).timestamp() * 1000)
+    end = today0 + 86400 * 1000
+    start = today0 - (PUBLISH_WINDOW_DAYS - 1) * 86400 * 1000 if new_only else today0
+    conn = _ro_conn()
+    try:
+        where = ["collected_at >= ? AND collected_at < ?",
+                 "region2 IS NOT NULL AND region2 <> ''"]
+        params = [start, end]
+        if scope == "local":
+            where.append("(region <> '전국' OR (region2 IS NOT NULL AND region2 <> ''))")
+        sql = ("SELECT region2 AS r, COUNT(*) AS c FROM posts WHERE "
+               + " AND ".join(where) + " GROUP BY region2")
+        counts = {row["r"]: row["c"] for row in conn.execute(sql, params).fetchall()}
+    finally:
+        conn.close()
+    out = [{"region": r, "count": counts.get(r, 0)} for r in _GN_SIGUNGU if counts.get(r)]
+    # 목록에 없는(신규) 시군도 뒤에 붙임
+    for r, c in counts.items():
+        if r not in _GN_SIGUNGU and c:
+            out.append({"region": r, "count": c})
+    return {"scope": scope, "total": sum(x["count"] for x in out), "regions": out}
+
+
 @app.get("/api/digest/notes")
 def digest_notes_get():
     """일일글 상단/하단 고정멘트 조회."""

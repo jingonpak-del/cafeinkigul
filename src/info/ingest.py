@@ -87,7 +87,10 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
     region2 = source.get("region2") or ""
     org_type = source.get("org_type") or classify.classify_org_type(source.get("name", ""))
     for p in posts:
-        p["region"], p["region2"], p["org_type"] = region, region2, org_type
+        # 수집기가 항목별로 태깅했으면(예: 경남 전역 API의 시/군) 그 값을 우선한다.
+        p["region"] = p.get("region") or region
+        p["region2"] = p.get("region2") or region2
+        p["org_type"] = p.get("org_type") or org_type
     inserted = sum(1 for p in posts if db.upsert_post(enrich(p)))
     return {
         "id": source["id"],
