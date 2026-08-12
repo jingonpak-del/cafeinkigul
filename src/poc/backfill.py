@@ -121,8 +121,14 @@ class Backfiller:
         """요청 1건 분의 예산. 스트림에 양보하므로 낮에는 거의 안 돈다."""
         self.limiter.acquire(reserve=ratelimit.RESERVE_BACKFILL)
 
-    def crawl_one(self, cafe_id: int, article_id: int) -> str:
-        """한 건 시도. 'saved' | 'dup' | 'gone' | 'old' | 'error'."""
+    def crawl_one(self, cafe_id: int, article_id: int, *,
+                  skip_menus: set[int] | None = None, lane: str = "backfill") -> str:
+        """한 건 시도. 'saved' | 'dup' | 'gone' | 'old' | 'skip' | 'error'.
+
+        skip_menus: 이 menu_id 게시판 글은 저장하지 않고 'skip'을 돌려준다. 승격(등록형)
+        게시판은 스트림 워처가 실시간+호응도로 담당하므로, frontfill이 그 글을 먼저
+        낚아채(revisit_done=1로) 호응도 측정을 막지 않게 한다.
+        """
         try:
             self._budget()
             body = cafe_api.fetch_article_body(cafe_id, article_id, client=self.client)
@@ -139,7 +145,10 @@ class Backfiller:
         if body.write_ts and body.write_ts < self.cutoff_ms:
             return "old"
 
-        is_new = self.db.upsert_article_from_body(body, lane="backfill")
+        if skip_menus and body.menu_id in skip_menus:
+            return "skip"          # 승격 게시판 — 스트림이 담당(선점 방지)
+
+        is_new = self.db.upsert_article_from_body(body, lane=lane)
         self.db.save_body(body)          # 텍스트·material 저장 + HTML은 raw 아카이브로
         if not is_new:
             return "dup"

@@ -62,6 +62,9 @@ def set_cursor(db: Database, cafe_id: int, cluburl: str, last_id: int,
 def run_cafe(db: Database, bf: Backfiller, cafe: dict, *,
              deadline: float | None = None, max_ids: int | None = None, log=print) -> dict:
     cid, cluburl = cafe["club_id"], cafe["cluburl"]
+    # 승격(등록형) 게시판 = 스트림이 실시간+호응도로 담당 → frontfill은 건너뛴다.
+    skip = {b["menu_id"] for b in cafe.get("boards", [])
+            if b.get("type") == "menu" and b.get("menu_id") is not None}
     head = _resolve_head(db, cid, cluburl, bf.client)
     if not head:
         return {"cafe": cluburl, "reason": "no_head", "saved": 0}
@@ -83,7 +86,7 @@ def run_cafe(db: Database, bf: Backfiller, cafe: dict, *,
             reason = "stopped"; break
         if deadline and time.time() >= deadline:
             reason = "deadline"; break
-        r = bf.crawl_one(cid, aid)
+        r = bf.crawl_one(cid, aid, skip_menus=skip, lane="frontfill")
         if r == "saved":
             saved += 1
         aid += 1
@@ -116,7 +119,9 @@ def run(db: Database, bf: Backfiller, cafes: list[dict], *,
 
 # ── crawl_all 카페 목록 ──────────────────────────────────────────────────────
 def crawl_all_cafes(cfg: dict, only: str | None = None) -> list[dict]:
-    cafes = [c for c in cfg.get("cafes", []) if c.get("crawl_all")]
+    """통째 수집 대상. **기본은 모든 카페**(전 게시판 저장 = 학습 base).
+    특정 카페만 빼려면 config에서 그 카페에 crawl_all:false 를 준다."""
+    cafes = [c for c in cfg.get("cafes", []) if c.get("crawl_all", True)]
     if only:
         cafes = [c for c in cafes if c["cluburl"] == only]
     return cafes
