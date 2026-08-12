@@ -305,21 +305,32 @@ def collect_data_go_kr(source: dict) -> list[dict]:
 
 
 _DATE_RE = re.compile(r"(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})")
+# 2자리 연도(예: '26.08.08.') — 일부 지자체 게시판 표기. 4자리 우선, 없을 때만 사용.
+_DATE_RE2 = re.compile(r"(?<!\d)(\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?(?!\d)")
 
 
 def _parse_date_ms(text: str) -> int | None:
-    """'2026-07-21' '2026.07.21' '2026년 7월 21일' 등에서 날짜 추출 → ms."""
+    """'2026-07-21' '2026.07.21' '2026년 7월 21일' 등에서 날짜 추출 → ms.
+    4자리 연도가 없으면 2자리 연도('26.08.08.')를 20xx로 보정."""
     if not text:
         return None
+    import datetime as _dt
     m = _DATE_RE.search(text)
-    if not m:
-        return None
-    try:
-        import datetime as _dt
-        y, mo, d = (int(x) for x in m.groups())
-        return int(_dt.datetime(y, mo, d).timestamp() * 1000)
-    except Exception:
-        return None
+    if m:
+        try:
+            y, mo, d = (int(x) for x in m.groups())
+            return int(_dt.datetime(y, mo, d).timestamp() * 1000)
+        except Exception:
+            return None
+    m = _DATE_RE2.search(text)
+    if m:
+        try:
+            y, mo, d = (int(x) for x in m.groups())
+            if 1 <= mo <= 12 and 1 <= d <= 31:
+                return int(_dt.datetime(2000 + y, mo, d).timestamp() * 1000)
+        except Exception:
+            return None
+    return None
 
 
 _ID_KEYS = ("wr_id", "nttId", "not_ancmt_mgt_no", "mng_no", "articleNo", "boardSeq",
