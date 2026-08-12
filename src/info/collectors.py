@@ -791,10 +791,30 @@ def collect(source: dict) -> list[dict]:
     return fn(source)
 
 
-def within_window(posts: list[dict], window_days: int) -> list[dict]:
-    """등록 시점 기준 window_days 이내 발행 글만. 발행일 없는 글은 포함."""
+def _today_start_ms() -> int:
+    import datetime as _dt
+    n = _dt.datetime.now()
+    return int(_dt.datetime(n.year, n.month, n.day).timestamp() * 1000)
+
+
+def is_active(p: dict) -> bool:
+    """아직 끝나지 않은 글(행사/접수 종료일이 오늘 이후)인지. 종료일 정보로 '진행중·예정'
+    강좌·행사를 판별 → 시작일이 오래됐어도 현재 유효한 것은 살린다."""
+    today0 = _today_start_ms()
+    for k in ("event_end_at", "apply_end_at"):
+        v = p.get(k)
+        if v and v >= today0:
+            return True
+    return False
+
+
+def within_window(posts: list[dict], window_days: int, keep_active: bool = False) -> list[dict]:
+    """등록 시점 기준 window_days 이내 발행 글만. 발행일 없는 글은 포함.
+    keep_active=True면 발행일이 창 밖이어도 '아직 진행중·접수중'(종료일 미래)인 글은 유지."""
     cutoff = int(time.time() * 1000) - window_days * 86400 * 1000
-    return [p for p in posts if p["published_at"] is None or p["published_at"] >= cutoff]
+    return [p for p in posts
+            if p["published_at"] is None or p["published_at"] >= cutoff
+            or (keep_active and is_active(p))]
 
 
 # ── 입력값 → 소스 자동판별 (관리 UI '블로그 추가' 용) ────────────────────────

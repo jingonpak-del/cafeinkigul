@@ -79,10 +79,15 @@ def ingest_source(db: Database, source: dict, window_days: int) -> dict:
     first_time = latest is None
     posts = collectors.collect(source)
     fetched = len(posts)
+    keep_active = bool(source.get("keep_active"))
     if first_time:
-        posts = collectors.within_window(posts, int(source.get("window_days", window_days)))
+        posts = collectors.within_window(
+            posts, int(source.get("window_days", window_days)), keep_active)
     else:
-        posts = [p for p in posts if p["published_at"] is None or p["published_at"] > latest]
+        # 증분: 새 글(발행일>최신) + keep_active면 아직 진행중(종료일 미래)인 글도 유지.
+        posts = [p for p in posts
+                 if p["published_at"] is None or p["published_at"] > latest
+                 or (keep_active and collectors.is_active(p))]
     region = source.get("region") or "전국"
     region2 = source.get("region2") or ""
     org_type = source.get("org_type") or classify.classify_org_type(source.get("name", ""))

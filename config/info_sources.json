@@ -3021,6 +3021,7 @@
         "의령", "함안", "창녕", "고성", "남해", "하동", "산청", "함양", "거창", "합천"
       ],
       "tag_sigungu": true,
+      "keep_active": true,
       "max_pages": 40,
       "params": {
         "type": "json"
@@ -3145,7 +3146,8 @@
         "content": "lctreCo"
       },
       "max_pages": 30,
-      "window_days": 180
+      "window_days": 180,
+      "keep_active": true
     },
     {
       "id": "html:changwon_lifelong_course",
