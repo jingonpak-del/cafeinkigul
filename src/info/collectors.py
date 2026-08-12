@@ -217,54 +217,66 @@ def collect_data_go_kr(source: dict) -> list[dict]:
         # 응답형식 파라미터(type/_type)는 API마다 달라 base에 넣지 않는다.
         # (표준데이터=type, TourAPI=_type) → 각 소스 params에서 지정.
         base = {"serviceKey": key, "pageNo": "1", "numOfRows": rows}
-    params = {**base, **user_params}
-    r = httpx.get(source["api_url"], params=params, timeout=30,
-                  headers={"User-Agent": UA})
-    r.raise_for_status()
-    data = r.json()
-    # 응답 구조 편차 대응: odcloud(data[]) / 표준(response.body.items[])
-    items = (data.get("data")
-             or data.get("response", {}).get("body", {}).get("items")
-             or [])
-    if isinstance(items, dict):
-        items = items.get("item", [])
     fm = {**_DATAGO_FESTIVAL_MAP, **(source.get("field_map") or {})}
     terms = source.get("region_filter", list(_DATAGO_REGION_TERMS))
     keep_where = source.get("keep_where") or {}   # {필드: [허용값,...]} 화이트리스트
-    out = []
-    for it in items:
-        if not isinstance(it, dict):
-            continue
-        if keep_where and not all(
-                str(it.get(f, "")) in vals for f, vals in keep_where.items()):
-            continue
-        addr = (str(it.get(fm["addr"]) or "") + " " + str(it.get(fm["addr2"]) or "")
-                + " " + str(it.get(fm["place"]) or ""))
-        if terms and not any(t in addr for t in terms):
-            continue
-        title = str(it.get(fm["title"]) or "").strip()
-        if not title:
-            continue
-        start = _datago_date(str(it.get(fm["start"]) or ""))
-        end = _datago_date(str(it.get(fm["end"]) or ""))
-        home = str(it.get(fm["home"]) or "").strip()
-        out.append({
-            "source_id": source["id"],
-            "post_key": (title + "|" + (str(it.get(fm["start"]) or "")))[:200],
-            "source_name": source.get("name", "공공데이터"),
-            "source_type": "data_go_kr",
-            "category": source.get("category", "공공데이터"),
-            "title": title,
-            "author": str(it.get(fm["org"]) or "") or None,
-            "url": home or source.get("api_url"),
-            "published_at": start,
-            "view_count": None,
-            "content_text": str(it.get(fm["content"]) or it.get(fm["place"]) or "")[:2000],
-            "kind": "event",
-            "event_start_at": start,
-            "event_end_at": end,
-            "location": str(it.get(fm["place"]) or it.get(fm["addr"]) or "") or None,
-        })
+    # 전국 데이터에서 지역만 추릴 땐 여러 페이지를 훑어야 한다(서버측 지역필터 없음).
+    max_pages = int(source.get("max_pages", 1))
+    page_key = "page" if style == "odcloud" else "pageNo"
+    rows_n = int(rows)
+    out, seen = [], set()
+    for page in range(1, max_pages + 1):
+        r = httpx.get(source["api_url"], params={**base, **user_params, page_key: str(page)},
+                      timeout=30, headers={"User-Agent": UA})
+        r.raise_for_status()
+        data = r.json()
+        items = (data.get("data")
+                 or data.get("response", {}).get("body", {}).get("items")
+                 or data.get("body", {}).get("items")
+                 or [])
+        if isinstance(items, dict):
+            items = items.get("item", [])
+        if not items:
+            break
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            if keep_where and not all(
+                    str(it.get(f, "")) in vals for f, vals in keep_where.items()):
+                continue
+            addr = (str(it.get(fm["addr"]) or "") + " " + str(it.get(fm["addr2"]) or "")
+                    + " " + str(it.get(fm["place"]) or ""))
+            if terms and not any(t in addr for t in terms):
+                continue
+            title = str(it.get(fm["title"]) or "").strip()
+            if not title:
+                continue
+            pkey = (title + "|" + (str(it.get(fm["start"]) or "")))[:200]
+            if pkey in seen:
+                continue
+            seen.add(pkey)
+            start = _datago_date(str(it.get(fm["start"]) or ""))
+            end = _datago_date(str(it.get(fm["end"]) or ""))
+            home = str(it.get(fm["home"]) or "").strip()
+            out.append({
+                "source_id": source["id"],
+                "post_key": pkey,
+                "source_name": source.get("name", "공공데이터"),
+                "source_type": "data_go_kr",
+                "category": source.get("category", "공공데이터"),
+                "title": title,
+                "author": str(it.get(fm["org"]) or "") or None,
+                "url": home or source.get("api_url"),
+                "published_at": start,
+                "view_count": None,
+                "content_text": str(it.get(fm["content"]) or it.get(fm["place"]) or "")[:2000],
+                "kind": "event",
+                "event_start_at": start,
+                "event_end_at": end,
+                "location": str(it.get(fm["place"]) or it.get(fm["addr"]) or "") or None,
+            })
+        if len(items) < rows_n:      # 마지막 페이지
+            break
     return out
 
 

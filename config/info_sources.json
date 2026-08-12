@@ -3120,18 +3120,16 @@
       "type": "data_go_kr",
       "name": "경남 평생학습 강좌",
       "category": "교육",
-      "enabled": false,
+      "enabled": true,
       "region": "경남",
       "region2": "",
       "org_type": "교육",
       "api_url": "https://api.data.go.kr/openapi/tn_pubr_public_lftm_lrn_lctre_api",
-      "rows": 500,
+      "rows": 1000,
       "params": {
         "type": "json"
       },
       "region_filter": [
-        "경상남도",
-        "경남",
         "창원",
         "마산",
         "진해",
@@ -3140,15 +3138,17 @@
       ],
       "field_map": {
         "title": "lctreNm",
-        "start": "eduStartDate",
-        "end": "eduEndDate",
-        "place": "eduPlace",
-        "addr": "rdnmadr",
-        "addr2": "lnmadr",
-        "org": "operInstitNm",
-        "home": "homepageUrl",
-        "content": "lctreContent"
-      }
+        "start": "edcStartDay",
+        "end": "edcEndDay",
+        "place": "edcPlace",
+        "addr": "edcRdnmadr",
+        "addr2": "__none__",
+        "org": "operInstitutionNm",
+        "home": "__none__",
+        "content": "lctreCo"
+      },
+      "max_pages": 30,
+      "window_days": 180
     }
   ]
 }
