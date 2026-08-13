@@ -78,7 +78,7 @@ def account_for_cafe(club_id: int, discover: bool = True):
 
     이미 member로 확인된 계정 풀에서 라운드로빈. 아직 아무도 확인 안 됐고 discover=True면
     계정을 순서대로 접근 시도해 첫 member를 찾는다(그 결과는 캐시된다)."""
-    pool = member_pool(club_id)
+    pool = sorted(member_pool(club_id))                # 안정 순서(분배 결정성)
     if not pool and discover:
         accts = usable_accounts()
         if accts:
@@ -89,9 +89,7 @@ def account_for_cafe(club_id: int, discover: bool = True):
                     break
     if not pool:
         return None, None
-    i = _rr.get(club_id, 0) % len(pool)
-    _rr[club_id] = i + 1
-    key = pool[i]
+    key = pool[club_id % len(pool)]                    # 카페별 계정 분산(결정적)
     return key, client_for(key)
 
 
