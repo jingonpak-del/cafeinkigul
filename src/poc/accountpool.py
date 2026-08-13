@@ -8,21 +8,39 @@
 idstore(아이디관리 Playwright 세션) 쿠키를 cafe_api 클라이언트로 바로 만든다.
 크롤 잡(frontfill/backfill)이 카페별로 account_for_cafe()로 계정을 받아 쓴다.
 """
-from __future__ import annotations
+import json
+from pathlib import Path
 
 from . import cafe_api, idstore, membership
 
+_CONFIG = Path(__file__).resolve().parents[2] / "config" / "targets.json"
 _client_cache: dict[str, object] = {}
 _acct_cache = None
 _rr: dict[int, int] = {}          # club_id -> 라운드로빈 인덱스
 
 
+def _configured_keys() -> set[str]:
+    """config.crawl_accounts — 크롤에 쓸 계정(키/네이버ID, 대문자). 없으면 빈 set(전체 허용)."""
+    try:
+        cfg = json.loads(_CONFIG.read_text(encoding="utf-8"))
+        return {str(k).strip().upper() for k in cfg.get("crawl_accounts", []) if str(k).strip()}
+    except Exception:
+        return set()
+
+
 def usable_accounts() -> list:
-    """로그인 유지된 아이디관리 계정(NID_AUT/NID_SES 보유)."""
+    """크롤 가능 계정 = 로그인 유지 + (config.crawl_accounts 지정 시 그 계정만)."""
     global _acct_cache
     if _acct_cache is None:
-        _acct_cache = [a for a in idstore.list_accounts()
-                       if idstore.has_login_cookies(idstore.load_cookies(a))]
+        allowed = _configured_keys()
+        out = []
+        for a in idstore.list_accounts():
+            if not idstore.has_login_cookies(idstore.load_cookies(a)):
+                continue
+            if allowed and a.key.upper() not in allowed and (a.naver_id or "").upper() not in allowed:
+                continue
+            out.append(a)
+        _acct_cache = out
     return _acct_cache
 
 

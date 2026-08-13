@@ -18,6 +18,7 @@ crawl 로직은 backfill.Backfiller.crawl_one을 재사용한다(요청 예산·
 from __future__ import annotations
 
 import argparse
+import threading
 import time
 
 from . import accountpool, ratelimit
@@ -119,32 +120,58 @@ def run(db: Database, bf: Backfiller, cafes: list[dict], *,
 
 def run_multi(db: Database, cafes: list[dict], *, deadline: float | None = None,
               max_ids: int | None = None, log=print) -> list[dict]:
-    """다계정 분산: 카페마다 '접근 가능한(회원/공개) 계정'을 배정해 그 계정으로 전진.
-    접근 가능 계정이 없으면 가입필요로 건너뛴다."""
-    out, join_needed = [], []
+    """다계정 병렬 분산: 카페를 접근가능 계정에 배정 → 계정별 스레드로 동시 전진.
+
+    각 스레드는 자기 계정의 client·rate 예산과 **자기 DB 커넥션**을 쓴다(WAL 동시쓰기).
+    계정 수만큼 병렬 → 처리량 ~N배. 계정별 예산이 독립이라 밴 위험도 분산.
+    """
+    # 1) 카페 → 접근가능 계정 배정(회원 캐시 기반 라운드로빈)
+    assign: dict[str, list] = {}
+    join_needed = []
     for cafe in cafes:
-        if deadline and time.time() >= deadline:
-            break
-        key, client = accountpool.account_for_cafe(cafe["club_id"])
+        key, _ = accountpool.account_for_cafe(cafe["club_id"])
         if not key:
             join_needed.append(cafe["cluburl"])
-            log(f"  🔒 {cafe['cluburl']}: 접근 가능 계정 없음 → 가입필요")
             continue
-        bf = Backfiller(db, client, key)          # 계정별 rate 예산
-        try:
-            res = run_cafe(db, bf, cafe, deadline=deadline, max_ids=max_ids, log=log)
-        except ratelimit.Tripped as e:
-            log(f"⛔ [{key}] {e}")
-            continue
-        except Exception as e:
-            log(f"  {cafe['cluburl']} 실패([{key}]): {e}")
-            continue
-        res["account"] = key
-        out.append(res)
-        log(f"  {cafe['cluburl']} [{key}]: {res.get('reason')} 신규 {res.get('saved', 0)}")
+        assign.setdefault(key, []).append(cafe)
     if join_needed:
-        log(f"  가입필요 {len(join_needed)}개: {', '.join(join_needed[:12])}")
-    return out
+        log(f"  🔒 접근 계정 없음 {len(join_needed)}개: {', '.join(join_needed[:12])}")
+    log(f"  배정: " + ", ".join(f"{k}={len(v)}" for k, v in assign.items()))
+
+    results, rlock = [], threading.Lock()
+
+    def worker(key: str, clist: list):
+        tdb = Database(DB_PATH)                    # 스레드 전용 커넥션
+        try:
+            tdb.conn.execute("PRAGMA busy_timeout=15000")
+        except Exception:
+            pass
+        ensure_schema(tdb)
+        client = accountpool.client_for(key)
+        bf = Backfiller(tdb, client, key)
+        for cafe in clist:
+            if deadline and time.time() >= deadline:
+                break
+            try:
+                res = run_cafe(tdb, bf, cafe, deadline=deadline, max_ids=max_ids, log=log)
+                res["account"] = key
+                with rlock:
+                    results.append(res)
+                log(f"  {cafe['cluburl']} [{key}]: {res.get('reason')} 신규 {res.get('saved', 0)}")
+            except ratelimit.Tripped as e:
+                log(f"⛔ [{key}] {e}")
+                break
+            except Exception as e:
+                log(f"  {cafe['cluburl']} 실패([{key}]): {e}")
+        tdb.close()
+
+    threads = [threading.Thread(target=worker, args=(k, v), daemon=True)
+               for k, v in assign.items()]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return results
 
 
 # ── crawl_all 카페 목록 ──────────────────────────────────────────────────────

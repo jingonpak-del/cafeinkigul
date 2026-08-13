@@ -544,6 +544,432 @@
           "name": "인기글"
         }
       ]
+    },
+    {
+      "cluburl": "campingfirst",
+      "club_id": 14358379,
+      "name": "캠핑퍼스트(초보캠핑)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "nyblog",
+      "club_id": 15424483,
+      "name": "딜공 - No.1 패션 & 직구 커뮤니티",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "hotellife",
+      "club_id": 18786605,
+      "name": "[스사사] 스마트컨슈머들의 호텔/항공/VIP카드/여행 이야기",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "feko",
+      "club_id": 10912875,
+      "name": "『여우야』뷰티카페 (성형수술/화장품/성형후기/이벤트/체험단)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "bikecity",
+      "club_id": 10000260,
+      "name": "자출사 \"자전거로 출퇴근하는 사람들\"",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "getampethskin",
+      "club_id": 17902534,
+      "name": "[거북맘vs토끼맘]아동심리/언어치료센터/ADHD/틱/발달장애/상담",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "engmstudy",
+      "club_id": 14028420,
+      "name": "● 짠돌이카페 ● 짠돌이부자되기(재테크,절약,보험료줄이기)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "anycard",
+      "club_id": 13339744,
+      "name": "신용카드 박물관",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "appleiphone",
+      "club_id": 12789486,
+      "name": "아사모 - [240만명, 아이폰17, 아이패드, 애플워치, iOS26]",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "worldtravelcafe",
+      "club_id": 20421433,
+      "name": "[오사카홀릭] & 도쿄홀릭_오사카 여행, 도쿄, 후쿠오카,일본여행",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "momsolleh",
+      "club_id": 25312684,
+      "name": "체크인유럽#유럽여행,스위스,스페인,이탈리아,프랑스,영국,터키",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "gumimom7",
+      "club_id": 23604018,
+      "name": "구미맘 수다방(임신,출산,육아,구미맘들의 카페)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "gpfleamarket",
+      "club_id": 16103317,
+      "name": "김행나-김포여인들의 행복한 나눔(김포맘 한강신도시 엄마 여자)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "pianisthb",
+      "club_id": 21410422,
+      "name": "의정부 맘들의 모임",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "nds07",
+      "club_id": 12928625,
+      "name": "배달세상 :: 배달대행, 쿠팡이츠, 배민커넥트,카카오퀵,퀵서비스",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "bluegray28rsc",
+      "club_id": 29266928,
+      "name": "원주     파랑맘♡깨어있는 원주맘들의 쉼터♡",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "momsofsongdoifez",
+      "club_id": 26429203,
+      "name": "☆송도국제도시맘(송도맘)☆",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "runningmaniac",
+      "club_id": 28590671,
+      "name": "슈파인더 놀이터",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "babyscoming",
+      "club_id": 25474288,
+      "name": "♥시험관아기 대표카페♥",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "pardus",
+      "club_id": 24485008,
+      "name": "파두스 빌리어드 No.1 당구 플랫폼  중고큐장터",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "costco12",
+      "club_id": 25559875,
+      "name": "코사모(코스트코를 사랑하는 이들의 모임)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "likeusstock",
+      "club_id": 28497937,
+      "name": "미국 주식이 미래다",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "ebook",
+      "club_id": 11509651,
+      "name": "디지털감성 e북카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "hby",
+      "club_id": 10135947,
+      "name": "열대어no.1 작은개울 홈다리",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "stocktraining",
+      "club_id": 29798500,
+      "name": "나는주식트레이더다 (대한민국 TOP 주식 트레이더들의 커뮤니티)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "toeicamp",
+      "club_id": 10041369,
+      "name": "토익캠프-토익,TOEIC,토익스피킹오픽,지텔프,취업시험공부 카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "kookminlease",
+      "club_id": 20957537,
+      "name": "국민 공공 민간 임대아파트 들어가기 ",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "ustock",
+      "club_id": 15112066,
+      "name": "평생주식카페 (SBS 쩐의전쟁 출연 재야고수의 주식정보1위카페 )",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "amoapt",
+      "club_id": 19276823,
+      "name": "【전아모】 전국 아파트/주상복합 관리자 등의 모임",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "movie02",
+      "club_id": 10000052,
+      "name": "네이버 영화 카페 : 네영카",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "romul",
+      "club_id": 28699715,
+      "name": "로물콘 -로미오&물량공급 입시콘서트",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "honkaistarrail",
+      "club_id": 30487825,
+      "name": "붕괴: 스타레일 공식 카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "gcd",
+      "club_id": 11569626,
+      "name": "모두의 건프라! (Gunpla For Everyone)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "studycool",
+      "club_id": 15027327,
+      "name": "[영유나라] 영어유치원 교육정보 맘카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "jmeat",
+      "club_id": 25557516,
+      "name": "고창모[고기집창업]",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
     }
+  ],
+  "crawl_accounts": [
+    "HADLEYPARSONS",
+    "SNOWGREENT9",
+    "SNOWGREENT11",
+    "SNOWGREENT12"
   ]
 }
