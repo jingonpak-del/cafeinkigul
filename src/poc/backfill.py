@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -278,36 +279,86 @@ def _deadline(until: str | None, max_hours: float | None = None) -> float | None
     return min(ts, cap) if cap else ts
 
 
+def run_multi(cafes, *, deadline=None, limit_per_cafe=None, max_missing=None,
+              years=2, log=print) -> int:
+    """다계정 병렬 백필: 카페를 접근가능 계정에 배정 → 계정별 스레드로 과거글 동시 수집.
+    각 스레드는 자기 계정 client·rate 예산과 자기 DB 커넥션(WAL) 사용. 반환: 신규 합계."""
+    from . import accountpool
+    assign: dict[str, list] = {}
+    for c in cafes:
+        key, _ = accountpool.account_for_cafe(c["club_id"])
+        if key:
+            assign.setdefault(key, []).append(c)
+    log("  배정: " + ", ".join(f"{k}={len(v)}" for k, v in assign.items()))
+    total, tlock = [0], threading.Lock()
+
+    def worker(key: str, clist: list):
+        tdb = Database(DB_PATH)
+        try:
+            tdb.conn.execute("PRAGMA busy_timeout=15000")
+        except Exception:
+            pass
+        ensure_schema(tdb)
+        client = accountpool.client_for(key)
+        bf = Backfiller(tdb, client, key,
+                        max_missing=max_missing or DEFAULTS["max_missing"], years=years)
+        for c in clist:
+            if deadline and time.time() >= deadline:
+                break
+            try:
+                r = bf.run_cafe(c["club_id"], c["cluburl"], deadline=deadline, limit=limit_per_cafe)
+                with tlock:
+                    total[0] += r.get("saved", 0)
+            except ratelimit.Tripped as e:
+                log(f"⛔ [{key}] {e}")
+                break
+            except Exception as e:
+                log(f"  {c['cluburl']} 실패([{key}]): {e}")
+        tdb.close()
+
+    threads = [threading.Thread(target=worker, args=(k, v), daemon=True)
+               for k, v in assign.items()]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return total[0]
+
+
 def cmd_run(args):
     prune_logs("backfill")
     cfg = _config()
-    account = args.account or cfg.get("account")
     cafes = cfg.get("cafes", [])
     if args.cafe:
         cafes = [c for c in cafes if c["cluburl"] == args.cafe]
         if not cafes:
             raise SystemExit(f"config에 없는 카페: {args.cafe}")
-
-    db = Database(DB_PATH)
-    ensure_schema(db)
-    client = _client(account)
-    bf = Backfiller(db, client, account or "default",
-                    max_missing=args.max_missing, years=args.years)
     dl = _deadline(args.until, args.max_hours)
-    if dl:
-        print(f"백필 시작 — {datetime.datetime.fromtimestamp(dl):%m-%d %H:%M}까지, "
-              f"{len(cafes)}개 카페, 최근 {args.years}년치")
-    else:
-        print(f"백필 시작 — {len(cafes)}개 카페, 최근 {args.years}년치")
+    when = f"{datetime.datetime.fromtimestamp(dl):%m-%d %H:%M}까지, " if dl else ""
     try:
-        res = bf.run(cafes, deadline=dl, limit_per_cafe=args.limit)
-        total = sum(r.get("saved", 0) for r in res)
+        if args.account:
+            # 단일 계정(명시 지정 시)
+            db = Database(DB_PATH)
+            ensure_schema(db)
+            client = _client(args.account)
+            bf = Backfiller(db, client, args.account,
+                            max_missing=args.max_missing, years=args.years)
+            print(f"백필(단일계정 {args.account}) — {when}{len(cafes)}개, 최근 {args.years}년치")
+            res = bf.run(cafes, deadline=dl, limit_per_cafe=args.limit)
+            total = sum(r.get("saved", 0) for r in res)
+            client.close()
+            db.close()
+        else:
+            # 다계정 병렬(기본)
+            from . import accountpool
+            n = len(accountpool.usable_accounts())
+            print(f"백필(다계정 {n}개 병렬) — {when}{len(cafes)}개, 최근 {args.years}년치")
+            total = run_multi(cafes, deadline=dl, limit_per_cafe=args.limit,
+                              max_missing=args.max_missing, years=args.years)
+            accountpool.close_all()
         print(f"\n백필 완료: 신규 {total}건")
     except KeyboardInterrupt:
         print("\n중단됨 — 커서는 저장되어 있습니다.")
-    finally:
-        client.close()
-        db.close()
 
 
 def cmd_status(args):
