@@ -1,99 +1,126 @@
 # 인기글 트래커 — 작업 진행 현황
 
-> 네이버 카페 인기글/게시판 실시간 추적·크롤링·분류 시스템
+> 네이버 카페 **전량 수집(Lake) + 큐레이션** 시스템
 > Repo: https://github.com/jingonpak-del/cafeinkigul (main)
-> 최종 갱신: 2026-07-14
+> 데이터: `D:\cafe-corpus`(DB·raw·logs) — 코드는 C:\Users\USER\인기글
+> 최종 갱신: 2026-08-11
 
 ---
 
-## ✅ 완료된 작업
+## 0. 큰 그림 (아키텍처)
 
-### 코어 크롤링·저장
-- **실시간 새글 탐지**: 워처(단일 스레드 라운드로빈 폴링)가 등록된 게시판을 순회하며 새글 감지
-- **본문·댓글 크롤링**: 감지 즉시 본문 + 댓글 수집 → SQLite(WAL) 저장(`data/tracker.db`)
-- **4시간 후 재방문**: 조회수 증가(delta) 측정으로 반응 좋은 글 판별
-- **인기글 수집**: 매일 2시·16시 WeeklyPopular API로 인기글 누적
-- **급상승/호응 점수**: 게시판별 평균+2σ 이상치 = 급상승, 카페별 백분위 속도 정규화 = 호응점수
+**한 DB(`D:\cafe-corpus\db\tracker.db`) 위에 2계층:**
+- **Lake(통째 수집)** — 모든 카페의 **모든 게시판** 글을 다 축적(학습 base). 분류는 수집 전제 아님.
+- **Curated(큐레이션)** — 분석으로 **승격된 게시판**만 실시간+호응도로 운영 → 대시보드 카테고리 탭.
 
-### 대시보드 (웹 UI)
-- 2패널 레이아웃(좌=일반글, 우=인기글), 모바일 카드 뷰 + 탭 전환
-- 열 너비 드래그 조절(localStorage 저장, 서버 부하 0), 제목 2줄 표시
-- 최신순/급상승/호응순 탭, 제목 검색, 미사용만 보기 필터
-- WebSocket 실시간 연결, 원고 복사 + 사용 체크(중복 사용 방지)
-- **카테고리 상단 탭 필터**(전체 + 분류별): 일반글은 분류로, 인기글은 별도 컬럼으로 표시
-
-### 분류(카테고리) 시스템
-- **보드 기반 분류**: 각 게시판에 `category` 지정 → 그 게시판에서 감지된 글이 자동 분류(내용분석 대비 100% 정확)
-- 동적 분류: 핫딜 · 앱체크 · 유머 · 일반인기글 (UI로 추가/삭제 가능)
-
-### ⚙️ 설정 화면 (master 전용) — **직전 완료**
-- `body.ismaster` 토글로 master 로그인 시에만 노출
-- **분류 관리**: 칩 추가/삭제 → `POST /api/admin/categories`, 대시보드 탭 즉시 갱신
-- **카페 게시판 등록**: 카페 주소 입력 → `GET /api/admin/cafe-boards`로 게시판 자동 추출
-  (메뉴ID·이름) → 수집 체크 + 분류 드롭다운 + 인기글 체크 → `POST /api/admin/save-cafe`
-  → 워처 핫리로드로 재시작 없이 자동 반영
-- **등록된 카페 목록**: 클릭 시 편집기에 로드, 게시판 검색 필터
-- 커밋: `1ad8dd0`
-
-### 인프라·안정화
-- **Cloudflare 명명 터널**: dashboard.whitedr.com 로 사내/집 공유
-- **폼+쿠키 로그인**: 카카오톡 인앱브라우저의 Basic Auth 팝업 불가 문제 해결
-- **다중 계정/권한**: master + 그룹별 계정(접속현황 확인)
-- **supervisor.ps1**: 4개 서비스 감시 실행, 대시보드(8090)는 `noreload=$true`
-- **워처 크래시 수정**: uvicorn 기동 시 `_force_utf8()`를 startup 이벤트에서 호출(cp949 인코딩 크래시 해결)
-- **인기글 수집이 일반 폴링 차단하던 버그** 수정(수집 시작 시점에 last_popular_run 설정)
+목표 흐름: `Lake → 주기분석(가치·주제·키워드) → 추천 → 사람 승인 → 승격(Curated)`.
+자세한 설계: [DESIGN_COLLECT_CURATE.md](DESIGN_COLLECT_CURATE.md) (+ DESIGN_DEAL_PIPELINE.md, DESIGN_CAFE_DISCOVERY.md).
 
 ---
 
-## 🔧 진행 중인 작업
+## 1. 수집 경로 (4가지 → 한 DB)
 
-- 없음 (직전 요청이던 설정 화면 Phase 4 완료)
+| 경로 | 주기 | 대상 | 실시간 | 호응도 | 계정 | lane |
+|---|---|---|:--:|:--:|---|---|
+| **스트림(메뉴보드)** | 상시 라운드로빈 | 승격된 등록 게시판 | ✅ | ✅ | 스트림 계정 | stream |
+| **인기글 수집** | 하루 2회(2·16시) | 전 카페 popular | ❌ | ❌ | 스트림 계정 | stream |
+| **backfill(과거)** | 야간 배치 | 전 카페·전 게시판(id 역scan, 2년) | ❌ | ❌ | **4계정 병렬** | backfill |
+| **frontfill(신규)** | 20분 배치 | 전 카페·전 게시판(id 헤드전진) | △ | ❌ | **4계정 병렬** | frontfill |
 
----
-
-## ⏭ 다음 할 일
-
-1. **미분류 게시판 분류 채우기** — 설정 화면에서 카페별로 [불러오기 → 분류 지정 → 저장].
-   아직 분류 없는 카페: 맘이베베, 핫딜언니, 몰테일, 페밀리세일, 맘스홀릭, 레몬테라스,
-   천안줌마·부경맘(정보방), 줌마렐라(menu 70)
-2. 설정 화면 실사용 검증(카페 불러오기 → 저장 → 워처 반영 확인)
-3. (선택) 분류별 통계/집계, 인기글 분류 세분화 등 추가 요구 대응
+- **승격 게시판은 frontfill이 제외** → 스트림이 실시간+호응도 담당(선점 방지).
+- 원본 HTML은 DB가 아니라 **zstd 아카이브**(`raw_archive`, 압축 ~10.5배).
 
 ---
 
-## 📌 중요한 결정사항
+## 2. ✅ 완료 (Phase 1~5)
 
-- **분류 저장소**: 현재 config 파일(`config/targets.json`) 유지 (DB 아님)
-- **게시판 반영 방식**: 자동 — 워처가 config mtime 감시 후 핫리로드(재시작 불필요)
-- **분류 체계**: 핫딜 · 앱체크 · 유머 · 일반인기글 (동적, UI로 변경 가능)
-- **분류 방식**: 내용 분석이 아닌 **게시판(보드) 기반** — 정확도 우선
-- **"일상인기글" = "일반인기글"** = 인기글 보드(`popular_category`)
-- **인증**: 폼+쿠키(SESSIONS 인메모리 토큰). Basic Auth는 인앱브라우저 호환 문제로 폐기
-- **화면 레이아웃**: 카테고리는 상단 탭 필터 방식
+### 발굴(Discovery) — 수집 대상 카페 확장
+- 섹션 API 열거: `powercafes`(대표) / `region-cafes`(동네) / `themecafes`(테마 전체 자동 순회).
+- `cafe_candidates` 테이블 + 2단계(열거→probe로 학습가치 심사) + 주제 다양성 상한.
+- **점수상위 자동 채택**: 매일 심사 통과분을 `crawl_all`로 자동 편입.
+- 설정 **🔎 카페 발굴 탭**: 후보 표 + [통째]/[선별] + 🔒가입필요 + 직접조사.
+
+### 전량 수집 기반화 (Phase 5-1)
+- **frontfill 대상 = 모든 카페 기본**(crawl_all:false로만 제외).
+- 승격 게시판 frontfill 제외(`crawl_one` skip_menus) — 호응도 보호.
+
+### 다계정 분산 (Phase 5-2) — 빠르고 안전
+- **`accountpool.py`**: 아이디관리(`idstore`) 로그인 계정 풀. 카페별 접근가능 계정에 배정(회원확인 캐시, club_id 분배).
+- **크롤 계정 4개 고정**: `HADLEYPARSONS/SNOWGREENT9/11/12` (config.crawl_accounts). 57개 전 카페 4계정 접근가능 확인.
+- **frontfill·backfill 병렬화**: 계정별 스레드(독립 DB커넥션·rate예산) → 처리량 ~4배, 밴 위험 분산.
+- **membership.py**: `account_membership` 테이블(계정↔카페 접근여부).
+
+### 가치 분석 (Phase 3·4-1)
+- **`analytics.py`** + `GET /api/admin/board-stats`: 인기글 진입률·반응·볼륨으로 게시판 가치 랭크 + 주제 롤업.
+- 설정 **📊 가치 있는 게시판** 패널: ★미분류 표시 + [분류] 원클릭 + **새 분류 제안**(주제 롤업).
+
+### 코어·안정화
+- 실시간 스트림(라운드로빈)+본문·댓글+4h 재방문(호응도)+급상승/호응 점수.
+- **워처 하드닝**: 주기작업 예외 격리 + 루프 백스톱 → 스레드 총정지(수집 멈춤) 방지. 시작 시 카테고리부터.
+- Cloudflare 터널(dashboard.whitedr.com), 폼+쿠키 로그인, supervisor(uvicorn) 다서비스.
+- 데이터 D: 이전(`paths.py`), 공유 rate limiter(스트림 우선/백필 양보).
+
+### 분류 체계(현재)
+- **핫딜/쇼핑정보 · 앱테크/이벤트 · 유머/볼거리 · 일반인기글** (동적, UI 추가/삭제).
 
 ---
 
-## ⚠️ 개발 시 주의점 (운영 노트)
+## 3. 🔧 진행 중 / ⏭ 다음
 
-- `server.py` 수정 후에는 **수동 서버 재시작** 필요
-  (`src.poc.server` 매칭 python kill → supervisor가 ~16~20초 후 재기동).
-  `index.html`은 매번 fresh 서빙되므로 브라우저 새로고침만 하면 됨
-- 커밋 후 동기화: `git pull --rebase origin main` → `git push origin main` (분리 실행)
-  — 린터가 `config/targets.json`을 재수정해 커밋 전 pull이 실패하는 경우가 있음
-- 시스템 리마인더로 자동 수정 표시되는 파일(dashboard_auth.json, config.yml,
-  keepalive vbs)은 되돌리지 말 것
+- **(별도 세션) 4-2 키워드 자동 라우팅** — 게시판 지정 없이 제목/내용 키워드로 카테고리 배정. server.py·index.html 수정 중. ⚠️ 이 세션 끝날 때까지 그 두 파일 편집 회피.
+- **⏭ 5-3 추천엔진(4-2 종료 후)** — 통째 corpus 분석 → 승격 게시판/새 카테고리 **추천 큐 + 승인 UI**. (analytics·board-stats가 뼈대)
+- **⏭ 실시간 전용 계정 지정** — 스트림 계정이 config상 `내네이버아이디` 플레이스홀더 → 유효 계정 지정 권장(회원제 카페 승격보드 실시간 확보).
+- (후속) 딜 파이프라인(링크해제·신선도), 이미지 OCR, LLM 재구성/재게시.
 
 ---
 
-## 주요 엔드포인트/파일
+## 4. 📌 중요한 결정사항
+
+- **통째가 기본**: 모든 카페 전 게시판 축적(학습 base). 실시간은 승격된 게시판만.
+- **승격 = 게시판 단위**: 한 카페가 통째 + 승격보드 동시. 승격보드는 frontfill 제외(스트림 전담).
+- **다계정 4개 고정 분산**(config.crawl_accounts), 계정별 rate 예산. 크롤 계정 ≠ 스트림 계정.
+- **분류 = 게시판(보드) 기반 + (예정)키워드 라우팅**, 쿼리 시점 적용(재크롤 불필요).
+- **분류/카페 저장소 = config 파일**, 워처가 mtime 감시 핫리로드.
+- **목적 = 재게시 큐레이션 + 학습 코퍼스 균형**: 텍스트 영구보존 + 원본 zstd 아카이브.
+- 자동 가입 안 함(CAPTCHA·약관) — 가입필요 카페는 사람이 가입 후 확인.
+
+---
+
+## 5. ⚠️ 운영 노트 (개발 시 주의)
+
+- **DB·데이터는 `D:\cafe-corpus`** (paths.py). server/watcher/cli/backfill/frontfill 모두 이 경로.
+- `server.py` 수정 후 **대시보드 수동 재시작** 필요:
+  `powershell -Command "Get-Process python | ? { $_.CommandLine -like '*src.poc.server*' } | Stop-Process -Force"` → supervisor ~15~20초 후 재기동. `index.html`은 새로고침만.
+- **커밋 시**: fork/타 세션이 `server.py·index.html·config`를 미커밋 수정 중일 수 있음 →
+  **내 파일만 `git add`** 후 커밋, `git push`(가능하면 stash 없이). 그들 WIP를 stash로 건드리지 말 것.
+- 크롤/발굴/백필 로그: `D:\cafe-corpus\logs`. 대시보드(워처) stdout/err: `C:\Users\USER\svc\logs\dashboard.log/.err`.
+- 배치 파일은 **ASCII 콘텐츠만**(cmd가 비ASCII 줄을 깨뜨림). 파일명 한글은 무방.
+
+---
+
+## 6. 스케줄 잡 (배치)
+
+| 잡 | 파일 | 주기 | 동작 |
+|---|---|---|---|
+| frontfill | `frontfill_실행.bat` | 20분(작업스케줄러 `frontfill`) | 다계정 병렬 신규 전진 |
+| backfill | `백필_실행.bat` | 야간 | 다계정 병렬 과거 수집 |
+| discovery | `발굴_실행.bat` | 일 1회 | 섹션 발굴 + 점수상위 자동채택 |
+| 세션유지 | `세션유지_실행.bat` | — | 로그인 세션 keepalive |
+
+---
+
+## 7. 주요 파일
 
 | 구분 | 위치 |
 |---|---|
-| 서버 | `src/poc/server.py` (FastAPI) |
-| 워처 | `src/poc/watcher.py` (폴링+핫리로드) |
-| 네이버 API | `src/poc/cafe_api.py` (게시판추출: `cafe-cafemain-api/.../menus` + `X-Cafe-Product: pc`) |
-| DB | `src/poc/db.py` (SQLite WAL) |
+| 서버(API+워처) | `src/poc/server.py` |
+| 실시간 워처 | `src/poc/watcher.py` |
+| 과거/신규 수집 | `src/poc/backfill.py` · `src/poc/frontfill.py` |
+| 다계정 풀·가입확인 | `src/poc/accountpool.py` · `src/poc/membership.py` · `src/poc/idstore.py` |
+| 발굴 | `src/poc/discovery.py` (+ `capture_section_apis.py`) |
+| 가치 분석 | `src/poc/analytics.py` |
+| 네이버 API | `src/poc/cafe_api.py` |
+| DB / 원본아카이브 / 경로 / 레이트 | `src/poc/db.py` · `raw_archive.py` · `paths.py` · `ratelimit.py` |
 | 프론트 | `src/poc/static/index.html` |
-| 설정 | `config/targets.json` |
-| 감시자 | `C:\Users\USER\svc\supervisor.ps1` |
-| 관리 API | `/api/admin/config`, `/api/admin/cafe-boards`, `/api/admin/save-cafe`, `/api/admin/categories` (모두 master 전용) |
+| 설정 | `config/targets.json` (cafes · categories · crawl_accounts · discovery) |
+| 감시자 | `C:\Users\USER\svc\supervisor.ps1` (+ `apps.json`) |
