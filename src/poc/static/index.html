@@ -131,6 +131,15 @@
   .cafechip b{color:var(--txt)} .cafechip span{color:var(--mut);font-size:11px}
   .btnp{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
   .setmsg{font-size:12px;margin-left:8px}
+  .rulerow{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .rulerow:last-child{border-bottom:0}
+  .rulerow .rcat{flex:0 0 130px;font-weight:600;font-size:13px;padding-top:5px;word-break:keep-all}
+  .rulerow .rkw{flex:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rulerow .kw{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:14px;background:#202a3f;border:1px solid var(--line);font-size:12px}
+  .rulerow .kw.th{border-color:var(--accent);color:var(--accent)}
+  .rulerow .kw .rm{cursor:pointer;color:var(--mut);font-weight:700} .rulerow .kw .rm:hover{color:#ff9a9a}
+  .rulerow input.kwin{width:120px;padding:4px 8px;font-size:12px}
+  .rlbl{color:var(--mut);font-size:11px;align-self:center}
 </style>
 </head>
 <body>
@@ -235,6 +244,14 @@
         <button class="btnp" onclick="addCat()">+ 추가</button>
         <span class="setmsg" id="catmsg"></span>
       </div>
+    </div>
+
+    <div class="setsec">
+      <h3>🔀 키워드 자동 라우팅 <span class="setmsg" id="rulemsg"></span></h3>
+      <p class="hint">게시판을 일일이 지정하지 않아도, 글 <b>제목의 키워드</b>(또는 카페 <b>주제</b>)로 분류를 자동 배정합니다.
+        우선순위: <b>게시판 지정 &gt; 키워드 &gt; 주제</b>. 쿼리 시점 적용이라 재크롤이 필요 없습니다.
+        (분류를 먼저 추가한 뒤, 그 분류에 키워드를 넣으세요.)</p>
+      <div id="rulerows"></div>
     </div>
 
     <div class="setsec">
@@ -499,6 +516,7 @@ function reloadChecker(){ const f=$("#checkerframe"); if(_curService) f.src=_cur
 
 /* ===== ⚙️ 설정 (master 전용) ===== */
 let setCats=[], setPopCat="일반인기글", curCafe=null;   // curCafe={cluburl,club_id,name,boards:[{menu_id,name,category,tracked}],popular}
+let setRules=[];                       // [{category, any_keywords:[], any_themes:[], boards:[]}]
 function openSettings(){ $("#settings").classList.add("show"); loadAdminConfig(); loadCandidates(); }
 function closeSettings(){ $("#settings").classList.remove("show"); }
 async function loadAdminConfig(){
@@ -506,7 +524,8 @@ async function loadAdminConfig(){
   try{ d=await (await fetch("/api/admin/config",{cache:"no-store"})).json(); }
   catch(e){ $("#catmsg").textContent="불러오기 실패"; return; }
   setCats=d.categories||[]; setPopCat=d.popular_category||"일반인기글";
-  renderCatChips(); renderCafeList(d.cafes||[]);
+  setRules=d.category_rules||[];
+  renderCatChips(); renderRules(); renderCafeList(d.cafes||[]);
 }
 function renderCatChips(){
   $("#catchips").innerHTML = setCats.map(c=>{
@@ -528,16 +547,74 @@ async function addCat(){
   const v=$("#newcat").value.trim();
   if(!v) return;
   if(setCats.includes(v)){ $("#catmsg").textContent="이미 있는 분류"; return; }
-  setCats.push(v); $("#newcat").value=""; renderCatChips(); saveCats();
+  setCats.push(v); $("#newcat").value=""; renderCatChips(); renderRules(); saveCats();
 }
 async function removeCat(c){
   if(c===setPopCat) return;
-  if(!confirm(`'${c}' 분류를 삭제할까요?\n이 분류로 지정된 게시판은 분류 없음으로 바뀝니다.`)) return;
-  setCats=setCats.filter(x=>x!==c); renderCatChips(); saveCats();
+  if(!confirm(`'${c}' 분류를 삭제할까요?\n이 분류의 게시판 지정·자동 라우팅 규칙이 함께 사라집니다.`)) return;
+  setCats=setCats.filter(x=>x!==c);
+  setRules=setRules.filter(r=>r.category!==c);
+  renderCatChips(); renderRules(); saveCats();
 }
 function catOptions(sel){
   return setCats.filter(c=>c!==setPopCat)
     .map(c=>`<option${c===sel?' selected':''}>${esc(c)}</option>`).join("");
+}
+
+/* ===== 🔀 키워드 자동 라우팅 규칙 ===== */
+function _rule(cat){                      // 해당 분류의 규칙(없으면 생성)
+  let r=setRules.find(x=>x.category===cat);
+  if(!r){ r={category:cat, any_keywords:[], any_themes:[]}; setRules.push(r); }
+  r.any_keywords=r.any_keywords||[]; r.any_themes=r.any_themes||[];
+  return r;
+}
+function renderRules(){
+  const cats=setCats.filter(c=>c!==setPopCat);
+  if(!cats.length){ $("#rulerows").innerHTML='<span class="rlbl">먼저 위에서 분류를 추가하세요.</span>'; return; }
+  $("#rulerows").innerHTML=cats.map(cat=>{
+    const r=setRules.find(x=>x.category===cat)||{any_keywords:[],any_themes:[]};
+    const kws=(r.any_keywords||[]).map(k=>`<span class="kw">${esc(k)}<span class="rm" onclick="removeKw('${esc(cat)}','${esc(k)}')" title="삭제">✕</span></span>`).join("");
+    const ths=(r.any_themes||[]).map(t=>`<span class="kw th">주제:${esc(t)}<span class="rm" onclick="removeTheme('${esc(cat)}','${esc(t)}')" title="삭제">✕</span></span>`).join("");
+    const cj=cat.replace(/'/g,"\\'");
+    return `<div class="rulerow">
+      <div class="rcat">🏷️ ${esc(cat)}</div>
+      <div class="rkw">
+        ${kws}${ths}
+        <input class="kwin" placeholder="+ 키워드" onkeydown="if(event.key==='Enter')addKw('${cj}',this)"/>
+        <input class="kwin" placeholder="+ 주제" onkeydown="if(event.key==='Enter')addTheme('${cj}',this)"/>
+      </div></div>`;
+  }).join("");
+}
+function addKw(cat,el){
+  const v=(el.value||"").trim(); if(!v) return;
+  const r=_rule(cat);
+  if(r.any_keywords.some(k=>k.toLowerCase()===v.toLowerCase())){ el.value=""; return; }
+  r.any_keywords.push(v); el.value=""; renderRules(); saveRules();
+}
+function removeKw(cat,kw){
+  const r=setRules.find(x=>x.category===cat); if(!r) return;
+  r.any_keywords=(r.any_keywords||[]).filter(k=>k!==kw); renderRules(); saveRules();
+}
+function addTheme(cat,el){
+  const v=(el.value||"").trim(); if(!v) return;
+  const r=_rule(cat);
+  if(r.any_themes.some(t=>t.toLowerCase()===v.toLowerCase())){ el.value=""; return; }
+  r.any_themes.push(v); el.value=""; renderRules(); saveRules();
+}
+function removeTheme(cat,theme){
+  const r=setRules.find(x=>x.category===cat); if(!r) return;
+  r.any_themes=(r.any_themes||[]).filter(t=>t!==theme); renderRules(); saveRules();
+}
+async function saveRules(){
+  const rules=setRules.filter(r=>(r.any_keywords&&r.any_keywords.length)||(r.any_themes&&r.any_themes.length)||(r.boards&&r.boards.length));
+  $("#rulemsg").textContent="저장 중…";
+  let d;
+  try{ const resp=await fetch("/api/admin/category-rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rules})});
+       d=await resp.json(); if(!resp.ok){ $("#rulemsg").textContent="⚠ "+(d.error||"저장 실패"); return; } }
+  catch(e){ $("#rulemsg").textContent="⚠ 저장 실패"; return; }
+  setRules=d.rules||[];
+  $("#rulemsg").textContent="✓ 저장됨 — 쿼리 시점 자동 반영";
+  setTimeout(()=>$("#rulemsg").textContent="",2500);
 }
 
 async function loadCafeBoards(url){

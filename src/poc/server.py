@@ -89,6 +89,67 @@ def _board_categories() -> dict:
         return {}
 
 
+# ── Phase 4-2: 키워드/주제 자동 라우팅 ───────────────────────────────────────
+# 게시판을 일일이 지정하지 않아도 글 제목 키워드(및 선택적으로 카페 theme)로
+# 카테고리를 쿼리 시점에 자동 배정한다(재크롤 불필요). 우선순위는 _resolve_cat 참조:
+# 게시판 지정 > 키워드 규칙 > 주제 규칙.
+def _category_rules() -> list:
+    """config.category_rules 정규화 →
+    [{category, keywords:[소문자], themes:[소문자], board_pairs:set((club_id,menu_id))}]."""
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        out = []
+        for r in cfg.get("category_rules", []):
+            cat = (r.get("category") or "").strip()
+            if not cat:
+                continue
+            kws = [str(k).strip().lower() for k in (r.get("any_keywords") or []) if str(k).strip()]
+            ths = [str(t).strip().lower() for t in (r.get("any_themes") or []) if str(t).strip()]
+            pairs = set()
+            for b in (r.get("boards") or []):
+                try:
+                    pairs.add((int(b["club_id"]), int(b["menu_id"])))
+                except (KeyError, TypeError, ValueError):
+                    pass
+            if kws or ths or pairs:
+                out.append({"category": cat, "keywords": kws, "themes": ths, "board_pairs": pairs})
+        return out
+    except Exception:
+        return []
+
+
+def _cafe_themes() -> dict:
+    """{club_id: theme} — cafe_candidates에서 (주제 규칙용). 없으면 빈 dict."""
+    try:
+        conn = _row_conn()
+        try:
+            return {r["club_id"]: r["theme"] for r in conn.execute(
+                "SELECT club_id, theme FROM cafe_candidates WHERE theme IS NOT NULL AND theme != ''")}
+        finally:
+            conn.close()
+    except Exception:
+        return {}
+
+
+def _resolve_cat(r: dict, bcats: dict, rules: list, theme_map: dict) -> str:
+    """한 글의 분류 결정. 우선순위: 게시판 지정 > 제목 키워드 > 카페 주제. 없으면 ''."""
+    c = bcats.get((r["cafe_id"], r["menu_id"]))
+    if c:
+        return c
+    title = (r.get("title") or "").lower()
+    if title:
+        for rule in rules:
+            if rule["keywords"] and any(k in title for k in rule["keywords"]):
+                return rule["category"]
+    if theme_map:
+        th = (theme_map.get(r["cafe_id"]) or "").lower()
+        if th:
+            for rule in rules:
+                if rule["themes"] and any(t in th for t in rule["themes"]):
+                    return rule["category"]
+    return ""
+
+
 # ── 인기점수(호응) 계산 ────────────────────────────────────────────────────
 HOT_WINDOW_H = 24                       # '호응좋은 일반글' 대상 시간창
 W_VV, W_CV, W_ER, W_LR = 0.35, 0.30, 0.25, 0.10   # 조회속도/댓글속도/참여율/좋아요율
@@ -485,6 +546,7 @@ def admin_config(request: Request):
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     return {"categories": cfg.get("categories", []),
             "popular_category": cfg.get("popular_category", "일반인기글"),
+            "category_rules": cfg.get("category_rules", []),
             "cafes": [{"cluburl": c["cluburl"], "club_id": c["club_id"], "name": c.get("name", ""),
                        "boards": c.get("boards", [])} for c in cfg.get("cafes", [])]}
 
@@ -556,8 +618,57 @@ async def admin_categories(request: Request):
     cfg["categories"] = cats
     if body.get("popular_category"):
         cfg["popular_category"] = body["popular_category"]
+    # 삭제된 분류의 라우팅 규칙도 정리
+    if "category_rules" in cfg:
+        cfg["category_rules"] = [r for r in cfg["category_rules"]
+                                 if (r.get("category") or "") in cats]
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "categories": cats}
+
+
+@app.post("/api/admin/category-rules")
+async def admin_category_rules(request: Request):
+    """키워드/주제 자동 라우팅 규칙 저장(Phase 4-2). 쿼리 시점 적용 — 재크롤 불필요. master 전용.
+    body: {rules: [{category, any_keywords:[...], any_themes:[...], boards:[{club_id,menu_id}]}]}"""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    valid_cats = set(cfg.get("categories", []))
+    pop_cat = cfg.get("popular_category", "일반인기글")
+    out = []
+    for r in body.get("rules", []):
+        cat = (r.get("category") or "").strip()
+        if not cat or cat not in valid_cats or cat == pop_cat:
+            continue                       # 존재하는 일반 분류에만 규칙 허용
+        kws = _dedup_strs(r.get("any_keywords"))
+        ths = _dedup_strs(r.get("any_themes"))
+        boards = []
+        for b in (r.get("boards") or []):
+            try:
+                boards.append({"club_id": int(b["club_id"]), "menu_id": int(b["menu_id"])})
+            except (KeyError, TypeError, ValueError):
+                pass
+        if kws or ths or boards:
+            rule = {"category": cat, "any_keywords": kws}
+            if ths:
+                rule["any_themes"] = ths
+            if boards:
+                rule["boards"] = boards
+            out.append(rule)
+    cfg["category_rules"] = out
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "rules": out}
+
+
+def _dedup_strs(seq) -> list:
+    """공백 제거 + 중복 제거(대소문자 무시, 원문 보존, 순서 유지)."""
+    out, seen = [], set()
+    for x in (seq or []):
+        s = str(x).strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower()); out.append(s)
+    return out
 
 
 # ── 카페 발굴 후보 ───────────────────────────────────────────────────────────
@@ -813,6 +924,12 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
     names = _cafe_names()
     bnames = _board_names()
     bcats = _board_categories()
+    rules = _category_rules()
+    for _r in rules:                       # 규칙에 지정한 board도 '게시판 지정' 티어로 병합(config가 우선)
+        for _p in _r["board_pairs"]:
+            bcats.setdefault(_p, _r["category"])
+    need_theme = any(r["themes"] for r in rules)
+    theme_map = _cafe_themes() if need_theme else {}
     conn = _row_conn()
     try:
         scores = _recent_scores(conn)
@@ -832,17 +949,34 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
-        # 카테고리(핫딜/이벤트 등) → 해당 분류 게시판의 글만
+        # 카테고리 필터 → 그 분류의 '후보 상위집합'만 SQL로 좁힌다(게시판 지정 OR 제목 키워드
+        # OR 카페 주제). 정확한 우선순위 판정은 아래 _resolve_cat로 파이썬에서 확정한다.
         if category:
-            pairs = [k for k, v in bcats.items() if v == category]
-            if pairs:
-                where.append("(" + " OR ".join(["(a.cafe_id=? AND a.menu_id=?)"] * len(pairs)) + ")")
-                for cid, mid in pairs:
-                    params.extend([cid, mid])
+            ors, ps = [], []
+            for (cid, mid), v in bcats.items():
+                if v == category:
+                    ors.append("(a.cafe_id=? AND a.menu_id=?)"); ps.extend([cid, mid])
+            for rule in rules:
+                if rule["category"] == category:
+                    for kw in rule["keywords"]:
+                        ors.append("LOWER(a.title) LIKE ?"); ps.append(f"%{kw}%")
+            if theme_map:
+                tcafes = [cid for cid, th in theme_map.items()
+                          if th and any(t in th.lower() for rule in rules
+                                        if rule["category"] == category for t in rule["themes"])]
+                if tcafes:
+                    ors.append("a.cafe_id IN (%s)" % ",".join("?" * len(tcafes))); ps.extend(tcafes)
+            if ors:
+                where.append("(" + " OR ".join(ors) + ")"); params.extend(ps)
             else:
-                where.append("1=0")   # 해당 카테고리 게시판 없음 → 빈 결과
+                where.append("1=0")   # 해당 카테고리에 규칙/게시판 없음 → 빈 결과
         if q:
             where.append("a.title LIKE ?"); params.append(f"%{q}%")
+
+        # 카테고리가 지정되면 상위집합에서 우선순위(_resolve_cat)로 정확히 걸러낸다.
+        def _keep(rs):
+            return [r for r in rs if _resolve_cat(r, bcats, rules, theme_map) == category] \
+                if category else rs
 
         if order == "surge":
             # 최근 1h 일반글 중 게시판 평균+2σ 이상 급상승, 이상치 큰 순
@@ -856,6 +990,7 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
                 s = surge[(r["cafe_id"], r["article_id"])]
                 r["surge_z"], r["surge_ratio"] = s["z"], s["ratio"]
             allrows.sort(key=lambda r: (r["surge_z"] if r["surge_z"] is not None else 0), reverse=True)
+            allrows = _keep(allrows)
             page = allrows[offset:offset + limit]
         elif order == "hot":
             # 최근 24h 일반글 중 점수 있는 것만, 점수 내림차순
@@ -865,6 +1000,13 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
             allrows = [dict(r) for r in conn.execute(sql, params).fetchall()]
             allrows = [r for r in allrows if scores.get((r["cafe_id"], r["article_id"])) is not None]
             allrows.sort(key=lambda r: scores[(r["cafe_id"], r["article_id"])], reverse=True)
+            allrows = _keep(allrows)
+            page = allrows[offset:offset + limit]
+        elif category:
+            # 최신순 + 카테고리: 키워드/주제 규칙은 SQL LIMIT로 못 자르므로 상위집합을 받아
+            # 파이썬에서 우선순위 확정 후 페이지네이션한다.
+            sql = base + " WHERE " + " AND ".join(where) + " ORDER BY a.write_ts DESC"
+            allrows = _keep([dict(r) for r in conn.execute(sql, params).fetchall()])
             page = allrows[offset:offset + limit]
         else:
             sql = base + (" WHERE " + " AND ".join(where) if where else "")
@@ -876,7 +1018,7 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
             r["cafe_name"] = names.get(r["cafe_id"], str(r["cafe_id"]))
             r["board_name"] = r.get("menu_name") or bnames.get((r["cafe_id"], r["menu_id"]), "")
             _pop = (r.get("boards") or "").find("popular") >= 0
-            r["category"] = bcats.get((r["cafe_id"], r["menu_id"])) or ("일상인기글" if _pop else "")
+            r["category"] = _resolve_cat(r, bcats, rules, theme_map) or ("일상인기글" if _pop else "")
             r["write_str"] = _fmt(r["write_ts"])
             r["seen_str"] = _fmt(r["first_seen_at"])
             r["hot_score"] = scores.get(key)
