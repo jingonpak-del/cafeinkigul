@@ -897,6 +897,56 @@ def admin_board_stats(request: Request, min_n: int = 10, limit: int = 40,
         c.close()
 
 
+@app.get("/api/admin/recommendations")
+def admin_recommendations(request: Request, min_n: int = 20, limit: int = 20):
+    """큐레이션 추천(Phase 5-3): 승격 후보 게시판 + 새 카테고리 후보. master 전용."""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    from . import analytics
+    c = _row_conn()
+    try:
+        return analytics.recommend(c, min_n=min_n, limit=limit)
+    except Exception as e:
+        return JSONResponse({"error": f"추천 실패: {e}"}, status_code=500)
+    finally:
+        c.close()
+
+
+@app.post("/api/admin/promote-board")
+async def admin_promote_board(request: Request):
+    """추천 게시판을 '승격'(등록형)으로 config에 반영 → 스트림 실시간+호응도. master 전용.
+    body: {club_id, cluburl?, cafe_name?, menu_id, board_name?, category}"""
+    if not _require_admin(request):
+        return JSONResponse({"error": "관리자 전용"}, status_code=403)
+    body = await request.json()
+    cid = int(body["club_id"]); mid = int(body["menu_id"])
+    category = (body.get("category") or "").strip()
+    if not category:
+        return JSONResponse({"error": "카테고리를 지정하세요"}, status_code=400)
+    cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    cafe = next((c for c in cfg.get("cafes", []) if c["club_id"] == cid), None)
+    if cafe is None:
+        cafe = {"cluburl": body.get("cluburl") or str(cid), "club_id": cid,
+                "name": body.get("cafe_name") or body.get("cluburl") or str(cid),
+                "crawl_all": True, "boards": []}
+        cfg.setdefault("cafes", []).append(cafe)
+    b = next((x for x in cafe.get("boards", [])
+              if x.get("type") == "menu" and x.get("menu_id") == mid), None)
+    if b is None:
+        cafe.setdefault("boards", []).append(
+            {"type": "menu", "menu_id": mid, "name": body.get("board_name", ""), "category": category})
+    else:
+        b["category"] = category
+        if body.get("board_name"):
+            b["name"] = body["board_name"]
+    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        _cand_set_status(cid, "tracked")
+    except Exception:
+        pass
+    return {"ok": True, "club_id": cid, "menu_id": mid, "category": category}
+
+
 @app.get("/api/stats")
 def stats():
     c = _row_conn()

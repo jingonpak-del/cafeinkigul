@@ -150,6 +150,39 @@ def theme_rollup(conn, *, min_n: int = 10) -> list[dict]:
     return out
 
 
+# ── 추천(Phase 5-3) ─────────────────────────────────────────────────────────
+def _cafe_category_hint(cfg: dict) -> dict[int, str]:
+    """club_id → 그 카페 등록보드들의 다수 카테고리(승격 시 제안 카테고리)."""
+    from collections import Counter
+    out = {}
+    for c in cfg.get("cafes", []):
+        cats = [b.get("category") for b in c.get("boards", [])
+                if b.get("type") == "menu" and b.get("category")]
+        if cats:
+            out[c["club_id"]] = Counter(cats).most_common(1)[0][0]
+    return out
+
+
+def recommend(conn, *, min_n: int = 20, limit: int = 20) -> dict:
+    """통째 corpus 분석 → 큐레이션 추천.
+    - promote: 아직 분류 안 된 고가치 게시판 + 제안 카테고리(카페 다수분류/주제) → '승격' 후보.
+    - new_categories: 여러 카페에 걸쳐 가치 높은 미등록 주제 → '새 카테고리' 후보.
+    """
+    cfg = _config()
+    existing = set(cfg.get("categories", []))
+    hint = _cafe_category_hint(cfg)
+    boards = rank_boards(conn, min_n=min_n, limit=limit, only_unclassified=True)
+    promote = []
+    for b in boards:
+        sug = hint.get(b["cafe_id"]) or (b["theme"] if b.get("theme") in existing else "") or ""
+        b["suggest_category"] = sug
+        promote.append(b)
+    new_categories = [t for t in theme_rollup(conn, min_n=min_n)
+                      if t["theme"] and t["theme"] != "(주제없음)"
+                      and t["cafes"] >= 2 and t["theme"] not in existing][:8]
+    return {"promote": promote, "new_categories": new_categories}
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 def _ro_conn():
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)

@@ -309,6 +309,23 @@
       </div>
     </div>
 
+    <div class="setsec">
+      <h3>🧭 추천 큐 <span class="setmsg" id="recmsg"></span></h3>
+      <p class="hint">통째 축적을 분석한 <b>승격/신설 추천</b>입니다. [승격]은 그 게시판을
+        <b>실시간+호응도(등록형)</b> 대상으로 만듭니다. 새 카테고리 후보는 클릭 시 분류 입력칸에 채워집니다.</p>
+      <div class="setrow"><button class="btnp" onclick="loadRecs()">불러오기</button></div>
+      <div style="font-size:12px;color:var(--mut);margin:6px 0 2px">승격 후보 게시판</div>
+      <div class="boardbox">
+        <table>
+          <thead><tr><th>게시판 (카페)</th><th style="width:56px">인기율</th><th style="width:52px">글수</th>
+            <th style="width:150px">분류</th><th style="width:60px"></th></tr></thead>
+          <tbody id="recpromote"></tbody>
+        </table>
+      </div>
+      <div style="font-size:12px;color:var(--mut);margin:8px 0 2px">새 카테고리 후보</div>
+      <div id="recnewcat" class="chips"></div>
+    </div>
+
   </div>
 </div>
 
@@ -795,6 +812,47 @@ function renderBoardStats(rows){
       <td><b>${b.score}</b></td>
       <td>${act}</td></tr>`;
   }).join("");
+}
+
+/* ===== 🧭 추천 큐 (Phase 5-3) ===== */
+async function loadRecs(){
+  $("#recmsg").textContent="분석 중…";
+  let d;
+  try{ d=await (await fetch("/api/admin/recommendations?min_n=20&limit=20",{cache:"no-store"})).json(); }
+  catch(e){ $("#recmsg").textContent="실패"; return; }
+  if(d.error){ $("#recmsg").textContent="⚠ "+d.error; return; }
+  $("#recmsg").textContent="";
+  renderRecPromote(d.promote||[]);
+  renderRecNewCat(d.new_categories||[]);
+}
+function renderRecPromote(rows){
+  if(!rows.length){ $("#recpromote").innerHTML='<tr><td colspan="5" style="color:var(--mut)">추천 승격 게시판이 없습니다 — 글이 더 쌓이면 나옵니다.</td></tr>'; return; }
+  $("#recpromote").innerHTML=rows.map(b=>{
+    const opts=setCats.filter(c=>c!==setPopCat).map(c=>`<option${c===b.suggest_category?' selected':''}>${esc(c)}</option>`).join("");
+    return `<tr data-cid="${b.cafe_id}" data-mid="${b.menu_id}" data-url="${esc(b.cluburl||'')}" data-cname="${esc(b.cafe_name||'')}" data-bname="${esc(b.menu_name||'')}">
+      <td><b>${esc(b.menu_name||b.menu_id)}</b><br><span style="color:var(--mut);font-size:11px">${esc(b.cafe_name||'')}</span></td>
+      <td>${(b.pop_rate*100).toFixed(0)}%</td><td>${(b.n||0).toLocaleString()}</td>
+      <td><select class="recsel"><option value="">— 선택 —</option>${opts}</select></td>
+      <td><button class="btnp" onclick="promoteBoard(this)">승격</button></td></tr>`;
+  }).join("");
+}
+async function promoteBoard(btn){
+  const tr=btn.closest("tr"); const cat=tr.querySelector(".recsel").value;
+  if(!cat){ $("#recmsg").textContent="분류를 선택하세요"; return; }
+  $("#recmsg").textContent="승격 중…";
+  let r;
+  try{ r=await fetch("/api/admin/promote-board",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({club_id:+tr.dataset.cid, menu_id:+tr.dataset.mid, cluburl:tr.dataset.url,
+      cafe_name:tr.dataset.cname, board_name:tr.dataset.bname, category:cat})}); }
+  catch(e){ $("#recmsg").textContent="⚠ 실패"; return; }
+  if(!r.ok){ const d=await r.json(); $("#recmsg").textContent="⚠ "+(d.error||"실패"); return; }
+  $("#recmsg").textContent="✓ 승격됨 — 실시간+호응도 대상";
+  loadRecs(); loadAdminConfig(); loadCategories();
+  setTimeout(()=>$("#recmsg").textContent="",2500);
+}
+function renderRecNewCat(themes){
+  if(!themes.length){ $("#recnewcat").innerHTML='<span style="color:var(--mut);font-size:12px">새 카테고리 후보 없음</span>'; return; }
+  $("#recnewcat").innerHTML=themes.map(t=>`<span class="chip" style="cursor:pointer" onclick="suggestCategory('${esc(t.theme)}')" title="카페 ${t.cafes}개 · 게시판 ${t.boards} · 평균가치 ${t.avg_score}">+ ${esc(t.theme)}</span>`).join("");
 }
 
 async function loadMe(){
