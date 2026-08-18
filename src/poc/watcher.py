@@ -19,6 +19,12 @@ from . import cafe_api, ratelimit
 from .db import Database, now_ms
 from .session import SessionManager
 
+try:
+    from .paths import DATA_DIR
+    HEARTBEAT = DATA_DIR / "watcher.heartbeat"
+except Exception:
+    HEARTBEAT = Path(__file__).resolve().parents[2] / "data" / "watcher.heartbeat"
+
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "config" / "targets.json"
 
@@ -107,6 +113,7 @@ class Watcher:
         if wait > 0:
             time.sleep(wait)
         self._last_request = time.monotonic()
+        self._beat()          # 요청이 흐르는 한 하트비트 신선 유지(긴 인기글수집 중 오탐 방지)
 
     # --- one board poll ------------------------------------------------------
     def poll_board(self, b: Board):
@@ -372,6 +379,15 @@ class Watcher:
             self.log(f"  ! {label} 실패(무시하고 계속): {e}")
             return None
 
+    def _beat(self):
+        """수집 루프 생존 신호. 매 사이클 이 파일을 갱신한다. 감시자(supervisor)가
+        이 파일이 오래 안 갱신되면(=수집 스레드 행) 대시보드를 강제 재시작한다.
+        프로세스는 살아 HTTP만 응답하는 '행' 상태를 포트로는 못 잡기 때문이다."""
+        try:
+            HEARTBEAT.write_text(str(now_ms()))
+        except Exception:
+            pass
+
     def run(self, tick_s: float = 1.0):
         """일반글: 라운드로빈 실시간 폴링. 인기글: 하루 2회 스케줄 수집."""
         self.log(f"Watcher 시작 — 일반 {len(self.menu_boards)}개(실시간) / "
@@ -387,8 +403,10 @@ class Watcher:
         n = max(1, len(self.menu_boards))
         cycle = itertools.cycle(self.menu_boards) if self.menu_boards else None
         i = 0
+        self._beat()                          # 시작 즉시 생존 신호
         while True:
             try:
+                self._beat()                  # 매 사이클 갱신(행 감지용)
                 if cycle is not None:
                     b = next(cycle)
                     try:
