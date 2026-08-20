@@ -90,6 +90,12 @@ CREATE INDEX IF NOT EXISTS idx_articles_revisit
     ON articles (revisit_done, revisit_at);
 CREATE INDEX IF NOT EXISTS idx_articles_pending_body
     ON articles (body_crawled);
+-- 대시보드 로드 핵심: 최신순 정렬(ORDER BY write_ts) + 급상승/호응(write_ts>= 범위).
+-- 통째 수집으로 수십만 건이 되면 이 인덱스 없이는 전체 스캔/정렬로 쿼리가 1~2초 걸린다.
+CREATE INDEX IF NOT EXISTS idx_articles_write_ts
+    ON articles (write_ts);
+CREATE INDEX IF NOT EXISTS idx_articles_status_write
+    ON articles (status, write_ts);
 CREATE INDEX IF NOT EXISTS idx_candidates_status
     ON cafe_candidates (status, score);
 """
