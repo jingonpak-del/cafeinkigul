@@ -1054,9 +1054,13 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
             page = allrows[offset:offset + limit]
         elif category:
             # 최신순 + 카테고리: 키워드/주제 규칙은 SQL LIMIT로 못 자르므로 상위집합을 받아
-            # 파이썬에서 우선순위 확정 후 페이지네이션한다.
-            sql = base + " WHERE " + " AND ".join(where) + " ORDER BY a.write_ts DESC"
-            allrows = _keep([dict(r) for r in conn.execute(sql, params).fetchall()])
+            # 파이썬에서 우선순위 확정 후 페이지네이션한다. 단, LIMIT 없이 전체를 받으면
+            # 통째 수집으로 커진 corpus(게시판 하나에 수만 건)에서 수십 초가 걸린다
+            # (실측 68,226건 → 51.8s). 최신순 정렬 상위 CAP개만 받아도 실사용상 결과가
+            # 같으므로(더 뒤쪽에서 걸러질 후보는 어차피 화면에 안 보임) SQL LIMIT로 자른다.
+            cap = max(2000, (offset + limit) * 10)
+            sql = base + " WHERE " + " AND ".join(where) + " ORDER BY a.write_ts DESC LIMIT ?"
+            allrows = _keep([dict(r) for r in conn.execute(sql, params + [cap]).fetchall()])
             page = allrows[offset:offset + limit]
         else:
             sql = base + (" WHERE " + " AND ".join(where) if where else "")

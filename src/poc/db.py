@@ -96,6 +96,9 @@ CREATE INDEX IF NOT EXISTS idx_articles_write_ts
     ON articles (write_ts);
 CREATE INDEX IF NOT EXISTS idx_articles_status_write
     ON articles (status, write_ts);
+-- 카테고리 필터(게시판 지정 목록 OR 매칭)가 menu_id로 좁혀지도록.
+CREATE INDEX IF NOT EXISTS idx_articles_menu
+    ON articles (menu_id);
 CREATE INDEX IF NOT EXISTS idx_candidates_status
     ON cafe_candidates (status, score);
 """
