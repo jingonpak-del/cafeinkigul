@@ -515,6 +515,20 @@ def categories_list():
         return {"categories": [], "popular_category": "일반인기글"}
 
 
+@app.get("/api/cafes/popular")
+def cafes_with_popular():
+    """인기글 보드가 있는 카페 목록 — 우측 패널 '카페 선택' 필터용. 로그인만 필요."""
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        out = [{"club_id": c["club_id"], "name": c.get("name") or c["cluburl"], "cluburl": c["cluburl"]}
+               for c in cfg.get("cafes", [])
+               if any(b.get("type") == "popular" for b in c.get("boards", []))]
+        out.sort(key=lambda x: x["name"])
+        return {"cafes": out}
+    except Exception:
+        return {"cafes": []}
+
+
 def _naver_client():
     """크롤 계정 세션으로 인증된 httpx 클라이언트 (게시판 추출용)."""
     from .session import SessionManager
@@ -968,9 +982,11 @@ def stats():
 
 @app.get("/api/articles")
 def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, order: str = "latest",
-             category: str = ""):
+             category: str = "", cafes: str = ""):
     """type: 'popular'|'general'|''. order: 'latest'|'hot'|'surge'.
-    category: 일반게시판 분류(핫딜/이벤트 등) 필터. 반환: {rows, has_more}."""
+    category: 일반게시판 분류(핫딜/이벤트 등) 필터.
+    cafes: type=popular일 때만 적용 — 콤마구분 club_id 목록으로 특정 카페만 표시.
+    반환: {rows, has_more}."""
     names = _cafe_names()
     bnames = _board_names()
     bcats = _board_categories()
@@ -996,6 +1012,10 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         if type == "popular":
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key='popular')""")
+            cafe_ids = [int(x) for x in cafes.split(",") if x.strip().isdigit()]
+            if cafe_ids:
+                where.append("a.cafe_id IN (%s)" % ",".join("?" * len(cafe_ids)))
+                params.extend(cafe_ids)
         elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")

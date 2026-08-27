@@ -32,6 +32,12 @@
   .panel .phd{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel);flex:0 0 auto}
   .panel .phd h2{margin:0;font-size:15px} .panel .phd .sub{color:var(--mut);font-size:11px}
   .panel .cnt{margin-left:auto;color:var(--mut);font-size:12px}
+  .cafefilterbtn{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:12px;
+    padding:2px 9px;font-size:11px;cursor:pointer}
+  .cafefilterbtn.active{border-color:var(--accent);color:var(--accent)}
+  .cflist{max-height:52vh;overflow:auto;padding:4px 20px}
+  .cfitem{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:13px}
+  .cfitem:last-child{border-bottom:0}
   .tabs{display:flex;gap:6px}
   .tab{padding:4px 11px;border-radius:14px;font-size:12.5px;background:#202a3f;color:var(--mut);border:1px solid transparent;cursor:pointer}
   .tab.on{background:var(--accent);color:#fff;font-weight:600}
@@ -172,7 +178,9 @@
 <div class="cols">
   <!-- 인기글 (우측) -->
   <section class="panel pop mhide">
-    <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span><span class="cnt" id="cnt-pop"></span></div>
+    <div class="phd"><h2>🔥 인기글</h2><span class="sub">매일 2·16시 수집·누적</span>
+      <button id="popcafebtn" class="cafefilterbtn" onclick="openCafeFilter()" title="특정 카페만 보기">🏷️ 전체 카페</button>
+      <span class="cnt" id="cnt-pop"></span></div>
     <div class="scroll"><table>
       <thead><tr><th>감지</th><th>카페</th><th>보드</th><th>제목</th><th>작성자</th><th class="num">조회</th><th class="num">댓글</th><th class="num">증가</th></tr></thead>
       <tbody id="rows-pop"></tbody>
@@ -340,6 +348,7 @@ let rowsById = {};
 let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
 let genOrder = "surge";               // 일반글 기본 탭: surge | latest | hot
 let category = "";                    // '' 전체 | (동적 카테고리명)
+let popCafeIds = (()=>{ try{ const s=JSON.parse(localStorage.getItem("ingi_popcafes")); return Array.isArray(s)?s:[]; }catch(e){ return []; } })();   // [] = 전체 카페
 let popularCategory = "일반인기글";     // 인기글 보드에 해당하는 카테고리
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
@@ -384,7 +393,8 @@ function rowHtml(r){
 async function get(type, order, offset, limit){
   const q=encodeURIComponent($("#q").value);
   const cat=(type==="general" && category && category!==popularCategory) ? "&category="+encodeURIComponent(category) : "";
-  const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}${cat}`);
+  const cf=(type==="popular" && popCafeIds.length) ? "&cafes="+popCafeIds.join(",") : "";
+  const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}${cat}${cf}`);
   return r.json();
 }
 async function loadCategories(){
@@ -437,6 +447,61 @@ async function loadMore(key){
 }
 function setMore(key, has){ const b=$("#more-"+key); b.disabled=!has; b.textContent=has?"더보기":"끝"; }
 async function reloadAll(){ rowsById={}; await Promise.all([reload("pop"), reload("gen")]); stats(); }
+
+/* ===== 🏷️ 인기글 카페 선택 필터 (localStorage, 개인화) ===== */
+let popCafeList = null;                // [{club_id,name,cluburl}] 캐시
+let popCafeDraft = null;               // 모달 편집 중인 선택(Set<club_id>) — 저장 전엔 미반영
+function updatePopCafeBtn(){
+  const b=$("#popcafebtn"); if(!b) return;
+  const n=popCafeIds.length;
+  b.textContent = n ? `🏷️ 카페 ${n}개` : "🏷️ 전체 카페";
+  b.classList.toggle("active", n>0);
+}
+async function openCafeFilter(){
+  if(!popCafeList){
+    try{ const d=await (await fetch("/api/cafes/popular",{cache:"no-store"})).json(); popCafeList=d.cafes||[]; }
+    catch(e){ popCafeList=[]; }
+  }
+  popCafeDraft = new Set(popCafeIds);
+  renderCafeFilter();
+  $("#modal").classList.add("show");
+}
+function renderCafeFilter(q){
+  q=(q||"").trim().toLowerCase();
+  const list=popCafeList.filter(c=>!q || (c.name||"").toLowerCase().includes(q) || (c.cluburl||"").toLowerCase().includes(q));
+  const items=list.map(c=>`<label class="cfitem">
+      <input type="checkbox" ${popCafeDraft.has(c.club_id)?'checked':''} onchange="toggleCafeDraft(${c.club_id},this.checked)">
+      <span>${esc(c.name)}</span><span style="color:var(--mut);font-size:11px;margin-left:auto">${esc(c.cluburl)}</span>
+    </label>`).join("") || '<div style="color:var(--mut);padding:10px 0">검색 결과 없음</div>';
+  $("#card").innerHTML=`<div class="hd"><span class="x" onclick="closeModal()">✕</span>
+      <h2>🏷️ 인기글 카페 선택</h2>
+      <div class="meta">체크한 카페의 인기글만 표시됩니다. 아무것도 선택 안 하면 전체 표시.</div></div>
+    <div style="padding:10px 20px 0;display:flex;gap:8px">
+      <input id="cfq" placeholder="카페 이름/주소 검색…" style="flex:1" oninput="renderCafeFilter(this.value)"/>
+      <button onclick="cfSelectAll(true)">전체선택</button>
+      <button onclick="cfSelectAll(false)">전체해제</button>
+    </div>
+    <div class="cflist">${items}</div>
+    <div style="padding:12px 20px;display:flex;gap:8px;border-top:1px solid var(--line)">
+      <button class="more" style="border-color:var(--accent)" onclick="saveCafeFilter()">✓ 적용</button>
+      <span style="color:var(--mut);font-size:12px;align-self:center">${popCafeDraft.size}개 선택됨</span>
+    </div>`;
+  const qi=$("#cfq"); if(qi && q){ qi.value=q; qi.focus(); const v=qi.value; qi.value=""; qi.value=v; }
+}
+function toggleCafeDraft(id,on){ if(on) popCafeDraft.add(id); else popCafeDraft.delete(id); renderCafeFilter($("#cfq")?$("#cfq").value:""); }
+function cfSelectAll(on){
+  const q=($("#cfq")?$("#cfq").value:"").trim().toLowerCase();
+  const list=popCafeList.filter(c=>!q || (c.name||"").toLowerCase().includes(q) || (c.cluburl||"").toLowerCase().includes(q));
+  for(const c of list){ if(on) popCafeDraft.add(c.club_id); else popCafeDraft.delete(c.club_id); }
+  renderCafeFilter(q);
+}
+function saveCafeFilter(){
+  popCafeIds=Array.from(popCafeDraft);
+  localStorage.setItem("ingi_popcafes", JSON.stringify(popCafeIds));
+  updatePopCafeBtn();
+  closeModal();
+  state.pop.loaded=0; reload("pop");
+}
 
 function setMobilePanel(p){
   document.querySelector(".panel.pop").classList.toggle("mhide", p!=="pop");
@@ -944,7 +1009,7 @@ function setupResizers(){
   });
 }
 
-loadCategories(); reloadAll(); connect(); loadMe(); setupResizers();
+loadCategories(); reloadAll(); connect(); loadMe(); setupResizers(); updatePopCafeBtn();
 setInterval(stats, 15000);
 setInterval(()=>{ reload("gen"); reload("pop"); }, 45000);   // 점수·카운트 자동 갱신
 </script>
