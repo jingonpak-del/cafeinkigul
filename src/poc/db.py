@@ -99,6 +99,12 @@ CREATE INDEX IF NOT EXISTS idx_articles_status_write
 -- 카테고리 필터(게시판 지정 목록 OR 매칭)가 menu_id로 좁혀지도록.
 CREATE INDEX IF NOT EXISTS idx_articles_menu
     ON articles (menu_id);
+-- 카테고리+최신순: (cafe_id,menu_id) 각 게시판 조건이 이미 write_ts 정렬 순서로
+-- 색인되게 해 MULTI-INDEX OR 병합 비용을 낮춘다(실측 20게시판 68k건: 700ms→430ms).
+-- UNION으로 브랜치별 LIMIT을 미리 건 방식은 오히려 느려서(재정렬 중복) 폐기했다 —
+-- SQLite가 OR을 자체적으로 병합·정렬하는 현재 방식이 최선이었다.
+CREATE INDEX IF NOT EXISTS idx_articles_board_write
+    ON articles (cafe_id, menu_id, write_ts DESC);
 CREATE INDEX IF NOT EXISTS idx_candidates_status
     ON cafe_candidates (status, score);
 """
