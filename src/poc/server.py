@@ -982,10 +982,11 @@ def stats():
 
 @app.get("/api/articles")
 def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, order: str = "latest",
-             category: str = "", cafes: str = ""):
+             category: str = "", exclude_cafes: str = ""):
     """type: 'popular'|'general'|''. order: 'latest'|'hot'|'surge'.
     category: 일반게시판 분류(핫딜/이벤트 등) 필터.
-    cafes: type=popular일 때만 적용 — 콤마구분 club_id 목록으로 특정 카페만 표시.
+    exclude_cafes: type=popular일 때만 적용 — 콤마구분 club_id 목록. 그 카페는 수집·저장은
+    계속되지만(크롤링 무관, 화면 표시만 제외) 이 목록에 없다.
     반환: {rows, has_more}."""
     names = _cafe_names()
     bnames = _board_names()
@@ -1012,10 +1013,10 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
         if type == "popular":
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key='popular')""")
-            cafe_ids = [int(x) for x in cafes.split(",") if x.strip().isdigit()]
-            if cafe_ids:
-                where.append("a.cafe_id IN (%s)" % ",".join("?" * len(cafe_ids)))
-                params.extend(cafe_ids)
+            excl_ids = [int(x) for x in exclude_cafes.split(",") if x.strip().isdigit()]
+            if excl_ids:
+                where.append("a.cafe_id NOT IN (%s)" % ",".join("?" * len(excl_ids)))
+                params.extend(excl_ids)
         elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
                             AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
