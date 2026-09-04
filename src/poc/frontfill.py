@@ -149,7 +149,14 @@ def run_multi(db: Database, cafes: list[dict], *, deadline: float | None = None,
         ensure_schema(tdb)
         client = accountpool.client_for(key)
         bf = Backfiller(tdb, client, key)
-        for cafe in clist:
+        # 미초기화(커서 없음=한 번도 안 만짐) 카페를 먼저 처리한다. 시간 상한(max-hours)에
+        # 걸려 중단되더라도, 매번 목록 뒤쪽이라 영원히 밀리는 신규 카페가 생기지 않게(실측:
+        # 새로 채택된 카페 18개가 며칠째 커서 자체가 없었음 — 목록 순서 고정+예산 부족으로
+        # 만년 후순위였음). 이미 도는 카페는 순서가 밀려도 다음 주기에 이어서 하면 되지만,
+        # 신규 카페는 아예 시작을 못 하면 그 카페는 계속 축적 0건으로 남는다.
+        uninit = [c for c in clist if get_cursor(tdb, c["club_id"]) is None]
+        rest = [c for c in clist if c not in uninit]
+        for cafe in uninit + rest:
             if deadline and time.time() >= deadline:
                 break
             try:

@@ -302,7 +302,12 @@ def run_multi(cafes, *, deadline=None, limit_per_cafe=None, max_missing=None,
         client = accountpool.client_for(key)
         bf = Backfiller(tdb, client, key,
                         max_missing=max_missing or DEFAULTS["max_missing"], years=years)
-        for c in clist:
+        # 미초기화(커서 없음) 카페 우선(frontfill과 동일 이유 — 목록 뒤쪽 신규 카페가
+        # 시간상한에 밀려 영원히 시작을 못 하는 것 방지). 지금은 야간 8h라 여유 있지만
+        # 카페 풀이 계속 느는 만큼 선제 조치.
+        uninit = [c for c in clist if get_cursor(tdb, c["club_id"]) is None]
+        rest = [c for c in clist if c not in uninit]
+        for c in uninit + rest:
             if deadline and time.time() >= deadline:
                 break
             try:
