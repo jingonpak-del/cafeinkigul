@@ -78,6 +78,11 @@ def run_cafe(db: Database, bf: Backfiller, cafe: dict, *,
 
     start = (cur["last_id"] or 0) + 1
     if head < start:
+        # updated_at을 찍어둔다 — 안 찍으면 이 카페가 계속 '가장 오래 방치됨'으로
+        # 보여 LRU 스케줄링에서 매번 우선순위를 독차지하고, 정작 head 재해석이
+        # 필요한 다른 카페가 밀린다(nonew는 흔한 정상 상태라 매번 재확인해도
+        # 무방하지만, 순번은 공평하게 돌아야 한다).
+        set_cursor(db, cid, cluburl, cur["last_id"], collected_add=0, note="nonew")
         return {"cafe": cluburl, "reason": "nonew", "saved": 0}
     end = min(head, start + max_ids - 1) if max_ids else head
 
@@ -149,14 +154,15 @@ def run_multi(db: Database, cafes: list[dict], *, deadline: float | None = None,
         ensure_schema(tdb)
         client = accountpool.client_for(key)
         bf = Backfiller(tdb, client, key)
-        # 미초기화(커서 없음=한 번도 안 만짐) 카페를 먼저 처리한다. 시간 상한(max-hours)에
-        # 걸려 중단되더라도, 매번 목록 뒤쪽이라 영원히 밀리는 신규 카페가 생기지 않게(실측:
-        # 새로 채택된 카페 18개가 며칠째 커서 자체가 없었음 — 목록 순서 고정+예산 부족으로
-        # 만년 후순위였음). 이미 도는 카페는 순서가 밀려도 다음 주기에 이어서 하면 되지만,
-        # 신규 카페는 아예 시작을 못 하면 그 카페는 계속 축적 0건으로 남는다.
-        uninit = [c for c in clist if get_cursor(tdb, c["club_id"]) is None]
-        rest = [c for c in clist if c not in uninit]
-        for cafe in uninit + rest:
+        # LRU: 가장 오래 방치된(또는 한 번도 안 만진) 카페부터 처리한다. 목록을
+        # 고정 순서로만 돌면 시간상한에 걸릴 때마다 뒤쪽 카페가 매번 밀려 영구
+        # 미수집으로 남는다(실측: 신규 채택 18개가 커서조차 없이 며칠 방치 +
+        # 이미 커서 있던 카페 3개도 nonew 처리 후 갱신을 안 해 몇 주째 후순위로
+        # 밀림). 커서 없음=최우선(0), 있으면 updated_at 오래된 순.
+        def _lru_key(c):
+            cur = get_cursor(tdb, c["club_id"])
+            return cur["updated_at"] if cur else 0
+        for cafe in sorted(clist, key=_lru_key):
             if deadline and time.time() >= deadline:
                 break
             try:

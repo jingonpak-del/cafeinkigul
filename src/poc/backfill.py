@@ -89,19 +89,38 @@ def save_cursor(db: Database, cafe_id: int, **fields) -> None:
 
 
 def _resolve_head(db: Database, cafe_id: int, cluburl: str, client) -> int | None:
-    """스캔 시작점. 이미 아는 최대 번호를 쓰고, 없으면 게시판 목록에서 받아온다."""
+    """스캔 시작점(=현재 최신 글 번호).
+
+    게시판이 많은 카페(수백 개)는 board_list()가 반환하는 순서의 앞쪽 몇 개가
+    실제로 활발한 게시판이 아닐 수 있다 — 그 경우 head가 실제보다 낮게 고정되고,
+    frontfill이 '더 이상 새 글 없음'으로 착각해 실제로는 활발한 카페인데도 영원히
+    멈춰버린다(실측: 200개+ 게시판 카페 3곳에서 이 문제로 최대 22,500개 글 누락).
+    그래서 board_list 순서 대신, **우리 DB에 이미 쌓인 이력에서 그 카페의 실제
+    활발한 게시판 상위 5개**를 뽑아 확인한다 — 어떤 게시판이 활발한지는 실제
+    수집 이력이 board_list 응답 순서보다 훨씬 정확하다. 이력이 없는(첫 크롤)
+    카페만 board_list 상위 몇 개로 폴백한다. 게시판 하나가 삭제·오류여도
+    (개별 예외처리) 다른 게시판 확인은 계속된다."""
     row = db.conn.execute(
         "SELECT max(article_id) FROM articles WHERE cafe_id=?", (cafe_id,)).fetchone()
     known = row[0] or 0
     latest = 0
-    try:
-        boards = cafe_api.fetch_board_list(cafe_id, client=client)
-        for b in boards[:3]:
-            arts = cafe_api.fetch_article_list(cafe_id, b["menu_id"], per_page=5, client=client)
+    top = db.conn.execute(
+        """SELECT menu_id FROM articles WHERE cafe_id=? AND menu_id IS NOT NULL AND menu_id!=0
+           GROUP BY menu_id ORDER BY COUNT(*) DESC LIMIT 5""", (cafe_id,)).fetchall()
+    menu_ids = [r[0] for r in top]
+    if not menu_ids:
+        try:
+            boards = cafe_api.fetch_board_list(cafe_id, client=client)
+            menu_ids = [b["menu_id"] for b in boards[:3]]
+        except Exception:
+            menu_ids = []
+    for mid in menu_ids:
+        try:
+            arts = cafe_api.fetch_article_list(cafe_id, mid, per_page=5, client=client)
             for a in arts:
                 latest = max(latest, a.article_id)
-    except Exception:
-        pass
+        except Exception:
+            continue
     head = max(known, latest)
     return head or None
 
@@ -302,12 +321,12 @@ def run_multi(cafes, *, deadline=None, limit_per_cafe=None, max_missing=None,
         client = accountpool.client_for(key)
         bf = Backfiller(tdb, client, key,
                         max_missing=max_missing or DEFAULTS["max_missing"], years=years)
-        # 미초기화(커서 없음) 카페 우선(frontfill과 동일 이유 — 목록 뒤쪽 신규 카페가
-        # 시간상한에 밀려 영원히 시작을 못 하는 것 방지). 지금은 야간 8h라 여유 있지만
-        # 카페 풀이 계속 느는 만큼 선제 조치.
-        uninit = [c for c in clist if get_cursor(tdb, c["club_id"]) is None]
-        rest = [c for c in clist if c not in uninit]
-        for c in uninit + rest:
+        # LRU: 가장 오래 방치된(또는 한 번도 안 만진) 카페부터(frontfill과 동일 이유).
+        # 지금은 야간 8h라 여유 있지만 카페 풀이 계속 느는 만큼 선제 조치.
+        def _lru_key(c):
+            cur = get_cursor(tdb, c["club_id"])
+            return cur["updated_at"] if cur else 0
+        for c in sorted(clist, key=_lru_key):
             if deadline and time.time() >= deadline:
                 break
             try:
