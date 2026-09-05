@@ -348,7 +348,16 @@ let rowsById = {};
 let curDetail = null;                  // 현재 상세 모달의 글 (원고복사용)
 let genOrder = "surge";               // 일반글 기본 탭: surge | latest | hot
 let category = "";                    // '' 전체 | (동적 카테고리명)
-let excludeCafeIds = (()=>{ try{ const s=JSON.parse(localStorage.getItem("ingi_excludecafes")); return Array.isArray(s)?s:[]; }catch(e){ return []; } })();   // 제외 목록. [] = 제외 없음(전체 표시)
+// 제외 목록. null=아직 개인 설정 없음(서버 기본값으로 초기화 예정). 사용자가 한 번이라도
+// [적용]을 누르면(전체해제=[] 포함) 그 값이 영구히 개인 설정으로 우선한다.
+let excludeCafeIds = (()=>{
+  try{
+    const raw = localStorage.getItem("ingi_excludecafes");
+    if (raw === null) return null;
+    const s = JSON.parse(raw);
+    return Array.isArray(s) ? s : null;
+  }catch(e){ return null; }
+})();
 let popularCategory = "일반인기글";     // 인기글 보드에 해당하는 카테고리
 const state = { pop:{type:"popular",loaded:0}, gen:{type:"general",loaded:0} };
 
@@ -393,7 +402,7 @@ function rowHtml(r){
 async function get(type, order, offset, limit){
   const q=encodeURIComponent($("#q").value);
   const cat=(type==="general" && category && category!==popularCategory) ? "&category="+encodeURIComponent(category) : "";
-  const cf=(type==="popular" && excludeCafeIds.length) ? "&exclude_cafes="+excludeCafeIds.join(",") : "";
+  const cf=(type==="popular" && excludeCafeIds && excludeCafeIds.length) ? "&exclude_cafes="+excludeCafeIds.join(",") : "";
   const r=await fetch(`/api/articles?type=${type}&order=${order}&q=${q}&offset=${offset}&limit=${limit}${cat}${cf}`);
   return r.json();
 }
@@ -452,17 +461,29 @@ async function reloadAll(){ rowsById={}; await Promise.all([reload("pop"), reloa
    제외해도 그 카페 수집·저장은 그대로 계속된다 — 이건 순수 화면 표시 필터. */
 let popCafeList = null;                // [{club_id,name,cluburl}] 캐시
 let excludeCafeDraft = null;           // 모달 편집 중인 제외 목록(Set<club_id>) — 저장 전엔 미반영
+let excludeIsServerDefault = false;    // 지금 값이 서버 기본값인지(사용자가 아직 직접 안 바꿨는지)
+async function _fetchCafeList(){
+  if(popCafeList) return;
+  try{ const d=await (await fetch("/api/cafes/popular",{cache:"no-store"})).json();
+       popCafeList=d.cafes||[]; return d; }
+  catch(e){ popCafeList=[]; return {}; }
+}
+async function initExcludeDefault(){
+  // 개인 설정(localStorage)이 아직 없으면 서버 기본값(성격 다른 카페 제외)을 적용한다.
+  const d = await _fetchCafeList();
+  if(excludeCafeIds===null){
+    excludeCafeIds = (d && d.default_exclude) || [];
+    excludeIsServerDefault = true;
+  }
+}
 function updatePopCafeBtn(){
   const b=$("#popcafebtn"); if(!b) return;
-  const n=excludeCafeIds.length;
-  b.textContent = n ? `🚫 ${n}개 제외` : "🏷️ 전체 카페";
+  const n=(excludeCafeIds||[]).length;
+  b.textContent = n ? `🚫 ${n}개 제외${excludeIsServerDefault?'(기본)':''}` : "🏷️ 전체 카페";
   b.classList.toggle("active", n>0);
 }
 async function openCafeFilter(){
-  if(!popCafeList){
-    try{ const d=await (await fetch("/api/cafes/popular",{cache:"no-store"})).json(); popCafeList=d.cafes||[]; }
-    catch(e){ popCafeList=[]; }
-  }
+  await _fetchCafeList();
   excludeCafeDraft = new Set(excludeCafeIds);
   renderCafeFilter();
   $("#modal").classList.add("show");
@@ -498,6 +519,7 @@ function cfSelectAll(on){
 }
 function saveCafeFilter(){
   excludeCafeIds=Array.from(excludeCafeDraft);
+  excludeIsServerDefault=false;   // 사용자가 직접 정함 — 이후 서버 기본값 변경과 무관하게 유지
   localStorage.setItem("ingi_excludecafes", JSON.stringify(excludeCafeIds));
   updatePopCafeBtn();
   closeModal();
@@ -1010,7 +1032,10 @@ function setupResizers(){
   });
 }
 
-loadCategories(); reloadAll(); connect(); loadMe(); setupResizers(); updatePopCafeBtn();
+(async function boot(){
+  await initExcludeDefault();   // 개인 설정 없으면 서버 기본(성격 다른 카페 제외) 적용 후 로드
+  loadCategories(); reloadAll(); connect(); loadMe(); setupResizers(); updatePopCafeBtn();
+})();
 setInterval(stats, 15000);
 setInterval(()=>{ reload("gen"); reload("pop"); }, 45000);   // 점수·카운트 자동 갱신
 </script>

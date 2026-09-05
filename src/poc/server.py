@@ -517,16 +517,18 @@ def categories_list():
 
 @app.get("/api/cafes/popular")
 def cafes_with_popular():
-    """인기글 보드가 있는 카페 목록 — 우측 패널 '카페 선택' 필터용. 로그인만 필요."""
+    """인기글 보드가 있는 카페 목록 — 우측 패널 '카페 선택' 필터용. 로그인만 필요.
+    default_exclude: 성격이 다른(줌마렐라 대상과 안 맞는) 카페의 기본 제외 club_id 목록.
+    브라우저가 아직 필터를 한 번도 안 만졌을 때만 이 기본값을 적용한다(개인 설정 있으면 그게 우선)."""
     try:
         cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         out = [{"club_id": c["club_id"], "name": c.get("name") or c["cluburl"], "cluburl": c["cluburl"]}
                for c in cfg.get("cafes", [])
                if any(b.get("type") == "popular" for b in c.get("boards", []))]
         out.sort(key=lambda x: x["name"])
-        return {"cafes": out}
+        return {"cafes": out, "default_exclude": cfg.get("dashboard_default_exclude", [])}
     except Exception:
-        return {"cafes": []}
+        return {"cafes": [], "default_exclude": []}
 
 
 def _naver_client():
