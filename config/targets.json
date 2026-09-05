@@ -4,7 +4,9 @@
     "핫딜/쇼핑정보",
     "앱테크/이벤트",
     "유머/볼거리",
-    "일반인기글"
+    "일반인기글",
+    "육아·맘정보",
+    "휴대폰/폰테크 핫딜"
   ],
   "popular_category": "일반인기글",
   "sheets": {
@@ -650,6 +652,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 68,
+          "name": "아사모 공동구매/행사/핫딜",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -686,6 +694,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 52,
+          "name": "구미맘수다방",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -698,6 +712,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 1071,
+          "name": "티키타카페 게시판",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -710,6 +730,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 2,
+          "name": "❤️의정부수다방",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -734,6 +760,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 29,
+          "name": "파랑맘들의 수다",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -770,6 +802,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 19,
+          "name": "시험관아기 방",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -1118,6 +1156,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 870,
+          "name": "부산 Ι 경남 시세표",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -1190,6 +1234,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 1310,
+          "name": "티키타카페 게시판",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -1430,6 +1480,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 3,
+          "name": "자유수다방",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -1574,6 +1630,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 217,
+          "name": "✔경상 강원지역 시세표",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -1634,6 +1696,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 1,
+          "name": "✂️ 어제 시세표",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -1742,6 +1810,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 234,
+          "name": "경상.강원 성지 시세표",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -1814,6 +1888,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 610,
+          "name": "휴대폰 성지정보",
+          "category": "휴대폰/폰테크 핫딜"
         }
       ]
     },
@@ -2258,6 +2338,12 @@
         {
           "type": "popular",
           "name": "인기글"
+        },
+        {
+          "type": "menu",
+          "menu_id": 771,
+          "name": "●수다♡일상이야기",
+          "category": "육아·맘정보"
         }
       ]
     },
@@ -2445,6 +2531,66 @@
       "cluburl": "yeosumam",
       "club_id": 19246017,
       "name": "여수맘들 모여라~☆",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "fmscloudsv",
+      "club_id": 21525150,
+      "name": "전북 전주맘스♥전주 군산 익산 정읍 김제♥육아 맘카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "rhocloud",
+      "club_id": 25669022,
+      "name": "텐인텐 대전세종",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "jymom",
+      "club_id": 15011561,
+      "name": "슈퍼맘스클럽[진영.한림.진례]",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "momdh",
+      "club_id": 21438792,
+      "name": "동해맘의 중고나라",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "2daumnet",
+      "club_id": 13178375,
+      "name": "강서양천맘-강서 양천구 육아 교육 학원 병원 맛집 정보 맘카페",
       "crawl_all": true,
       "boards": [
         {

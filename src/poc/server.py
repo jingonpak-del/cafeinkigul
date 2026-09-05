@@ -182,7 +182,7 @@ def _recent_scores(conn) -> dict:
            WHERE a.write_ts >= ? AND a.status != 'deleted'
              AND EXISTS (SELECT 1 FROM board_detections d
                          WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id
-                           AND d.board_key LIKE 'menu:%')""",
+                           AND d.board_key != 'popular')""",
         (since,)).fetchall()
     now = _now_ms()
     by_cafe, met = defaultdict(list), {}
@@ -239,7 +239,7 @@ def _surge_list(conn) -> dict:
            WHERE a.write_ts >= ? AND a.status != 'deleted'
              AND EXISTS (SELECT 1 FROM board_detections d
                          WHERE d.cafe_id=a.cafe_id AND d.article_id=a.article_id
-                           AND d.board_key LIKE 'menu:%')""",
+                           AND d.board_key != 'popular')""",
         (now - SURGE_BASELINE_H * 3600 * 1000,)).fetchall()
     board_vel, info = defaultdict(list), {}
     for row in rows:
@@ -1021,7 +1021,7 @@ def articles(type: str = "", q: str = "", limit: int = 100, offset: int = 0, ord
                 params.extend(excl_ids)
         elif type == "general" or order in ("hot", "surge"):
             where.append("""EXISTS (SELECT 1 FROM board_detections d WHERE d.cafe_id=a.cafe_id
-                            AND d.article_id=a.article_id AND d.board_key LIKE 'menu:%')""")
+                            AND d.article_id=a.article_id AND d.board_key != 'popular')""")
         # 카테고리 필터 → 그 분류의 '후보 상위집합'만 SQL로 좁힌다(게시판 지정 OR 제목 키워드
         # OR 카페 주제). 정확한 우선순위 판정은 아래 _resolve_cat로 파이썬에서 확정한다.
         if category:
