@@ -202,6 +202,16 @@ def theme_rollup(conn, *, min_n: int = 10) -> list[dict]:
 
 
 # ── 추천(Phase 5-3) ─────────────────────────────────────────────────────────
+# 발굴 theme → 이미 만든 카테고리. 새 카테고리를 만들 때마다 여기 한 줄 추가하면
+# 그 다음부터 발굴되는 같은 주제 카페가 추천 큐에서 자동으로 이 카테고리로
+# 미리 선택되어 뜬다(카테고리 성장이 계속 이어지게 하는 핵심 연결고리).
+THEME_CATEGORY_MAP = {
+    "가족/육아일반": "육아·맘정보", "육아/여성": "육아·맘정보", "임신/출산": "육아·맘정보",
+    "무선/모바일": "휴대폰/폰테크 핫딜",
+    "질병/증상": "건강/의료정보", "의학": "건강/의료정보",
+}
+
+
 def _cafe_category_hint(cfg: dict) -> dict[int, str]:
     """club_id → 그 카페 등록보드들의 다수 카테고리(승격 시 제안 카테고리)."""
     from collections import Counter
@@ -225,12 +235,14 @@ def recommend(conn, *, min_n: int = 20, limit: int = 20) -> dict:
     boards = rank_boards(conn, min_n=min_n, limit=limit, only_unclassified=True)
     promote = []
     for b in boards:
-        sug = hint.get(b["cafe_id"]) or (b["theme"] if b.get("theme") in existing else "") or ""
+        sug = (hint.get(b["cafe_id"]) or THEME_CATEGORY_MAP.get(b.get("theme"))
+               or (b["theme"] if b.get("theme") in existing else "") or "")
         b["suggest_category"] = sug
         promote.append(b)
     new_categories = [t for t in theme_rollup(conn, min_n=min_n)
                       if t["theme"] and t["theme"] != "(주제없음)"
-                      and t["cafes"] >= 2 and t["theme"] not in existing][:8]
+                      and t["cafes"] >= 2 and t["theme"] not in existing
+                      and THEME_CATEGORY_MAP.get(t["theme"]) not in existing][:8]
     return {"promote": promote, "new_categories": new_categories}
 
 
