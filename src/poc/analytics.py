@@ -22,6 +22,57 @@ from pathlib import Path
 from .paths import CONFIG_PATH, DB_PATH
 
 
+# ── 대시보드 노출 성격 분류 (지속 파이프라인용) ──────────────────────────────
+# "줌마렐라"(동네 생활밀착형 커뮤니티) 대상과 성격이 다른 카페를 판정한다.
+# 발굴이 매일 자동으로 카페를 채택하므로(discovery.run_discovery), 이 판정은
+# 정적 스냅샷이 아니라 채택되는 그 순간 함수 호출로 이루어져야 한다 — 그래야
+# 화면 기본 제외 목록(config.dashboard_default_exclude)이 카페 풀 성장을 따라간다.
+EXCLUDE_THEMES = {
+    "FPS/슈팅게임", "게임일반", "레이싱게임", "롤플레잉게임", "모바일게임",
+    "스포츠게임", "시뮬레이션게임", "액션/어드벤쳐게임",
+    "사진", "스트리머/유튜버", "국내가수",
+    "시험/자격증", "교육일반", "고등학교교육", "중학교교육", "영어", "중국어",
+    "부동산", "취업/창업", "재테크", "증권", "경제기관/단체",
+    "자동차", "자전거", "등산/낚시", "마라톤/달리기", "수영", "탁구/당구",
+    "모형", "이색취미", "파충류/양서류", "어류/갑각류",
+    "음악일반", "운영체제", "취미일반", "업종/직종", "호텔/리조트", "철학", "야구",
+    "결혼", "연인/친구", "이민",
+    "동남아시아", "일본", "중국", "유럽", "미주", "국내여행",
+}
+# theme이 없거나(수동등록) 지역명(동네카페)이면 기본은 유지 대상이지만, 카페 '이름'
+# 자체가 특정 전문/투자 주제를 강하게 시사하면 theme과 무관하게 제외한다. 지역코드로
+# 발굴된 카페는 theme이 항상 지역명으로만 찍혀 실제 성격(예: 재테크 브랜드 카페)이
+# 가려지는 경우가 있어(실측: "텐인텐 대전세종"=재테크 카페인데 theme="대전광역시")
+# 이름 기반 보강 판정이 꼭 필요하다.
+_FINANCE_KEYWORDS = ["주식", "트레이더", "증권", "재테크", "부동산", "적금", "펀드",
+                     "부자되기", "투자", "텐인텐"]
+_FINANCE_ALLOW = ["절약", "짠돌이", "짠테크", "알뜰"]   # 소비절약형은 앱테크 정신과 맞아 예외
+
+
+def classify_exclude(name: str, theme: str | None) -> bool:
+    """True면 '성격이 다름' → 대시보드 기본 표시에서 제외 대상(수집은 계속됨)."""
+    name = name or ""
+    if any(k in name for k in _FINANCE_KEYWORDS) and not any(k in name for k in _FINANCE_ALLOW):
+        return True
+    if theme is None:
+        return False           # 수동등록(원래 핵심 카페) — 항상 유지
+    return theme in EXCLUDE_THEMES
+
+
+def recompute_default_exclude(conn_or_cfg) -> list[int]:
+    """등록된 전 카페를 재판정해 제외 club_id 목록을 새로 계산한다(전체 재검사용).
+    conn_or_cfg: sqlite3 connection(cafe_candidates 조회용). config는 내부에서 새로 읽는다."""
+    cfg = _config()
+    themes = dict(conn_or_cfg.execute("SELECT club_id, theme FROM cafe_candidates").fetchall())
+    out = []
+    for c in cfg.get("cafes", []):
+        cid = c["club_id"]
+        name = c.get("name") or c["cluburl"]
+        if classify_exclude(name, themes.get(cid)):
+            out.append(cid)
+    return out
+
+
 # ── config 도우미 ────────────────────────────────────────────────────────────
 def _config() -> dict:
     try:

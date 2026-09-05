@@ -465,22 +465,33 @@ def run_discovery(db, client, plan: dict | None = None, *, log=print) -> dict:
     auto_adopt = bool(plan.get("auto_adopt", True))
     adopted_ids: set[int] = set()
     if auto_adopt and picked:
+        from . import analytics
         cfg2 = _config()
         reg2 = {c["club_id"] for c in cfg2.get("cafes", [])}
-        names = []
+        excl2 = set(cfg2.get("dashboard_default_exclude", []))
+        names, hidden_names = [], []
         for c in picked:
             cid = c["club_id"]
             if c.get("join_required") or cid in reg2:
                 continue
             cfg2["cafes"] = [x for x in cfg2.get("cafes", []) if x["club_id"] != cid]
+            name = c.get("name") or c["cluburl"]
             cfg2["cafes"].append({"cluburl": c["cluburl"], "club_id": cid,
-                                  "name": c.get("name") or c["cluburl"],
+                                  "name": name,
                                   "crawl_all": True,
                                   "boards": [{"type": "popular", "name": "인기글"}]})
             reg2.add(cid); adopted_ids.add(cid); names.append(c["cluburl"])
+            # 채택되는 그 순간 성격 판정 → 화면 기본 제외 목록이 카페 풀 성장을
+            # 실시간으로 따라가게 한다(정적 스냅샷이면 매일 늘어나는 신규 채택분이
+            # 검토 밖에 남는다).
+            if analytics.classify_exclude(name, c.get("theme")):
+                excl2.add(cid); hidden_names.append(c["cluburl"])
         if adopted_ids:
+            cfg2["dashboard_default_exclude"] = sorted(excl2)
             CONFIG.write_text(json.dumps(cfg2, ensure_ascii=False, indent=2), encoding="utf-8")
             log(f"  ✅ 자동 채택(crawl_all) {len(adopted_ids)}건: {', '.join(names)}")
+            if hidden_names:
+                log(f"     └ 성격 다름 → 화면 기본 숨김: {', '.join(hidden_names)}")
 
     # 나머지 상태 부여: 자동채택=tracked, (수동모드 picked)=new, 가입필요=join_needed, 그 외 backlog.
     picked_ids = {c["club_id"] for c in picked}

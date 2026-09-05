@@ -830,7 +830,8 @@ async function adoptCand(id){
   try{ const r=await fetch(`/api/admin/candidates/${id}/adopt`,{method:"POST"}); d=await r.json();
        if(!r.ok){ $("#discmsg").textContent="⚠ "+(d.error||"실패"); return; } }
   catch(e){ $("#discmsg").textContent="⚠ 실패"; return; }
-  $("#discmsg").textContent="✓ 통째 추가됨 — 인기글 수집 + 전량(backfill) 축적 대상";
+  $("#discmsg").textContent="✓ 통째 추가됨 — 인기글 수집 + 전량(backfill) 축적 대상"
+    + (d.hidden_by_default ? " (성격 다름 → 화면 기본 숨김)" : "");
   loadCandidates(); loadAdminConfig();
   setTimeout(()=>$("#discmsg").textContent="",3000);
 }

@@ -840,7 +840,7 @@ async def admin_candidate_adopt(request: Request, club_id: int):
     c = _row_conn()
     try:
         row = c.execute(
-            "SELECT cluburl, name, join_required FROM cafe_candidates WHERE club_id=?",
+            "SELECT cluburl, name, theme, join_required FROM cafe_candidates WHERE club_id=?",
             (club_id,)).fetchone()
     finally:
         c.close()
@@ -857,9 +857,15 @@ async def admin_candidate_adopt(request: Request, club_id: int):
     cfg["cafes"].append({"cluburl": cluburl, "club_id": club_id, "name": name,
                          "crawl_all": True,
                          "boards": [{"type": "popular", "name": "인기글"}]})
+    from . import analytics
+    excl = set(cfg.get("dashboard_default_exclude", []))
+    hidden = False
+    if analytics.classify_exclude(name, row["theme"]):
+        excl.add(club_id); hidden = True
+    cfg["dashboard_default_exclude"] = sorted(excl)
     CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     _cand_set_status(club_id, "tracked")
-    return {"ok": True, "cluburl": cluburl, "crawl_all": True}
+    return {"ok": True, "cluburl": cluburl, "crawl_all": True, "hidden_by_default": hidden}
 
 
 @app.post("/api/admin/candidates/refresh")
