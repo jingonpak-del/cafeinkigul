@@ -38,10 +38,23 @@ DEFAULT_PLAN = {
     "auto_adopt": True,     # 심사 통과한 picked를 자동으로 crawl_all 편입(가입필요 제외)
     "probe_top": 15,        # 열거 상위 N개만 본문 표본을 읽는다(카페당 약 7요청)
     "theme_cap": 2,         # 하루 배치에서 같은 주제는 N개까지 — 코퍼스 편중 방지
+    "parenting_boost": 30,  # 맘/육아 카페 점수 가산 — 열거·선별에서 상위로 끌어올림
+    "parenting_theme_cap": 4,  # 맘/육아 주제는 하루 채택 상한을 넉넉히(우선 편입)
     "powers": {"sectors": ["popular"], "max_pages": 1},
     "regions": {"codes": [], "max_pages": 1},          # 예: ["09"](서울) — 확인된 코드만
     "themes": {"dir1_ids": "auto", "sort": "uppoint", "type": "ar", "max_pages": 2},
 }
+
+# 맘/육아 카페 신호(이름·주제에 하나라도 있으면 우선). 줌마렐라 일상글 소재로 직접 쓰인다.
+PARENTING_KW = ("맘", "줌마", "육아", "아기", "아이", "주부", "임신", "출산", "예비맘",
+                "키즈", "유아", "어린이", "엄마", "베이비", "쭈니", "새댁", "살림")
+# 런타임에 plan.parenting_boost로 덮어씀(run_discovery 진입 시).
+PARENTING_BOOST = 30.0
+
+
+def _is_parenting(c: dict) -> bool:
+    blob = f"{c.get('name','')} {c.get('theme','')}"
+    return any(k in blob for k in PARENTING_KW)
 
 
 # ── 표본 기반 학습가치 신호 ─────────────────────────────────────────────────
@@ -196,6 +209,8 @@ def _score(c: dict) -> float:
         s += 3
     if c.get("join_required"):
         s -= 15
+    if _is_parenting(c):                                # ★ 맘/육아 카페 우선
+        s += PARENTING_BOOST
     return round(s, 1)
 
 
@@ -402,9 +417,13 @@ def run_discovery(db, client, plan: dict | None = None, *, log=print) -> dict:
     plan = {**DEFAULT_PLAN, **(plan or cfg.get("discovery") or {})}
     probe_top = int(plan.get("probe_top", 15))
     theme_cap = int(plan.get("theme_cap", 2))
+    parenting_cap = int(plan.get("parenting_theme_cap", 4))
     daily_batch = int(plan.get("daily_batch", 5))
     min_samples = int(plan.get("min_samples", 3))
     blocked = set(plan.get("theme_blocklist", DEFAULT_THEME_BLOCKLIST))
+    # 맘/육아 가산점을 plan대로 적용(열거 _norm이 곧바로 _score를 부르므로 여기서 먼저 설정).
+    global PARENTING_BOOST
+    PARENTING_BOOST = float(plan.get("parenting_boost", 30))
 
     registered = {c["club_id"] for c in cfg.get("cafes", [])}
     enumerated = discover(client, plan)
@@ -451,7 +470,8 @@ def run_discovery(db, client, plan: dict | None = None, *, log=print) -> dict:
             rejected.append((c.get("name", ""), why))
             continue
         t = c.get("theme") or "기타"
-        if per_theme.get(t, 0) >= theme_cap:
+        cap = parenting_cap if _is_parenting(c) else theme_cap   # 맘/육아는 상한 넉넉히
+        if per_theme.get(t, 0) >= cap:
             continue
         per_theme[t] = per_theme.get(t, 0) + 1
         picked.append(c)
