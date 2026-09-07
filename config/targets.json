@@ -2611,6 +2611,318 @@
           "name": "인기글"
         }
       ]
+    },
+    {
+      "cluburl": "sojbb2233",
+      "club_id": 12896835,
+      "name": "송강서-송파맘 강남맘 서초맘 육아 교육 학원 병원 맛집 맘카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "ptcla",
+      "club_id": 11745516,
+      "name": "평택 고덕맘. 고덕신도시맘 카페  [고덕맘띠아모]",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "royaltyserver",
+      "club_id": 22417348,
+      "name": "★송도랑 - 송도랑 살아가는 사람들(대표 커뮤니티)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "getamped2",
+      "club_id": 10174516,
+      "name": "쌍둥이맘 모여라 - 쌍둥이 대표 카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "nyamnyam",
+      "club_id": 10096261,
+      "name": "대전의 맛집멋집",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "ksmoms",
+      "club_id": 20458227,
+      "name": "경산맘들 모여라 │ 네이버 지역 대표 맘카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "anywherecartoon",
+      "club_id": 19690101,
+      "name": "전주 전북 반디맘",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "joonggomaket",
+      "club_id": 19569415,
+      "name": "대구맘카페 ♥ 대구중구맘,수성구맘,달서구맘,대구남구맘,대구맘",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "ailovely",
+      "club_id": 11454576,
+      "name": "창원맘처럼 (창원 맘카페-육아 교육 맛집 생활정보 커뮤니티)",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "eulkwan",
+      "club_id": 10100874,
+      "name": "동탄맘[동탄맘,동투맘,동탄2신도시,오산,세교,화성]",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "nihongokkureomi",
+      "club_id": 10015429,
+      "name": "서울살이 -  육아부터 노후까지 함께해요",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "busanmiz",
+      "club_id": 12553787,
+      "name": "명지에코맘 ♥ 명지맘,에코맘카페-국제신도시,오션,에코델타시티",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "city2006",
+      "club_id": 12241130,
+      "name": "의정부 이야기",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "gupilove",
+      "club_id": 10430576,
+      "name": "구피사랑",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "suwongt",
+      "club_id": 11222213,
+      "name": "맛있는 수원 / 수원 맛집을 찾아서~",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "myfriendspet",
+      "club_id": 12621653,
+      "name": "햄사모 - 햄스터를 사랑하는 모임, 햄스터 다람쥐 저빌 무료분양",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "enjoybusan",
+      "club_id": 10090659,
+      "name": "부산을100배 즐기자[부백즐]맛집 술집 여행 중고 구인 공동구매",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "flytrimmer",
+      "club_id": 22809044,
+      "name": "애견미용사날다. 애견미용과 반려동물을 사랑하는 사람들의 모임",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "gdqueen",
+      "club_id": 18003921,
+      "name": "은빛요정 비숑프리제",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "5inglife",
+      "club_id": 21310535,
+      "name": "말티푸 마을 - 말티푸, 말티즈/푸들 대환영, 강아지 커뮤니티",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "shibanaracom",
+      "club_id": 31448881,
+      "name": "시바나라 아지트 - 시바견 정보, 강아지 커뮤니티, 분양/입양",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "flydengdeng",
+      "club_id": 29521588,
+      "name": "[플라이댕댕] 강아지 고양이 해외여행 이민준비",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "strongcat",
+      "club_id": 29501663,
+      "name": "세상의 모든고양이와 강아지",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "guppyyaa",
+      "club_id": 29888526,
+      "name": "구피야놀자 구피 열대어 분양 나눔 물생활 소통 카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "beautiwayer",
+      "club_id": 28440360,
+      "name": "금붕어항-금붕어키우기의 모든 것   대한민국 No.1 금붕어카페",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
+    },
+    {
+      "cluburl": "homedarimall",
+      "club_id": 27325577,
+      "name": "열대어no.2 홈다리 장터",
+      "crawl_all": true,
+      "boards": [
+        {
+          "type": "popular",
+          "name": "인기글"
+        }
+      ]
     }
   ],
   "crawl_accounts": [
@@ -2673,6 +2985,7 @@
     10197921,
     10208198,
     10405904,
+    10430576,
     10450200,
     10973864,
     11196414,
@@ -2752,6 +3065,9 @@
     30487825,
     30821124,
     30929023,
-    31091221
+    31091221,
+    29888526,
+    28440360,
+    27325577
   ]
 }
